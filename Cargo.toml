@@ -1,0 +1,17 @@
+[package]
+name = "cargo-web"
+version = "0.1.0"
+authors = ["Jan Bujak <j@exia.io>"]
+repository = "https://github.com/koute/cargo-web"
+homepage = "https://github.com/koute/cargo-web"
+license = "MIT/Apache-2.0"
+readme = "README.md"
+description = "A Cargo subcommand for the client-side Web"
+keywords = ["cargo", "subcommand", "web", "asmjs", "webasm"]
+
+[dependencies]
+clap = "2"
+notify = "3"
+tempdir = "0.3"
+rouille = { version = "1", default-features = false }
+cargo-shim = "0.1"
