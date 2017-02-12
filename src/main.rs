@@ -73,11 +73,31 @@ const DEFAULT_TEST_INDEX_HTML: &'static str = "
     <script>
         var __cargo_web = {};
         __cargo_web.print_counter = 0;
+        __cargo_web.xhr_queue = [];
+        __cargo_web.xhr_in_progress = 0;
+        __cargo_web.flush_xhr = function() {
+            if( __cargo_web.xhr_queue.length === 0 ) {
+                return;
+            }
+            var next_callback = __cargo_web.xhr_queue.shift();
+            next_callback();
+        };
         __cargo_web.send_xhr = function( url, data ) {
-            var xhr = new XMLHttpRequest();
-            xhr.open( 'PUT', url );
-            xhr.setRequestHeader( 'Content-Type', 'text/plain' );
-            xhr.send( data );
+            var callback = function() {
+                __cargo_web.xhr_in_progress++;
+                var xhr = new XMLHttpRequest();
+                xhr.open( 'PUT', url );
+                xhr.setRequestHeader( 'Content-Type', 'text/plain' );
+                xhr.onload = function() {
+                    __cargo_web.xhr_in_progress--;
+                    __cargo_web.flush_xhr();
+                };
+                xhr.send( data );
+            };
+            __cargo_web.xhr_queue.push( callback );
+            if( __cargo_web.xhr_in_progress === 0 ) {
+                __cargo_web.flush_xhr();
+            }
         };
         __cargo_web.print = function( message ) {
             __cargo_web.print_counter++;
