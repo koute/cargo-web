@@ -23,6 +23,7 @@ use std::fs;
 use std::time::Instant;
 use std::error;
 use std::fmt;
+use std::env;
 
 use notify::{
     RecommendedWatcher,
@@ -645,6 +646,22 @@ fn command_start< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject
 }
 
 fn main() {
+    let args = {
+        // To allow running both as 'cargo-web' and as 'cargo web'.
+        let mut args = env::args();
+        let mut filtered_args = Vec::new();
+        filtered_args.push( args.next().unwrap() );
+
+        match args.next() {
+            None => {},
+            Some( ref arg ) if filtered_args[ 0 ].ends_with( "cargo-web" ) && arg == "web" => {},
+            Some( arg ) => filtered_args.push( arg )
+        }
+
+        filtered_args.extend( args );
+        filtered_args
+    };
+
     let matches = App::new( "cargo-web" )
         .version( env!( "CARGO_PKG_VERSION" ) )
         .setting( AppSettings::SubcommandRequiredElseHelp )
@@ -771,7 +788,7 @@ fn main() {
                         .takes_value( true )
                 )
         )
-        .get_matches();
+        .get_matches_from( args );
 
     let project = CargoProject::new( None );
     let result = if let Some( matches ) = matches.subcommand_matches( "build" ) {
