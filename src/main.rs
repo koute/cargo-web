@@ -498,6 +498,24 @@ impl< 'a > BuildArgsMatcher< 'a > {
     }
 }
 
+fn run_with_broken_first_build_hack( package: &CargoPackage, build_config: &BuildConfig, command: &mut Command ) -> Result< (), Error > {
+    if command.run().is_ok() == false {
+        return Err( Error::BuildError );
+    }
+
+    let artifacts = build_config.potential_artifacts( &package.crate_root );
+
+    // HACK: For some reason when you install emscripten for the first time
+    // the first build is always a dud (it produces no artifacts), so we do this.
+    if artifacts.is_empty() {
+        if command.run().is_ok() == false {
+            return Err( Error::BuildError );
+        }
+    }
+
+    Ok(())
+}
+
 fn command_build< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject ) -> Result< (), Error > {
     let use_system_emscripten = matches.is_present( "use-system-emscripten" );
     let extra_path = check_for_emcc( use_system_emscripten );
@@ -519,9 +537,7 @@ fn command_build< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject
             command.append_to_path( extra_path );
         }
 
-        if command.run().is_ok() == false {
-            return Err( Error::BuildError );
-        }
+        run_with_broken_first_build_hack( package, &build_config, &mut command )?;
     }
 
     Ok(())
@@ -572,11 +588,10 @@ fn command_test< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject 
             command.append_to_path( extra_path );
         }
 
-        if command.run().is_ok() == false {
-            return Err( Error::BuildError );
-        }
+        run_with_broken_first_build_hack( package, &build_config, &mut command )?;
 
         let mut post_artifacts = build_config.potential_artifacts( &package.crate_root );
+
         let artifact =
         if post_artifacts.len() == 1 {
             post_artifacts.pop().unwrap()
@@ -748,11 +763,10 @@ fn command_start< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject
         command.append_to_path( extra_path );
     }
 
-    if command.run().is_ok() == false {
-        return Err( Error::BuildError );
-    }
+    run_with_broken_first_build_hack( package, &build_config, &mut command )?;
 
     let artifacts = build_config.potential_artifacts( &package.crate_root );
+
     let output_path = &artifacts[ 0 ];
     let app_js = read( output_path ).unwrap();
     let app_js = Arc::new( Mutex::new( app_js ) );
