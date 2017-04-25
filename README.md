@@ -13,13 +13,14 @@ the following sub-subcommands:
   * `cargo web start` - builds the project, starts an embedded webserver
                         and rebuilds as needed
 
+It will also automatically download Emscripten for you (x86_64 Linux only for now).
+
 Other features which are (eventually) planned but are yet not here:
 
   * Fully headless test running.
   * Feature parity with cargo.
   * Webasm support.
   * Built-in minification.
-  * Automatic installation of Emscripten (unless rustup gets there first?).
   * Possibly a bridge into the `npm` ecosystem to fetch JavaScript libraries.
   * Anything else you might expect from a tool like this (suggestions welcome!).
 

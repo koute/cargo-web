@@ -10,15 +10,23 @@ extern crate clap;
 extern crate notify;
 extern crate rouille;
 extern crate tempdir;
+extern crate hyper;
+extern crate hyper_rustls;
+extern crate pbr;
+extern crate xdg;
+extern crate libflate;
+extern crate tar;
+extern crate sha2;
+extern crate digest;
 extern crate cargo_shim;
 
 use std::process::{Command, Stdio, exit};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::mpsc::{RecvTimeoutError, channel};
 use std::sync::{Mutex, Arc};
 use std::time::Duration;
 use std::thread;
-use std::io::{Read, Write, stderr};
+use std::io::{self, Read, Write, stderr};
 use std::fs;
 use std::time::Instant;
 use std::error;
@@ -40,6 +48,17 @@ use clap::{
 };
 
 use tempdir::TempDir;
+
+use hyper::Client;
+use hyper::header::{Connection, ContentLength};
+use hyper::net::HttpConnector;
+use hyper::net::HttpsConnector;
+use hyper::client::ProxyConfig;
+use hyper::Url;
+
+use libflate::gzip;
+
+use digest::{Input, Digest};
 
 use cargo_shim::*;
 
@@ -178,7 +197,163 @@ fn check_if_command_exists( command: &str, extra_path: Option< &str > ) -> bool 
     return command.spawn().is_ok()
 }
 
-fn check_for_emcc() -> Option< &'static str > {
+fn unpack< I: AsRef< Path >, O: AsRef< Path > >( input_path: I, output_path: O ) -> Result< (), Box< io::Error > > {
+    let output_path = output_path.as_ref();
+    let file = fs::File::open( input_path )?;
+    let decoder = gzip::Decoder::new( file )?;
+    let mut archive = tar::Archive::new( decoder );
+    archive.unpack( output_path )?;
+
+    Ok(())
+}
+
+struct PrebuiltPackage {
+    url: &'static str,
+    name: &'static str,
+    version: &'static str,
+    arch: &'static str,
+    hash: &'static str,
+    size: u64,
+}
+
+fn emscripten_package() -> Option< PrebuiltPackage > {
+    let package =
+        if cfg!( target_os = "linux" ) && cfg!( target_arch = "x86_64" ) {
+            PrebuiltPackage {
+                url: "https://github.com/koute/emscripten-build/raw/gh-pages/emscripten-1.37.10-1-x86_64-unknown-linux-gnu.tgz",
+                name: "emscripten",
+                version: "1.37.10-1",
+                arch: "x86_64-unknown-linux-gnu",
+                hash: "d380559a5dc153cb0609ddb122143f5a33b982e8a9c8f3ca3a6dc07ad7f5a5e6",
+                size: 136361968
+            }
+        } else {
+            return None;
+        };
+
+    Some( package )
+}
+
+fn download_package( package: &PrebuiltPackage ) -> PathBuf {
+    let url = Url::parse( package.url ).unwrap();
+    let package_filename = url.path_segments().unwrap().last().unwrap().to_owned();
+
+    let xdg_dirs = xdg::BaseDirectories::with_prefix( "cargo-web" ).unwrap();
+    let unpack_path = xdg_dirs.place_data_file( package.name ).unwrap().join( package.arch );
+    let version_path = unpack_path.join( ".version" );
+
+    if let Ok( existing_version ) = read( &version_path ) {
+        if existing_version == package.version {
+            return unpack_path;
+        }
+    }
+
+    if fs::metadata( &unpack_path ).is_ok() {
+        fs::remove_dir_all( &unpack_path ).unwrap();
+    }
+
+    fs::create_dir_all( &unpack_path ).unwrap();
+
+    let tls = hyper_rustls::TlsClient::new();
+    let client = match env::var( "HTTP_PROXY" ) {
+        Ok( proxy ) => {
+            let proxy = match Url::parse( proxy.as_str() ) {
+                Ok( url ) => url,
+                Err( error ) => {
+                    println_err!( "Invalid HTTP_PROXY: #{:?}", error );
+                    exit( 101 );
+                }
+            };
+
+            let connector = HttpConnector::default();
+            let proxy_config = ProxyConfig::new(
+                proxy.scheme(),
+                proxy.host_str().unwrap().to_string(),
+                proxy.port_or_known_default().unwrap(),
+                connector,
+                tls
+            );
+            Client::with_proxy_config( proxy_config )
+        },
+        _ => {
+            let connector = HttpsConnector::new( tls );
+            Client::with_connector( connector )
+        }
+    };
+
+    println_err!( "Downloading {}...", package_filename );
+    let mut response = client.get( url )
+        .header( Connection::close() )
+        .send().unwrap();
+
+    let tmpdir = TempDir::new( format!( "cargo-web-{}-download", package.name ).as_str() ).unwrap();
+    let dlpath = tmpdir.path().join( &package_filename );
+    let mut fp = fs::File::create( &dlpath ).unwrap();
+
+    let length: Option< ContentLength > = response.headers.get().cloned();
+    let length = length.map( |length| length.0 ).unwrap_or( package.size );
+    let mut pb = pbr::ProgressBar::new( length );
+    pb.set_units( pbr::Units::Bytes );
+
+    let mut buffer = Vec::new();
+    buffer.resize( 1024 * 1024, 0 );
+
+    let mut hasher = sha2::Sha256::default();
+    loop {
+        let length = match response.read( &mut buffer ) {
+            Ok( 0 ) => break,
+            Ok( length ) => length,
+            Err( ref err ) if err.kind() == io::ErrorKind::Interrupted => continue,
+            Err( err ) => panic!( err )
+        };
+
+        let slice = &buffer[ 0..length ];
+        hasher.digest( slice );
+        fp.write_all( slice ).unwrap();
+        pb.add( length as u64 );
+    }
+
+    pb.finish();
+
+    let actual_hash = hasher.result();
+    let actual_hash = actual_hash.map( |byte| format!( "{:02x}", byte ) ).join( "" );
+
+    if actual_hash != package.hash {
+        println_err!( "error: the hash of {} doesn't match the expected hash!", package_filename );
+        println_err!( "  actual: {}", actual_hash );
+        println_err!( "  expected: {}", package.hash );
+        exit( 101 );
+    }
+
+    println_err!( "Unpacking {}...", package_filename );
+    unpack( &dlpath, &unpack_path ).unwrap();
+    write( &version_path, package.version ).unwrap();
+
+    println_err!( "Package {} was successfully installed!", package_filename );
+    return unpack_path;
+}
+
+fn check_for_emcc( use_system_emscripten: bool ) -> Option< PathBuf > {
+    let emscripten_package =
+        if use_system_emscripten {
+            None
+        } else {
+            emscripten_package()
+        };
+
+    if let Some( package ) = emscripten_package {
+        let emscripten_path = download_package( &package );
+        let emscripten_bin_path = emscripten_path.join( "emscripten" );
+        let emscripten_llvm_path = emscripten_path.join( "emscripten-fastcomp" );
+
+        env::set_var( "EMSCRIPTEN", &emscripten_bin_path );
+        env::set_var( "EMSCRIPTEN_FASTCOMP", &emscripten_llvm_path );
+        env::set_var( "LLVM", &emscripten_llvm_path );
+        // TODO: What about `BINARYEN`?
+
+        return Some( emscripten_bin_path );
+    }
+
     if check_if_command_exists( "emcc", None ) {
         return None;
     }
@@ -187,7 +362,7 @@ fn check_for_emcc() -> Option< &'static str > {
         if check_if_command_exists( "emcc", Some( "/usr/lib/emscripten" ) ) {
             // Arch package doesn't put Emscripten anywhere in the $PATH, but
             // it's there and it works.
-            return Some( "/usr/lib/emscripten" );
+            return Some( "/usr/lib/emscripten".into() );
         }
     }
 
@@ -324,7 +499,8 @@ impl< 'a > BuildArgsMatcher< 'a > {
 }
 
 fn command_build< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject ) -> Result< (), Error > {
-    let extra_path = check_for_emcc();
+    let use_system_emscripten = matches.is_present( "use-system-emscripten" );
+    let extra_path = check_for_emcc( use_system_emscripten );
 
     let build_matcher = BuildArgsMatcher {
         matches: matches,
@@ -352,7 +528,8 @@ fn command_build< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject
 }
 
 fn command_test< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject ) -> Result< (), Error > {
-    let extra_path = check_for_emcc();
+    let use_system_emscripten = matches.is_present( "use-system-emscripten" );
+    let extra_path = check_for_emcc( use_system_emscripten );
 
     let no_run = matches.is_present( "no-run" );
     let use_nodejs = matches.is_present( "nodejs" );
@@ -544,7 +721,8 @@ fn command_test< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject 
 }
 
 fn command_start< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject ) -> Result< (), Error > {
-    let extra_path = check_for_emcc();
+    let use_system_emscripten = matches.is_present( "use-system-emscripten" );
+    let extra_path = check_for_emcc( use_system_emscripten );
 
     let build_matcher = BuildArgsMatcher {
         matches: matches,
@@ -670,6 +848,11 @@ fn main() {
             SubCommand::with_name( "build" )
                 .about( "Compile a local package and all of its dependencies" )
                 .arg(
+                    Arg::with_name( "use-system-emscripten" )
+                        .long( "use-system-emscripten" )
+                        .help( "Won't try to download Emscripten; will always use the system one" )
+                )
+                .arg(
                     Arg::with_name( "release" )
                         .long( "release" )
                         .help( "Build artifacts in release mode, with optimizations" )
@@ -720,6 +903,11 @@ fn main() {
             SubCommand::with_name( "test" )
                 .about( "Compiles and runs tests" )
                 .arg(
+                    Arg::with_name( "use-system-emscripten" )
+                        .long( "use-system-emscripten" )
+                        .help( "Won't try to download Emscripten; will always use the system one" )
+                )
+                .arg(
                     Arg::with_name( "no-run" )
                         .long( "no-run" )
                         .help( "Compile, but don't run tests" )
@@ -746,6 +934,11 @@ fn main() {
         .subcommand(
             SubCommand::with_name( "start" )
                 .about( "Runs an embedded web server serving the built project" )
+                .arg(
+                    Arg::with_name( "use-system-emscripten" )
+                        .long( "use-system-emscripten" )
+                        .help( "Won't try to download Emscripten; will always use the system one" )
+                )
                 .arg(
                     Arg::with_name( "release" )
                         .long( "release" )

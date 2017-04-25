@@ -1,7 +1,7 @@
 use std::process::Command;
 use std::path::Path;
 use std::fs::File;
-use std::io::Read;
+use std::io::{Read, Write};
 use std::error::Error;
 use std::env;
 
@@ -52,4 +52,10 @@ pub fn read< P: AsRef< Path > >( path: P ) -> Result< String, Box< Error > > {
     let mut output = String::new();
     fp.read_to_string( &mut output )?;
     Ok( output )
+}
+
+pub fn write< P: AsRef< Path > >( path: P, string: &str ) -> Result< (), Box< Error > > {
+    let mut fp = File::create( path )?;
+    fp.write_all( string.as_bytes() )?;
+    Ok( () )
 }
