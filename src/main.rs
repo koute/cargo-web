@@ -635,7 +635,16 @@ fn command_test< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject 
     let mut any_failure = false;
     if use_nodejs {
         for artifact in &post_artifacts_per_build {
-            let status = Command::new( "node" ).arg( artifact ).run();
+            let nodejs_name =
+                if check_if_command_exists( "nodejs", None ) {
+                    "nodejs"
+                } else if check_if_command_exists( "node", None ) {
+                    "node"
+                } else {
+                    return Err( Error::EnvironmentError( "node.js not found; please install it!".into() ) );
+                };
+
+            let status = Command::new( nodejs_name ).arg( artifact ).run();
             any_failure = any_failure || !status.is_ok();
         }
     } else {
