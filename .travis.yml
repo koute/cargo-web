@@ -1,4 +1,8 @@
 language: rust
+
+dist: trusty
+sudo: false
+
 rust:
   - stable
   - beta
@@ -10,3 +14,7 @@ matrix:
 
 script:
   - cargo test --verbose
+  - cargo install
+  - rustup target add asmjs-unknown-emscripten
+  - git clone https://github.com/koute/stdweb.git
+  - cd stdweb && cargo web test --nodejs
