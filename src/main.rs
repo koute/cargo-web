@@ -220,7 +220,7 @@ fn emscripten_package() -> Option< PrebuiltPackage > {
     let package =
         if cfg!( target_os = "linux" ) && cfg!( target_arch = "x86_64" ) {
             PrebuiltPackage {
-                url: "https://github.com/koute/emscripten-build/raw/gh-pages/emscripten-1.37.10-1-x86_64-unknown-linux-gnu.tgz",
+                url: "https://github.com/koute/emscripten-build/releases/download/emscripten-1.37.10-1-x86_64-unknown-linux-gnu/emscripten-1.37.10-1-x86_64-unknown-linux-gnu.tgz",
                 name: "emscripten",
                 version: "1.37.10-1",
                 arch: "x86_64-unknown-linux-gnu",
