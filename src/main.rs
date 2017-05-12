@@ -27,6 +27,7 @@ use std::sync::{Mutex, Arc};
 use std::time::Duration;
 use std::thread;
 use std::io::{self, Read, Write, stderr};
+use std::net::{self, ToSocketAddrs};
 use std::fs;
 use std::time::Instant;
 use std::error;
@@ -507,6 +508,13 @@ impl< 'a > BuildArgsMatcher< 'a > {
     }
 }
 
+fn address_or_default< 'a >( matches: &clap::ArgMatches< 'a > ) -> net::SocketAddr {
+    let host = matches.value_of( "host" ).unwrap_or( "localhost" );
+    let port = matches.value_of( "port" ).unwrap_or( "8000" );
+    format!( "{}:{}", host, port ).to_socket_addrs().unwrap().next().unwrap()
+}
+
+
 fn run_with_broken_first_build_hack( package: &CargoPackage, build_config: &BuildConfig, command: &mut Command ) -> Result< (), Error > {
     if command.run().is_ok() == false {
         return Err( Error::BuildError );
@@ -799,7 +807,8 @@ fn command_start< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject
         _ => None
     };
 
-    let server = rouille::Server::new( "localhost:8000", move |request| {
+    let address = address_or_default( matches );
+    let server = rouille::Server::new( &address, move |request| {
         let mut response;
 
         if let Some( ref target_static_path ) = target_static_path {
@@ -849,7 +858,7 @@ fn command_start< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject
     println_err!( "Your application is being served at '/js/app.js'. It will be automatically" );
     println_err!( "rebuilt if you make any changes in your code." );
     println_err!( "" );
-    println_err!( "You can access the web server at `http://localhost:8000`." );
+    println_err!( "You can access the web server at `http://{}`.", &address );
 
     server.run();
     Ok(())
@@ -1013,6 +1022,18 @@ fn main() {
                         .long( "bench" )
                         .help( "Build only the specified benchmark target" )
                         .value_name( "NAME" )
+                        .takes_value( true )
+                ).arg(
+                    Arg::with_name( "host" )
+                        .long( "host" )
+                        .help( "Bind the server to this address, default `localhost`")
+                        .value_name( "HOST" )
+                        .takes_value( true )
+                ).arg(
+                    Arg::with_name( "port" )
+                        .long( "port" )
+                        .help( "Bind the server to this port, default 8000" )
+                        .value_name( "PORT" )
                         .takes_value( true )
                 )
         )
