@@ -71,7 +71,7 @@ macro_rules! println_err(
     }}
 );
 
-const APP_INFO: app_dirs::AppInfo = app_dirs::AppInfo {name: "cargo-web", author: "Jan Bujack"};
+const APP_INFO: app_dirs::AppInfo = app_dirs::AppInfo {name: "cargo-web", author: "Jan Bujak"};
 
 const DEFAULT_INDEX_HTML: &'static str = "
 <!DOCTYPE html>
@@ -240,7 +240,7 @@ fn download_package( package: &PrebuiltPackage ) -> PathBuf {
     let url = Url::parse( package.url ).unwrap();
     let package_filename = url.path_segments().unwrap().last().unwrap().to_owned();
 
-    let unpack_path = app_dirs::get_app_dir(app_dirs::AppDataType::UserData, &APP_INFO, package.name )
+    let unpack_path = app_dirs::app_dir( app_dirs::AppDataType::UserData, &APP_INFO, package.name )
         .unwrap()
         .join( package.arch );
     let version_path = unpack_path.join( ".version" );
@@ -361,11 +361,15 @@ fn check_for_emcc( use_system_emscripten: bool ) -> Option< PathBuf > {
         return None;
     }
 
-    if Path::new( "/usr/lib/emscripten/emcc" ).exists() {
+    if cfg!( any(linux) ) && Path::new( "/usr/lib/emscripten/emcc" ).exists() {
         if check_if_command_exists( "emcc", Some( "/usr/lib/emscripten" ) ) {
             // Arch package doesn't put Emscripten anywhere in the $PATH, but
             // it's there and it works.
             return Some( "/usr/lib/emscripten".into() );
+        }
+    } else if cfg!( any(windows) ) {
+        if check_if_command_exists( "emcc.bat", None ) {
+            return None;
         }
     }
 
@@ -380,6 +384,8 @@ fn check_for_emcc( use_system_emscripten: bool ) -> Option< PathBuf > {
         println_err!( "  sudo apt-get install emscripten" );
     } else if cfg!( target_os = "linux" ) {
         println_err!( "You can most likely find it in your distro's repositories." );
+    } else if cfg!( target_os = "windows" ) {
+        println_err!( "Download and install emscripten from the official site: http://kripken.github.io/emscripten-site/docs/getting_started/downloads.html" );
     }
 
     if cfg!( unix ) {
