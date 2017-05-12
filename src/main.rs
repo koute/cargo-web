@@ -13,7 +13,7 @@ extern crate tempdir;
 extern crate hyper;
 extern crate hyper_rustls;
 extern crate pbr;
-extern crate xdg;
+extern crate app_dirs;
 extern crate libflate;
 extern crate tar;
 extern crate sha2;
@@ -70,6 +70,8 @@ macro_rules! println_err(
         writeln!( &mut stderr(), $($arg)* ).expect( "writeln to stderr failed" );
     }}
 );
+
+const APP_INFO: app_dirs::AppInfo = app_dirs::AppInfo {name: "cargo-web", author: "Jan Bujack"};
 
 const DEFAULT_INDEX_HTML: &'static str = "
 <!DOCTYPE html>
@@ -238,8 +240,9 @@ fn download_package( package: &PrebuiltPackage ) -> PathBuf {
     let url = Url::parse( package.url ).unwrap();
     let package_filename = url.path_segments().unwrap().last().unwrap().to_owned();
 
-    let xdg_dirs = xdg::BaseDirectories::with_prefix( "cargo-web" ).unwrap();
-    let unpack_path = xdg_dirs.place_data_file( package.name ).unwrap().join( package.arch );
+    let unpack_path = app_dirs::get_app_dir(app_dirs::AppDataType::UserData, &APP_INFO, package.name )
+        .unwrap()
+        .join( package.arch );
     let version_path = unpack_path.join( ".version" );
 
     if let Ok( existing_version ) = read( &version_path ) {
