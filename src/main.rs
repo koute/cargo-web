@@ -858,7 +858,10 @@ fn main() {
 
         match args.next() {
             None => {},
+            #[cfg(any(unix))]
             Some( ref arg ) if filtered_args[ 0 ].ends_with( "cargo-web" ) && arg == "web" => {},
+            #[cfg(any(windows))]
+            Some( ref arg ) if filtered_args[ 0 ].ends_with( "cargo-web.exe" ) && arg == "web" => {},
             Some( arg ) => filtered_args.push( arg )
         }
 
