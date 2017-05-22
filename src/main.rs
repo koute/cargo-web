@@ -569,12 +569,14 @@ fn command_test< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject 
 
     let mut chromium_executable = "";
     if !use_nodejs {
-        chromium_executable = if check_if_command_exists( "chromium", None ) {
+        chromium_executable = if cfg!( any(windows) ) && check_if_command_exists( "chrome.exe", None ) {
+            "chrome.exe"
+        } else if check_if_command_exists( "chromium", None ) {
             "chromium"
         } else if check_if_command_exists( "google-chrome", None ) {
             "google-chrome"
         } else {
-            return Err( Error::EnvironmentError( "you need to have either Chromium or Chrome installed to run the tests!".into() ) );
+            return Err( Error::EnvironmentError( "you need to have either Chromium or Chrome installed and in your PATH to run the tests!".into() ) );
         }
     }
 
@@ -653,7 +655,9 @@ fn command_test< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject 
     if use_nodejs {
         for artifact in &post_artifacts_per_build {
             let nodejs_name =
-                if check_if_command_exists( "nodejs", None ) {
+                if cfg!( any(windows) ) && check_if_command_exists( "node.exe", None ) {
+                    "node.exe"
+                } else if check_if_command_exists( "nodejs", None ) {
                     "nodejs"
                 } else if check_if_command_exists( "node", None ) {
                     "node"
