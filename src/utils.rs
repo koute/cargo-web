@@ -1,8 +1,7 @@
 use std::process::Command;
 use std::path::Path;
 use std::fs::File;
-use std::io::{Read, Write};
-use std::error::Error;
+use std::io::{self, Read, Write};
 use std::env;
 
 pub struct ExecutionStatus {
@@ -47,14 +46,14 @@ impl CommandExt for Command {
     }
 }
 
-pub fn read< P: AsRef< Path > >( path: P ) -> Result< String, Box< Error > > {
+pub fn read< P: AsRef< Path > >( path: P ) -> Result< String, io::Error > {
     let mut fp = File::open( path.as_ref() )?;
     let mut output = String::new();
     fp.read_to_string( &mut output )?;
     Ok( output )
 }
 
-pub fn write< P: AsRef< Path > >( path: P, string: &str ) -> Result< (), Box< Error > > {
+pub fn write< P: AsRef< Path > >( path: P, string: &str ) -> Result< (), io::Error > {
     let mut fp = File::create( path )?;
     fp.write_all( string.as_bytes() )?;
     Ok( () )
