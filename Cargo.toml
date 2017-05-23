@@ -12,7 +12,7 @@ categories = ["development-tools", "development-tools::cargo-plugins", "web-prog
 
 [dependencies]
 clap = "2"
-notify = "3"
+notify = "4"
 tempdir = "0.3"
 rouille = { version = "1", default-features = false }
 cargo-shim = "0.1"
