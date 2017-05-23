@@ -26,7 +26,7 @@ use std::sync::mpsc::{RecvTimeoutError, channel};
 use std::sync::{Mutex, Arc};
 use std::time::Duration;
 use std::thread;
-use std::io::{self, Read, Write, stderr};
+use std::io::{self, Read, Write};
 use std::net::{self, ToSocketAddrs};
 use std::fs;
 use std::time::Instant;
@@ -63,14 +63,9 @@ use digest::{Input, Digest};
 
 use cargo_shim::*;
 
+#[macro_use]
 mod utils;
 use utils::*;
-
-macro_rules! println_err(
-    ($($arg:tt)*) => { {
-        writeln!( &mut stderr(), $($arg)* ).expect( "writeln to stderr failed" );
-    }}
-);
 
 const APP_INFO: app_dirs::AppInfo = app_dirs::AppInfo {name: "cargo-web", author: "Jan Bujak"};
 
