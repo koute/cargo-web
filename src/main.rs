@@ -18,6 +18,10 @@ extern crate libflate;
 extern crate tar;
 extern crate sha2;
 extern crate digest;
+extern crate toml;
+extern crate serde;
+#[macro_use]
+extern crate serde_derive;
 extern crate cargo_shim;
 
 use std::process::{Command, Stdio, exit};
@@ -65,7 +69,10 @@ use cargo_shim::*;
 
 #[macro_use]
 mod utils;
+mod config;
+
 use utils::*;
+use config::Config;
 
 const APP_INFO: app_dirs::AppInfo = app_dirs::AppInfo {name: "cargo-web", author: "Jan Bujak"};
 
@@ -528,6 +535,28 @@ fn run_with_broken_first_build_hack( package: &CargoPackage, build_config: &Buil
     Ok(())
 }
 
+fn set_link_args( config: &Config ) {
+    if let Some( ref link_args ) = config.link_args {
+        let mut rustflags = String::new();
+        if let Ok( flags ) = env::var( "RUSTFLAGS" ) {
+            rustflags.push_str( flags.as_str() );
+            rustflags.push_str( " " );
+        }
+
+        for arg in link_args {
+            if arg.contains( " " ) {
+                // Not sure how to handle spaces, as `-C link-arg="{}"` doesn't work.
+                println_err!( "error: you have a space in one of the entries in `link-args` in your `Web.toml`;" );
+                println_err!( "       this is currently unsupported - aborting!" );
+                exit( 101 );
+            }
+            rustflags.push_str( format!( "-C link-arg={} ", arg ).as_str() );
+        }
+
+        env::set_var( "RUSTFLAGS", rustflags.trim() );
+    }
+}
+
 fn command_build< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject ) -> Result< (), Error > {
     let use_system_emscripten = matches.is_present( "use-system-emscripten" );
     let extra_path = check_for_emcc( use_system_emscripten );
@@ -538,6 +567,9 @@ fn command_build< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject
     };
 
     let package = build_matcher.package_or_default()?;
+    let config = Config::load_for_package_printing_warnings( &package ).unwrap().unwrap_or_default();
+    set_link_args( &config );
+
     let targets = build_matcher.target_or_select( package, |target| {
         target.kind == TargetKind::Lib || target.kind == TargetKind::Bin
     })?;
@@ -581,6 +613,9 @@ fn command_test< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject 
     };
 
     let package = build_matcher.package_or_default()?;
+    let config = Config::load_for_package_printing_warnings( &package ).unwrap().unwrap_or_default();
+    set_link_args( &config );
+
     let targets = build_matcher.target_or_select( package, |target| {
         target.kind == TargetKind::Lib || target.kind == TargetKind::Bin || target.kind == TargetKind::Test
     })?;
@@ -770,6 +805,9 @@ fn command_start< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject
     };
 
     let package = build_matcher.package_or_default()?;
+    let config = Config::load_for_package_printing_warnings( &package ).unwrap().unwrap_or_default();
+    set_link_args( &config );
+
     let targets = build_matcher.target_or_select( package, |target| {
         target.kind == TargetKind::Bin
     })?;
