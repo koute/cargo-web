@@ -758,10 +758,7 @@ fn command_test< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject 
             let tmpdir = tmpdir.path().to_string_lossy();
             let mut command = Command::new( chromium_executable );
             command
-                // https://chromium.googlesource.com/chromium/src/+/master/headless/README.md
-                // This doesn't work on my machine though. Maybe my Chromium was compiled
-                // without it or it isn't yet merged?
-                .arg( "--headless" )
+                // TODO: Switch to headless.
                 .arg( format!( "--app=http://localhost:{}", server_address.port() ) )
                 .arg( "--disable-gpu" )
                 .arg( "--no-first-run" )
