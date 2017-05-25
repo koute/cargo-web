@@ -1,6 +1,6 @@
 [root]
 name = "cargo-web"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "app_dirs 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "cargo-shim 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
