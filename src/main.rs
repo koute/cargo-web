@@ -23,6 +23,7 @@ extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 extern crate cargo_shim;
+extern crate handlebars;
 
 use std::process::{Command, Stdio, exit};
 use std::path::{Path, PathBuf};
@@ -61,6 +62,8 @@ use hyper::net::HttpsConnector;
 use hyper::client::ProxyConfig;
 use hyper::Url;
 
+use handlebars::Handlebars;
+
 use libflate::gzip;
 
 use digest::{Input, Digest};
@@ -76,12 +79,12 @@ use config::Config;
 
 const APP_INFO: app_dirs::AppInfo = app_dirs::AppInfo {name: "cargo-web", author: "Jan Bujak"};
 
-const DEFAULT_INDEX_HTML: &'static str = "
+const DEFAULT_INDEX_HTML: &'static str = r#"
 <!DOCTYPE html>
 <head>
-    <meta charset=\"utf-8\" />
-    <meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\" />
-    <meta content=\"width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=1\" name=\"viewport\" />
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=1" name="viewport" />
     <script>
         var Module = {};
         var __cargo_web = {};
@@ -101,17 +104,17 @@ const DEFAULT_INDEX_HTML: &'static str = "
     </script>
 </head>
 <body>
-    <script src=\"js/app.js\"></script>
+    <script src="js/app.js"></script>
 </body>
 </html>
-";
+"#;
 
-const DEFAULT_TEST_INDEX_HTML: &'static str = "
+const DEFAULT_TEST_INDEX_HTML: &'static str = r#"
 <!DOCTYPE html>
 <head>
-    <meta charset=\"utf-8\" />
-    <meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\" />
-    <meta content=\"width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=1\" name=\"viewport\" />
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=1" name="viewport" />
     <script>
         var __cargo_web = {};
         __cargo_web.print_counter = 0;
@@ -157,13 +160,14 @@ const DEFAULT_TEST_INDEX_HTML: &'static str = "
         Module['print'] = __cargo_web.print;
         Module['printErr'] = __cargo_web.print;
         Module['onExit'] = __cargo_web.on_exit;
+        Module['arguments'] = [{{#each arguments}} "{{{ this }}}", {{/each}}];
     </script>
 </head>
 <body>
-    <script src=\"js/app.js\"></script>
+    <script src="js/app.js"></script>
 </body>
 </html>
-";
+"#;
 
 fn monitor_for_changes_and_rebuild(
     package: &CargoPackage,
@@ -610,6 +614,8 @@ fn command_test< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject 
 
     let no_run = matches.is_present( "no-run" );
     let use_nodejs = matches.is_present( "nodejs" );
+    let arg_passthrough = matches.values_of_os( "passthrough" )
+        .map_or(vec![], |args| args.collect());
 
     let mut chromium_executable = "";
     if !use_nodejs {
@@ -712,18 +718,27 @@ fn command_test< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject 
                     return Err( Error::EnvironmentError( "node.js not found; please install it!".into() ) );
                 };
 
-            let status = Command::new( nodejs_name ).arg( artifact ).run();
+            let test_args = std::iter::once( artifact.as_os_str() )
+               .chain( arg_passthrough.iter().cloned() );
+
+            let status = Command::new( nodejs_name ).args( test_args ).run();
             any_failure = any_failure || !status.is_ok();
         }
     } else {
         let app_js = Arc::new( Mutex::new( String::new() ) );
         let (tx, rx) = channel();
         let server_app_js = app_js.clone();
+        let handlebars = Handlebars::new();
+        let mut template_data = std::collections::BTreeMap::new();
+        let arg_passthrough: Vec<_> = arg_passthrough.iter().map( |arg| arg.to_str().unwrap() ).collect();
+        template_data.insert( "arguments", arg_passthrough );
+        let test_index = handlebars.template_render( DEFAULT_TEST_INDEX_HTML, &template_data ).unwrap();
+
         let tx = Mutex::new( tx ); // Since rouille requires the Sync trait.
         let server = rouille::Server::new( "localhost:0", move |request| {
             let url = request.url();
             let response = if url == "/" || url == "index.html" {
-                rouille::Response::html( DEFAULT_TEST_INDEX_HTML )
+                rouille::Response::html( test_index.clone() )
             } else if url == "/js/app.js" {
                 let data = server_app_js.lock().unwrap().clone();
                 rouille::Response::from_data( "application/javascript", data )
@@ -1024,6 +1039,13 @@ fn main() {
                     Arg::with_name( "nodejs" )
                         .long( "nodejs" )
                         .help( "Uses Node.js to run the tests" )
+                )
+                .arg(
+                    Arg::with_name( "passthrough" )
+                        .help( "-- followed by anything will pass the arguments to the test runner")
+                        .multiple( true )
+                        .takes_value( true )
+                        .last( true )
                 )
         )
         .subcommand(
