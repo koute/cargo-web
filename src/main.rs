@@ -625,6 +625,8 @@ fn command_test< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject 
             "chromium"
         } else if check_if_command_exists( "google-chrome", None ) {
             "google-chrome"
+        } else if check_if_command_exists( "google-chrome-stable", None ) {
+            "google-chrome-stable"
         } else {
             return Err( Error::EnvironmentError( "you need to have either Chromium or Chrome installed and in your PATH to run the tests!".into() ) );
         }
