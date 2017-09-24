@@ -10,6 +10,8 @@ description = "A Cargo subcommand for the client-side Web"
 keywords = ["cargo", "subcommand", "web", "asmjs", "webasm"]
 categories = ["development-tools", "development-tools::cargo-plugins", "web-programming"]
 
+exclude = ["build-scripts"]
+
 [dependencies]
 clap = "2"
 notify = "4"
