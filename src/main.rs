@@ -174,6 +174,7 @@ fn monitor_for_changes_and_rebuild(
     target: &CargoTarget,
     output_path: &Path,
     build: BuildConfig,
+    extra_path: Option< &Path >,
     output: Arc< Mutex< String > >
 ) -> RecommendedWatcher {
     let (tx, rx) = channel();
@@ -184,6 +185,7 @@ fn monitor_for_changes_and_rebuild(
     watcher.watch( &target.source_directory, RecursiveMode::Recursive ).unwrap();
     watcher.watch( &package.manifest_path, RecursiveMode::NonRecursive ).unwrap();
 
+    let extra_path = extra_path.map( |path| path.to_owned() );
     let output_path = output_path.to_owned();
     thread::spawn( move || {
         let rx = rx;
@@ -197,7 +199,13 @@ fn monitor_for_changes_and_rebuild(
             };
 
             println_err!( "==== Triggering `cargo build` ====" );
-            if build.as_command().run().is_ok() {
+
+            let mut command = build.as_command();
+            if let Some( ref extra_path ) = extra_path {
+                command.append_to_path( extra_path );
+            }
+
+            if command.run().is_ok() {
                 if let Ok( data ) = read( &output_path ) {
                     *output.lock().unwrap() = data;
                 }
@@ -875,7 +883,7 @@ fn command_start< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject
     let app_js = Arc::new( Mutex::new( app_js ) );
 
     #[allow(unused_variables)]
-    let watcher = monitor_for_changes_and_rebuild( &package, &target, output_path, build_config, app_js.clone() );
+    let watcher = monitor_for_changes_and_rebuild( &package, &target, output_path, build_config, extra_path.as_ref().map( |path| path.as_path() ), app_js.clone() );
 
     let crate_static_path = package.crate_root.join( "static" );
     let target_static_path = match target.kind {
