@@ -16,6 +16,7 @@ script:
   - cargo test --verbose
   - cargo install
   - rustup target add asmjs-unknown-emscripten
+  - rustup target add wasm32-unknown-emscripten
   - git clone https://github.com/koute/stdweb.git
   - cd stdweb && cargo web test --nodejs
   - cd stdweb && cargo web test --nodejs --target-webasm-emscripten
