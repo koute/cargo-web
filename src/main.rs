@@ -169,13 +169,17 @@ const DEFAULT_TEST_INDEX_HTML: &'static str = r#"
 </html>
 "#;
 
+struct Output {
+    path: PathBuf,
+    data: Vec< u8 >
+}
+
 fn monitor_for_changes_and_rebuild(
     package: &CargoPackage,
     target: &CargoTarget,
-    output_path: &Path,
     build: BuildConfig,
     extra_path: Option< &Path >,
-    output: Arc< Mutex< String > >
+    outputs: Arc< Mutex< Vec< Output > > >
 ) -> RecommendedWatcher {
     let (tx, rx) = channel();
     let mut watcher: RecommendedWatcher = Watcher::new( tx, Duration::from_millis( 500 ) ).unwrap();
@@ -186,7 +190,6 @@ fn monitor_for_changes_and_rebuild(
     watcher.watch( &package.manifest_path, RecursiveMode::NonRecursive ).unwrap();
 
     let extra_path = extra_path.map( |path| path.to_owned() );
-    let output_path = output_path.to_owned();
     thread::spawn( move || {
         let rx = rx;
         while let Ok( event ) = rx.recv() {
@@ -206,8 +209,10 @@ fn monitor_for_changes_and_rebuild(
             }
 
             if command.run().is_ok() {
-                if let Ok( data ) = read( &output_path ) {
-                    *output.lock().unwrap() = data;
+                for output in outputs.lock().unwrap().iter_mut() {
+                    if let Ok( data ) = read_bytes( &output.path ) {
+                        output.data = data;
+                    }
                 }
             }
         }
@@ -269,6 +274,33 @@ fn emscripten_package() -> Option< PrebuiltPackage > {
                 arch: "i686-unknown-linux-gnu",
                 hash: "e534982fccfa148a9a50ba3c81958b48d3ac2b1ace751e77e297b1c34af1200f",
                 size: 143519516
+            }
+        } else {
+            return None;
+        };
+
+    Some( package )
+}
+
+fn binaryen_package() -> Option< PrebuiltPackage > {
+    let package =
+        if cfg!( target_os = "linux" ) && cfg!( target_arch = "x86_64" ) {
+            PrebuiltPackage {
+                url: "https://github.com/koute/emscripten-build/releases/download/binaryen-1.37.21-1-x86_64-unknown-linux-gnu/binaryen-1.37.21-1-x86_64-unknown-linux-gnu.tgz",
+                name: "binaryen",
+                version: "1.37.21-1",
+                arch: "x86_64-unknown-linux-gnu",
+                hash: "91b994e2a65b67c57230b9ea2c45b3a43f2052c323886ec708a6330bddad86c3",
+                size: 9058587
+            }
+        } else if cfg!( target_os = "linux" ) && cfg!( target_arch = "x86" ) {
+            PrebuiltPackage {
+                url: "https://github.com/koute/emscripten-build/releases/download/binaryen-1.37.21-1-i686-unknown-linux-gnu/binaryen-1.37.21-1-i686-unknown-linux-gnu.tgz",
+                name: "binaryen",
+                version: "1.37.21-1",
+                arch: "i686-unknown-linux-gnu",
+                hash: "3b5aa2a54253497f60b210151baaa41de213056b72c5d4ec2513a93842888943",
+                size: 9074580
             }
         } else {
             return None;
@@ -377,13 +409,25 @@ fn download_package( package: &PrebuiltPackage ) -> PathBuf {
     return unpack_path;
 }
 
-fn check_for_emcc( use_system_emscripten: bool ) -> Option< PathBuf > {
+fn check_for_emcc( use_system_emscripten: bool, targeting_webasm: bool ) -> Option< PathBuf > {
     let emscripten_package =
         if use_system_emscripten {
             None
         } else {
             emscripten_package()
         };
+
+    let binaryen_package =
+        if use_system_emscripten || !targeting_webasm {
+            None
+        } else {
+            binaryen_package()
+        };
+
+    if let Some( package ) = binaryen_package {
+        let binaryen_path = download_package( &package );
+        env::set_var( "BINARYEN", &binaryen_path.join( "binaryen" ) );
+    }
 
     if let Some( package ) = emscripten_package {
         let emscripten_path = download_package( &package );
@@ -393,7 +437,6 @@ fn check_for_emcc( use_system_emscripten: bool ) -> Option< PathBuf > {
         env::set_var( "EMSCRIPTEN", &emscripten_bin_path );
         env::set_var( "EMSCRIPTEN_FASTCOMP", &emscripten_llvm_path );
         env::set_var( "LLVM", &emscripten_llvm_path );
-        // TODO: What about `BINARYEN`?
 
         return Some( emscripten_bin_path );
     }
@@ -535,7 +578,11 @@ impl< 'a > BuildArgsMatcher< 'a > {
     }
 
     fn triplet_or_default( &self ) -> &str {
-        "asmjs-unknown-emscripten"
+        if self.matches.is_present( "target-webasm-emscripten" ) {
+            "wasm32-unknown-emscripten"
+        } else {
+            "asmjs-unknown-emscripten"
+        }
     }
 
     fn build_config( &self, package: &CargoPackage, target: &CargoTarget, profile: Profile ) -> BuildConfig {
@@ -597,7 +644,8 @@ fn set_link_args( config: &Config ) {
 
 fn command_build< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject ) -> Result< (), Error > {
     let use_system_emscripten = matches.is_present( "use-system-emscripten" );
-    let extra_path = check_for_emcc( use_system_emscripten );
+    let targeting_webasm = matches.is_present( "target-webasm-emscripten" );
+    let extra_path = check_for_emcc( use_system_emscripten, targeting_webasm );
 
     let build_matcher = BuildArgsMatcher {
         matches: matches,
@@ -627,7 +675,8 @@ fn command_build< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject
 
 fn command_test< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject ) -> Result< (), Error > {
     let use_system_emscripten = matches.is_present( "use-system-emscripten" );
-    let extra_path = check_for_emcc( use_system_emscripten );
+    let targeting_webasm = matches.is_present( "target-webasm-emscripten" );
+    let extra_path = check_for_emcc( use_system_emscripten, targeting_webasm );
 
     let no_run = matches.is_present( "no-run" );
     let use_nodejs = matches.is_present( "nodejs" );
@@ -740,8 +789,22 @@ fn command_test< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject 
             let test_args = std::iter::once( artifact.as_os_str() )
                .chain( arg_passthrough.iter().cloned() );
 
+            let previous_cwd = if targeting_webasm {
+                // This is necessary when targeting webasm so that
+                // Node.js can load the `.wasm` file.
+                let previous_cwd = env::current_dir().unwrap();
+                env::set_current_dir( artifact.parent().unwrap().join( "deps" ) ).unwrap();
+                Some( previous_cwd )
+            } else {
+                None
+            };
+
             let status = Command::new( nodejs_name ).args( test_args ).run();
             any_failure = any_failure || !status.is_ok();
+
+            if let Some( previous_cwd ) = previous_cwd {
+                env::set_current_dir( previous_cwd ).unwrap();
+            }
         }
     } else {
         let app_js = Arc::new( Mutex::new( String::new() ) );
@@ -752,6 +815,11 @@ fn command_test< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject 
         let arg_passthrough: Vec<_> = arg_passthrough.iter().map( |arg| arg.to_str().unwrap() ).collect();
         template_data.insert( "arguments", arg_passthrough );
         let test_index = handlebars.template_render( DEFAULT_TEST_INDEX_HTML, &template_data ).unwrap();
+        let app_wasm: Arc< Mutex< Option< Vec< u8 > > > > = Arc::new( Mutex::new( None ) );
+        let wasm_url = Arc::new( Mutex::new( None ) );
+
+        let server_app_wasm = app_wasm.clone();
+        let server_wasm_url = wasm_url.clone();
 
         let tx = Mutex::new( tx ); // Since rouille requires the Sync trait.
         let server = rouille::Server::new( "localhost:0", move |request| {
@@ -774,7 +842,13 @@ fn command_test< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject 
                 tx.lock().unwrap().send( status ).unwrap();
                 rouille::Response::text( "" )
             } else {
-                rouille::Response::empty_404()
+                match *server_wasm_url.lock().unwrap() {
+                    Some( ref wasm_url ) if url == *wasm_url => {
+                        let data = server_app_wasm.lock().unwrap().as_ref().unwrap().clone();
+                        rouille::Response::from_data( "application/wasm", data )
+                    },
+                    _ => rouille::Response::empty_404()
+                }
             };
 
             response.with_no_cache()
@@ -786,6 +860,13 @@ fn command_test< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject 
         });
 
         for artifact in post_artifacts_per_build {
+            if targeting_webasm {
+                let wasm_filename = artifact.with_extension( "wasm" ).file_name().unwrap().to_str().unwrap().to_owned();
+                let wasm_path = artifact.parent().unwrap().join( "deps" ).join( &wasm_filename );
+                *wasm_url.lock().unwrap() = Some( format!( "/{}", wasm_filename ) );
+                *app_wasm.lock().unwrap() = Some( read_bytes( wasm_path ).unwrap() );
+            }
+
             *app_js.lock().unwrap() = read( artifact ).unwrap();
 
             let tmpdir = TempDir::new( "cargo-web-chromium-profile" ).unwrap();
@@ -845,7 +926,8 @@ fn command_test< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject 
 
 fn command_start< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject ) -> Result< (), Error > {
     let use_system_emscripten = matches.is_present( "use-system-emscripten" );
-    let extra_path = check_for_emcc( use_system_emscripten );
+    let targeting_webasm = matches.is_present( "target-webasm-emscripten" );
+    let extra_path = check_for_emcc( use_system_emscripten, targeting_webasm );
 
     let build_matcher = BuildArgsMatcher {
         matches: matches,
@@ -879,11 +961,26 @@ fn command_start< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject
     let artifacts = build_config.potential_artifacts( &package.crate_root );
 
     let output_path = &artifacts[ 0 ];
-    let app_js = read( output_path ).unwrap();
-    let app_js = Arc::new( Mutex::new( app_js ) );
+    let wasm_path = output_path.with_extension( "wasm" );
+    let wasm_url = format!( "/{}", wasm_path.file_name().unwrap().to_str().unwrap() );
+    let mut outputs = vec![
+        Output {
+            path: output_path.to_owned(),
+            data: read_bytes( output_path ).unwrap()
+        }
+    ];
+
+    if targeting_webasm {
+        outputs.push( Output {
+            path: wasm_path.clone(),
+            data: read_bytes( wasm_path ).unwrap(),
+        });
+    }
+
+    let outputs = Arc::new( Mutex::new( outputs ) );
 
     #[allow(unused_variables)]
-    let watcher = monitor_for_changes_and_rebuild( &package, &target, output_path, build_config, extra_path.as_ref().map( |path| path.as_path() ), app_js.clone() );
+    let watcher = monitor_for_changes_and_rebuild( &package, &target, build_config, extra_path.as_ref().map( |path| path.as_path() ), outputs.clone() );
 
     let crate_static_path = package.crate_root.join( "static" );
     let target_static_path = match target.kind {
@@ -922,8 +1019,11 @@ fn command_start< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject
                 rouille::Response::html( DEFAULT_INDEX_HTML )
             }
         } else if url == "/js/app.js" {
-            let data = app_js.lock().unwrap().clone();
+            let data = outputs.lock().unwrap()[0].data.clone();
             rouille::Response::from_data( "application/javascript", data )
+        } else if url == wasm_url {
+            let data = outputs.lock().unwrap()[1].data.clone();
+            rouille::Response::from_data( "application/wasm", data )
         } else {
             rouille::Response::empty_404()
         };
@@ -987,6 +1087,18 @@ fn main() {
                         .help( "Build artifacts in release mode, with optimizations" )
                 )
                 .arg(
+                    Arg::with_name( "target-asmjs-emscripten" )
+                        .long( "target-asmjs-emscripten" )
+                        .help( "Generate asmjs through Emscripten (default)" )
+                        .overrides_with( "target-webasm-emscripten" )
+                )
+                .arg(
+                    Arg::with_name( "target-webasm-emscripten" )
+                        .long( "target-webasm-emscripten" )
+                        .help( "Generate webasm through Emscripten" )
+                        .overrides_with( "target-asmjs-emscripten" )
+                )
+                .arg(
                     Arg::with_name( "package" )
                         .short( "p" )
                         .long( "package" )
@@ -1042,6 +1154,18 @@ fn main() {
                         .help( "Compile, but don't run tests" )
                 )
                 .arg(
+                    Arg::with_name( "target-asmjs-emscripten" )
+                        .long( "target-asmjs-emscripten" )
+                        .help( "Generate asmjs through Emscripten (default)" )
+                        .overrides_with( "target-webasm-emscripten" )
+                )
+                .arg(
+                    Arg::with_name( "target-webasm-emscripten" )
+                        .long( "target-webasm-emscripten" )
+                        .help( "Generate webasm through Emscripten" )
+                        .overrides_with( "target-asmjs-emscripten" )
+                )
+                .arg(
                     Arg::with_name( "package" )
                         .short( "p" )
                         .long( "package" )
@@ -1079,6 +1203,18 @@ fn main() {
                     Arg::with_name( "release" )
                         .long( "release" )
                         .help( "Build artifacts in release mode, with optimizations" )
+                )
+                .arg(
+                    Arg::with_name( "target-asmjs-emscripten" )
+                        .long( "target-asmjs-emscripten" )
+                        .help( "Generate asmjs through Emscripten (default)" )
+                        .overrides_with( "target-webasm-emscripten" )
+                )
+                .arg(
+                    Arg::with_name( "target-webasm-emscripten" )
+                        .long( "target-webasm-emscripten" )
+                        .help( "Generate webasm through Emscripten" )
+                        .overrides_with( "target-asmjs-emscripten" )
                 )
                 .arg(
                     Arg::with_name( "package" )

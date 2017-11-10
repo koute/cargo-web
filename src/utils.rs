@@ -60,6 +60,13 @@ pub fn read< P: AsRef< Path > >( path: P ) -> Result< String, io::Error > {
     Ok( output )
 }
 
+pub fn read_bytes< P: AsRef< Path > >( path: P ) -> Result< Vec< u8 >, io::Error > {
+    let mut fp = File::open( path.as_ref() )?;
+    let mut output = Vec::new();
+    fp.read_to_end( &mut output )?;
+    Ok( output )
+}
+
 pub fn write< P: AsRef< Path > >( path: P, string: &str ) -> Result< (), io::Error > {
     let mut fp = File::create( path )?;
     fp.write_all( string.as_bytes() )?;
