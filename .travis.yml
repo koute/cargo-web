@@ -13,6 +13,7 @@ matrix:
     - rust: nightly
 
 script:
+  - nvm install 9
   - cargo test --verbose
   - cargo install
   - rustup target add asmjs-unknown-emscripten
