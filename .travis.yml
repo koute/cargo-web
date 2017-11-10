@@ -19,4 +19,4 @@ script:
   - rustup target add wasm32-unknown-emscripten
   - git clone https://github.com/koute/stdweb.git
   - cd stdweb && cargo web test --nodejs
-  - cd stdweb && cargo web test --nodejs --target-webasm-emscripten
+  - cargo web test --nodejs --target-webasm-emscripten
