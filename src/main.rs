@@ -578,7 +578,9 @@ impl< 'a > BuildArgsMatcher< 'a > {
     }
 
     fn triplet_or_default( &self ) -> &str {
-        if self.matches.is_present( "target-webasm-emscripten" ) {
+        if self.matches.is_present( "target-webasm-unknown") {
+            "wasm32-unknown-unknown"
+        } else if self.matches.is_present( "target-webasm-emscripten" ) {
             "wasm32-unknown-emscripten"
         } else {
             "asmjs-unknown-emscripten"
@@ -644,8 +646,8 @@ fn set_link_args( config: &Config ) {
 
 fn command_build< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject ) -> Result< (), Error > {
     let use_system_emscripten = matches.is_present( "use-system-emscripten" );
-    let targeting_webasm = matches.is_present( "target-webasm-emscripten" );
-    let extra_path = check_for_emcc( use_system_emscripten, targeting_webasm );
+    let targeting_webasm = matches.is_present( "target-webasm-emscripten" ) || matches.is_present( "target-webasm-unknown" );
+    let extra_path = if matches.is_present( "target-webasm-unknown" ) { None } else { check_for_emcc( use_system_emscripten, targeting_webasm ) };
 
     let build_matcher = BuildArgsMatcher {
         matches: matches,
@@ -926,8 +928,8 @@ fn command_test< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject 
 
 fn command_start< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject ) -> Result< (), Error > {
     let use_system_emscripten = matches.is_present( "use-system-emscripten" );
-    let targeting_webasm = matches.is_present( "target-webasm-emscripten" );
-    let extra_path = check_for_emcc( use_system_emscripten, targeting_webasm );
+    let targeting_webasm = matches.is_present( "target-webasm-emscripten" ) || matches.is_present( "target-webasm-unknown" );
+    let extra_path = if matches.is_present( "target-webasm-unknown" ) { None } else { check_for_emcc( use_system_emscripten, targeting_webasm ) };
 
     let build_matcher = BuildArgsMatcher {
         matches: matches,
@@ -1099,6 +1101,11 @@ fn main() {
                         .overrides_with( "target-asmjs-emscripten" )
                 )
                 .arg(
+                    Arg::with_name( "target-webasm-unknown" )
+                        .long( "target-webasm-unknown" )
+                        .help( "Generate webasm directly (wasm32-unknown-unknown, without Emscripten involvement)" )
+                )
+                .arg(
                     Arg::with_name( "package" )
                         .short( "p" )
                         .long( "package" )
@@ -1215,6 +1222,11 @@ fn main() {
                         .long( "target-webasm-emscripten" )
                         .help( "Generate webasm through Emscripten" )
                         .overrides_with( "target-asmjs-emscripten" )
+                )
+                .arg(
+                    Arg::with_name( "target-webasm-unknown" )
+                        .long( "target-webasm-unknown" )
+                        .help( "Generate webasm directly (wasm32-unknown-unknown, without Emscripten involvement)" )
                 )
                 .arg(
                     Arg::with_name( "package" )
