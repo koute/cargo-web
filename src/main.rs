@@ -109,42 +109,44 @@ const DEFAULT_INDEX_HTML: &'static str = r#"
 </html>
 "#;
 
-const DEFAULT_UNKNOWN_UNKNOWN_INDEX_HTML: &'static str = r#"
-<!DOCTYPE html>
+fn default_unknown_unknown_index_html(wasm_url: &str) -> String {
+    format!(
+r#"<!DOCTYPE html>
 <head>
     <meta charset="utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=1" name="viewport" />
     <script>
-    var importObject = {'env': {
-        'js_raw_eval': function(pointer, length) {
-            if (window.instance === undefined) {
+    var importObject = {{'env': {{
+        'js_raw_eval': function(pointer, length) {{
+            if (window.instance === undefined) {{
                 console.error("Callbacks during main() don't work for lack of access to the WASM instance, please move your code from `main` to `main_from_js`.");
-            }
+            }}
             var as_u8 = new Uint8Array(window.instance.exports.memory.buffer, pointer, length)
             var decoder = new TextDecoder("UTF-8");
             var s = decoder.decode(as_u8);
             return eval(s);
-        },
-    }};
+        }},
+    }}}};
 
-    fetch("/main.wasm").then(response =>
+    fetch("{}").then(response =>
         response.arrayBuffer()
     ).then(bytes =>
         WebAssembly.instantiate(bytes, importObject)
     ).then(results =>
-        {
+        {{
             window.instance = results.instance;
 
             window.instance.exports.main_from_js()
-        }
+        }}
     );
     </script>
 </head>
 <body>
 </body>
 </html>
-"#;
+"#, wasm_url)
+}
 
 const DEFAULT_TEST_INDEX_HTML: &'static str = r#"
 <!DOCTYPE html>
@@ -1056,16 +1058,17 @@ fn command_start< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject
             if let Some( data ) = data {
                 rouille::Response::html( data )
             } else {
-                rouille::Response::html(if targeting_webasm_unknknown_unknown { DEFAULT_UNKNOWN_UNKNOWN_INDEX_HTML } else { DEFAULT_INDEX_HTML })
+                let mut default_string: &str = &default_unknown_unknown_index_html(&wasm_url);
+                if ! targeting_webasm_unknknown_unknown {
+                    default_string = DEFAULT_INDEX_HTML
+                }
+                rouille::Response::html(default_string)
             }
         } else if url == "/js/app.js" {
             let data = outputs.lock().unwrap()[0].data.clone();
             rouille::Response::from_data( "application/javascript", data )
         } else if url == wasm_url {
             let data = outputs.lock().unwrap()[1].data.clone();
-            rouille::Response::from_data( "application/wasm", data )
-        } else if targeting_webasm_unknknown_unknown && url == "/main.wasm" {
-            let data = outputs.lock().unwrap()[0].data.clone();
             rouille::Response::from_data( "application/wasm", data )
         } else {
             rouille::Response::empty_404()
