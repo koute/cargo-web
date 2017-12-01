@@ -109,6 +109,45 @@ const DEFAULT_INDEX_HTML: &'static str = r#"
 </html>
 "#;
 
+fn default_unknown_unknown_index_html(wasm_url: &str) -> String {
+    format!(
+r#"<!DOCTYPE html>
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=1" name="viewport" />
+    <script>
+    var importObject = {{'env': {{
+        'js_raw_eval': function(pointer, length) {{
+            if (window.instance === undefined) {{
+                console.error("Callbacks during main() don't work for lack of access to the WASM instance, please move your code from `main` to `main_from_js`.");
+            }}
+            var as_u8 = new Uint8Array(window.instance.exports.memory.buffer, pointer, length)
+            var decoder = new TextDecoder("UTF-8");
+            var s = decoder.decode(as_u8);
+            return eval(s);
+        }},
+    }}}};
+
+    fetch("{}").then(response =>
+        response.arrayBuffer()
+    ).then(bytes =>
+        WebAssembly.instantiate(bytes, importObject)
+    ).then(results =>
+        {{
+            window.instance = results.instance;
+
+            window.instance.exports.main_from_js()
+        }}
+    );
+    </script>
+</head>
+<body>
+</body>
+</html>
+"#, wasm_url)
+}
+
 const DEFAULT_TEST_INDEX_HTML: &'static str = r#"
 <!DOCTYPE html>
 <head>
@@ -578,7 +617,9 @@ impl< 'a > BuildArgsMatcher< 'a > {
     }
 
     fn triplet_or_default( &self ) -> &str {
-        if self.matches.is_present( "target-webasm-emscripten" ) {
+        if self.matches.is_present( "target-webasm") {
+            "wasm32-unknown-unknown"
+        } else if self.matches.is_present( "target-webasm-emscripten" ) {
             "wasm32-unknown-emscripten"
         } else {
             "asmjs-unknown-emscripten"
@@ -644,8 +685,8 @@ fn set_link_args( config: &Config ) {
 
 fn command_build< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject ) -> Result< (), Error > {
     let use_system_emscripten = matches.is_present( "use-system-emscripten" );
-    let targeting_webasm = matches.is_present( "target-webasm-emscripten" );
-    let extra_path = check_for_emcc( use_system_emscripten, targeting_webasm );
+    let targeting_webasm = matches.is_present( "target-webasm-emscripten" ) || matches.is_present( "target-webasm" );
+    let extra_path = if matches.is_present( "target-webasm" ) { None } else { check_for_emcc( use_system_emscripten, targeting_webasm ) };
 
     let build_matcher = BuildArgsMatcher {
         matches: matches,
@@ -926,8 +967,9 @@ fn command_test< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject 
 
 fn command_start< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject ) -> Result< (), Error > {
     let use_system_emscripten = matches.is_present( "use-system-emscripten" );
-    let targeting_webasm = matches.is_present( "target-webasm-emscripten" );
-    let extra_path = check_for_emcc( use_system_emscripten, targeting_webasm );
+    let targeting_webasm_unknknown_unknown = matches.is_present( "target-webasm" );
+    let targeting_webasm = matches.is_present( "target-webasm-emscripten" ) || targeting_webasm_unknknown_unknown;
+    let extra_path = if matches.is_present( "target-webasm" ) { None } else { check_for_emcc( use_system_emscripten, targeting_webasm ) };
 
     let build_matcher = BuildArgsMatcher {
         matches: matches,
@@ -1016,7 +1058,11 @@ fn command_start< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject
             if let Some( data ) = data {
                 rouille::Response::html( data )
             } else {
-                rouille::Response::html( DEFAULT_INDEX_HTML )
+                let mut default_string: &str = &default_unknown_unknown_index_html(&wasm_url);
+                if ! targeting_webasm_unknknown_unknown {
+                    default_string = DEFAULT_INDEX_HTML
+                }
+                rouille::Response::html(default_string)
             }
         } else if url == "/js/app.js" {
             let data = outputs.lock().unwrap()[0].data.clone();
@@ -1097,6 +1143,11 @@ fn main() {
                         .long( "target-webasm-emscripten" )
                         .help( "Generate webasm through Emscripten" )
                         .overrides_with( "target-asmjs-emscripten" )
+                )
+                .arg(
+                    Arg::with_name( "target-webasm" )
+                        .long( "target-webasm" )
+                        .help( "HIGHLY EXPERIMENTAL: Generate webasm directly (wasm32-unknown-unknown, without Emscripten involvement)" )
                 )
                 .arg(
                     Arg::with_name( "package" )
@@ -1215,6 +1266,11 @@ fn main() {
                         .long( "target-webasm-emscripten" )
                         .help( "Generate webasm through Emscripten" )
                         .overrides_with( "target-asmjs-emscripten" )
+                )
+                .arg(
+                    Arg::with_name( "target-webasm" )
+                        .long( "target-webasm" )
+                        .help( "HIGHLY EXPERIMENTAL: Generate webasm directly (wasm32-unknown-unknown, without Emscripten involvement)" )
                 )
                 .arg(
                     Arg::with_name( "package" )
