@@ -588,11 +588,20 @@ struct BuildArgsMatcher< 'a > {
 
 impl< 'a > BuildArgsMatcher< 'a > {
     fn build_type( &self ) -> BuildType {
-        if self.matches.is_present( "release" ) {
+        let build_type = if self.matches.is_present( "release" ) {
             BuildType::Release
         } else {
             BuildType::Debug
+        };
+
+        if self.matches.is_present( "target-webasm" ) && build_type == BuildType::Debug {
+            // TODO: Remove this in the future.
+            println_err!( "warning: debug builds on the wasm-unknown-unknown are currently totally broken" );
+            println_err!( "         forcing a release build" );
+            return BuildType::Release;
         }
+
+        build_type
     }
 
     fn package( &self ) -> Result< Option< &CargoPackage >, Error > {
