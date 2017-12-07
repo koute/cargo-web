@@ -25,6 +25,11 @@ extern crate serde_derive;
 extern crate cargo_shim;
 extern crate handlebars;
 
+extern crate parity_wasm;
+#[macro_use]
+extern crate log;
+extern crate rustc_demangle;
+
 use std::process::{Command, Stdio, exit};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{RecvTimeoutError, channel};
@@ -73,6 +78,7 @@ use cargo_shim::*;
 #[macro_use]
 mod utils;
 mod config;
+mod wasm_gc;
 
 use utils::*;
 use config::Config;
