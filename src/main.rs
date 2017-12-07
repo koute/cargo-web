@@ -214,9 +214,29 @@ const DEFAULT_TEST_INDEX_HTML: &'static str = r#"
 </html>
 "#;
 
+fn garbage_collect_wasm_files< P: AsRef< Path > >( build: &BuildConfig, artifacts: &[P] ) {
+    if !build.triplet.as_ref().map( |triplet| triplet == "wasm32-unknown-unknown" ).unwrap_or( false ) {
+        return;
+    }
+
+    for artifact in artifacts {
+        let path = artifact.as_ref();
+        if path.extension().map( |ext| ext == "wasm" ).unwrap_or( false ) {
+            println_err!( "    Garbage collecting {:?}...", path.file_name().unwrap() );
+            wasm_gc::run( &path, &path );
+        }
+    }
+}
+
 struct Output {
     path: PathBuf,
     data: Vec< u8 >
+}
+
+impl AsRef< Path > for Output {
+    fn as_ref( &self ) -> &Path {
+        &self.path
+    }
 }
 
 fn monitor_for_changes_and_rebuild(
@@ -254,7 +274,10 @@ fn monitor_for_changes_and_rebuild(
             }
 
             if command.run().is_ok() {
-                for output in outputs.lock().unwrap().iter_mut() {
+                let mut outputs = outputs.lock().unwrap();
+                garbage_collect_wasm_files( &build, &outputs );
+
+                for output in outputs.iter_mut() {
                     if let Ok( data ) = read_bytes( &output.path ) {
                         output.data = data;
                     }
@@ -655,6 +678,7 @@ fn run_with_broken_first_build_hack( package: &CargoPackage, build_config: &Buil
     }
 
     let artifacts = build_config.potential_artifacts( &package.crate_root );
+    garbage_collect_wasm_files( build_config, &artifacts );
 
     // HACK: For some reason when you install emscripten for the first time
     // the first build is always a dud (it produces no artifacts), so we do this.
