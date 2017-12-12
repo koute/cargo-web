@@ -277,6 +277,20 @@ impl AsRef< Path > for Output {
     }
 }
 
+impl Output {
+    fn has_extension( &self, extension: &str ) -> bool {
+        self.path.extension().map( |ext| ext == extension ).unwrap_or( false )
+    }
+
+    fn is_js( &self ) -> bool {
+        self.has_extension( "js" )
+    }
+
+    fn is_wasm( &self ) -> bool {
+        self.has_extension( "wasm" )
+    }
+}
+
 fn monitor_for_changes_and_rebuild(
     package: &CargoPackage,
     target: &CargoTarget,
@@ -1142,10 +1156,10 @@ fn command_start< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject
                 rouille::Response::html(default_string)
             }
         } else if url == "/js/app.js" {
-            let data = outputs.lock().unwrap()[0].data.clone();
+            let data = outputs.lock().unwrap().iter().find( |output| output.is_js() ).unwrap().data.clone();
             rouille::Response::from_data( "application/javascript", data )
         } else if url == wasm_url {
-            let data = outputs.lock().unwrap()[1].data.clone();
+            let data = outputs.lock().unwrap().iter().find( |output| output.is_wasm() ).unwrap().data.clone();
             rouille::Response::from_data( "application/wasm", data )
         } else {
             rouille::Response::empty_404()
