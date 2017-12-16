@@ -725,12 +725,21 @@ fn command_build< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject
 }
 
 fn command_test< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject ) -> Result< (), Error > {
+    let use_nodejs = matches.is_present( "nodejs" );
     let use_system_emscripten = matches.is_present( "use-system-emscripten" );
     let targeting_webasm = matches.is_present( "target-webasm-emscripten" );
-    let extra_path = check_for_emcc( use_system_emscripten, targeting_webasm );
+    let targeting_native_webasm = matches.is_present( "target-webasm" );
+    let extra_path = if targeting_native_webasm {
+        if !use_nodejs {
+            return Err( Error::ConfigurationError( "running tests for the native wasm target is currently only supported with `--nodejs`".into() ) );
+        }
+
+        None
+    } else {
+        check_for_emcc( use_system_emscripten, targeting_webasm )
+    };
 
     let no_run = matches.is_present( "no-run" );
-    let use_nodejs = matches.is_present( "nodejs" );
     let arg_passthrough = matches.values_of_os( "passthrough" )
         .map_or(vec![], |args| args.collect());
 
@@ -803,6 +812,12 @@ fn command_test< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject 
                 }
             }
 
+            fn is_js( artifact: &PathBuf ) -> bool {
+                artifact.extension().map( |ext| ext == "js" ).unwrap_or( false )
+            }
+            let mut new_artifacts: Vec< _ > = new_artifacts.into_iter().filter( is_js ).collect();
+            let mut modified_artifacts: Vec< _ > = modified_artifacts.into_iter().filter( is_js ).collect();
+
             if new_artifacts.len() == 1 {
                 new_artifacts.pop().unwrap()
             } else if new_artifacts.len() > 1 {
@@ -812,7 +827,7 @@ fn command_test< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject 
             } else if modified_artifacts.len() > 1 {
                 panic!( "internal error: modified_artifacts have {} elements; please report this!", new_artifacts.len() );
             } else {
-                unimplemented!();
+                panic!( "internal error: nothing changed so I don't know which artifact corresponds to this build" );
             }
         };
 
@@ -840,7 +855,7 @@ fn command_test< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject 
             let test_args = std::iter::once( artifact.as_os_str() )
                .chain( arg_passthrough.iter().cloned() );
 
-            let previous_cwd = if targeting_webasm {
+            let previous_cwd = if targeting_webasm || targeting_native_webasm {
                 // This is necessary when targeting webasm so that
                 // Node.js can load the `.wasm` file.
                 let previous_cwd = env::current_dir().unwrap();
@@ -970,6 +985,12 @@ fn command_test< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject 
 
     if any_failure {
         exit( 101 );
+    } else {
+        if targeting_native_webasm {
+            println_err!( "All tests passed!" );
+            // At least **I hope** that's the case; there are no prints
+            // when running those tests, so who knows what happens. *shrug*
+        }
     }
 
     Ok(())
@@ -1223,13 +1244,19 @@ fn main() {
                     Arg::with_name( "target-asmjs-emscripten" )
                         .long( "target-asmjs-emscripten" )
                         .help( "Generate asmjs through Emscripten (default)" )
-                        .overrides_with( "target-webasm-emscripten" )
+                        .overrides_with_all( &["target-webasm-emscripten", "target-webasm"] )
                 )
                 .arg(
                     Arg::with_name( "target-webasm-emscripten" )
                         .long( "target-webasm-emscripten" )
                         .help( "Generate webasm through Emscripten" )
-                        .overrides_with( "target-asmjs-emscripten" )
+                        .overrides_with_all( &["target-asmjs-emscripten", "target-webasm"] )
+                )
+                .arg(
+                    Arg::with_name( "target-webasm" )
+                        .long( "target-webasm" )
+                        .help( "Generates webasm through Rust's native backend (HIGHLY EXPERIMENTAL!)" )
+                        .overrides_with_all( &["target-asmjs-emscripten", "target-webasm-emscripten"] )
                 )
                 .arg(
                     Arg::with_name( "package" )
