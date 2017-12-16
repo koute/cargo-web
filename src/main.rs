@@ -1150,18 +1150,19 @@ fn main() {
                     Arg::with_name( "target-asmjs-emscripten" )
                         .long( "target-asmjs-emscripten" )
                         .help( "Generate asmjs through Emscripten (default)" )
-                        .overrides_with( "target-webasm-emscripten" )
+                        .overrides_with_all( &["target-webasm-emscripten", "target-webasm"] )
                 )
                 .arg(
                     Arg::with_name( "target-webasm-emscripten" )
                         .long( "target-webasm-emscripten" )
                         .help( "Generate webasm through Emscripten" )
-                        .overrides_with( "target-asmjs-emscripten" )
+                        .overrides_with_all( &["target-asmjs-emscripten", "target-webasm"] )
                 )
                 .arg(
                     Arg::with_name( "target-webasm" )
                         .long( "target-webasm" )
                         .help( "Generates webasm through Rust's native backend (HIGHLY EXPERIMENTAL!)" )
+                        .overrides_with_all( &["target-asmjs-emscripten", "target-webasm-emscripten"] )
                 )
                 .arg(
                     Arg::with_name( "package" )
@@ -1273,18 +1274,19 @@ fn main() {
                     Arg::with_name( "target-asmjs-emscripten" )
                         .long( "target-asmjs-emscripten" )
                         .help( "Generate asmjs through Emscripten (default)" )
-                        .overrides_with( "target-webasm-emscripten" )
+                        .overrides_with_all( &["target-webasm-emscripten", "target-webasm"] )
                 )
                 .arg(
                     Arg::with_name( "target-webasm-emscripten" )
                         .long( "target-webasm-emscripten" )
                         .help( "Generate webasm through Emscripten" )
-                        .overrides_with( "target-asmjs-emscripten" )
+                        .overrides_with_all( &["target-asmjs-emscripten", "target-webasm"] )
                 )
                 .arg(
                     Arg::with_name( "target-webasm" )
                         .long( "target-webasm" )
                         .help( "Generates webasm through Rust's native backend (HIGHLY EXPERIMENTAL!)" )
+                        .overrides_with_all( &["target-asmjs-emscripten", "target-webasm-emscripten"] )
                 )
                 .arg(
                     Arg::with_name( "package" )
