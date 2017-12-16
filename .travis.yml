@@ -12,12 +12,12 @@ matrix:
   allow_failures:
     - rust: nightly
 
+env:
+  - TARGET=none
+  - TARGET=asmjs-unknown-emscripten
+  - TARGET=wasm32-unknown-emscripten
+  - TARGET=wasm32-unknown-unknown
+
 script:
   - nvm install 9
-  - cargo test --verbose
-  - cargo install
-  - rustup target add asmjs-unknown-emscripten
-  - rustup target add wasm32-unknown-emscripten
-  - git clone https://github.com/koute/stdweb.git
-  - cd stdweb && cargo web test --nodejs
-  - cargo web test --nodejs --target-webasm-emscripten
+  - ./ci.sh
