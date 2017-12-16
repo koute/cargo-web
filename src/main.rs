@@ -1161,7 +1161,7 @@ fn main() {
                 .arg(
                     Arg::with_name( "target-webasm" )
                         .long( "target-webasm" )
-                        .help( "HIGHLY EXPERIMENTAL: Generate webasm directly (wasm32-unknown-unknown, without Emscripten involvement)" )
+                        .help( "Generates webasm through Rust's native backend (HIGHLY EXPERIMENTAL!)" )
                 )
                 .arg(
                     Arg::with_name( "package" )
@@ -1284,7 +1284,7 @@ fn main() {
                 .arg(
                     Arg::with_name( "target-webasm" )
                         .long( "target-webasm" )
-                        .help( "HIGHLY EXPERIMENTAL: Generate webasm directly (wasm32-unknown-unknown, without Emscripten involvement)" )
+                        .help( "Generates webasm through Rust's native backend (HIGHLY EXPERIMENTAL!)" )
                 )
                 .arg(
                     Arg::with_name( "package" )
