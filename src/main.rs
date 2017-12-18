@@ -827,7 +827,7 @@ fn command_test< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject 
             } else if modified_artifacts.len() > 1 {
                 panic!( "internal error: modified_artifacts have {} elements; please report this!", new_artifacts.len() );
             } else {
-                panic!( "internal error: nothing changed so I don't know which artifact corresponds to this build" );
+                panic!( "internal error: nothing changed so I don't know which artifact corresponds to this build; change something and try again!" );
             }
         };
 
