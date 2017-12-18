@@ -4,19 +4,15 @@ dist: trusty
 sudo: false
 
 rust:
+  - nightly
   - stable
   - beta
-  - nightly
-
-matrix:
-  allow_failures:
-    - rust: nightly
 
 env:
   - TARGET=none
+  - TARGET=wasm32-unknown-unknown
   - TARGET=asmjs-unknown-emscripten
   - TARGET=wasm32-unknown-emscripten
-  - TARGET=wasm32-unknown-unknown
 
 script:
   - nvm install 9
