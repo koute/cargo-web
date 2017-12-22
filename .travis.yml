@@ -8,6 +8,10 @@ rust:
   - stable
   - beta
 
+matrix:
+  allow_failures:
+    - rust: nightly
+
 env:
   - TARGET=none
   - TARGET=wasm32-unknown-unknown
