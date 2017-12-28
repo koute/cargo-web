@@ -43,7 +43,12 @@ fi
 if [ "$TARGET" = "wasm32-unknown-unknown" ]; then
     rustup target add wasm32-unknown-unknown
     cargo web test --nodejs --target-webasm
+
     cd examples/hasher
     cargo web build --target-webasm
     node example.js
+
+    cd ../../../test-crates/native-webasm
+    cargo-web build --target-webasm
+    node run.js
 fi
