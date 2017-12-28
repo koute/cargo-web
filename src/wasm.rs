@@ -12,6 +12,7 @@ use wasm_inline_js;
 use wasm_export_main;
 use wasm_export_table;
 use wasm_hook_grow;
+use wasm_intrinsics;
 use wasm_runtime;
 
 pub fn process_wasm_files< P: AsRef< Path > >( build: &BuildConfig, artifacts: &[P] ) {
@@ -42,6 +43,7 @@ pub fn process_wasm_files< P: AsRef< Path > >( build: &BuildConfig, artifacts: &
         let mut module = parity_wasm::deserialize_file( &path ).unwrap();
         let mut ctx = Context::from_module( module );
         let snippets = wasm_inline_js::process_and_extract( &mut ctx );
+        let intrinsics = wasm_intrinsics::process( &mut ctx );
         wasm_export_main::process( &mut ctx );
         wasm_export_table::process( &mut ctx );
         wasm_hook_grow::process( &mut ctx );
@@ -49,7 +51,8 @@ pub fn process_wasm_files< P: AsRef< Path > >( build: &BuildConfig, artifacts: &
 
         parity_wasm::serialize_to_file( path, module ).unwrap();
 
-        let js = wasm_runtime::generate_js( path, &snippets );
+        let all_snippets: Vec< _ > = snippets.into_iter().chain( intrinsics.into_iter() ).collect();
+        let js = wasm_runtime::generate_js( path, &all_snippets );
         let mut fp = File::create( js_path ).unwrap();
         fp.write_all( js.as_bytes() ).unwrap();
 

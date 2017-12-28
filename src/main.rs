@@ -58,6 +58,7 @@ mod wasm_export_table;
 mod wasm_hook_grow;
 mod wasm_runtime;
 mod wasm_context;
+mod wasm_intrinsics;
 mod emscripten;
 mod cmd_build;
 mod cmd_start;
