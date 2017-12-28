@@ -2,21 +2,17 @@ use std::process::exit;
 use std::path::PathBuf;
 use std::io::{self, Read, Write};
 use std::fs;
-use std::env;
 
 use app_dirs;
-use hyper_rustls;
 use pbr;
 use sha2;
+use reqwest::{
+    header,
+    Client,
+    Url
+};
 
 use tempdir::TempDir;
-
-use hyper::Client;
-use hyper::header::{Connection, ContentLength};
-use hyper::net::HttpConnector;
-use hyper::net::HttpsConnector;
-use hyper::client::ProxyConfig;
-use hyper::Url;
 
 use digest::{Input, Digest};
 
@@ -61,43 +57,18 @@ pub fn download_package( package: &PrebuiltPackage ) -> PathBuf {
 
     fs::create_dir_all( &unpack_path ).unwrap();
 
-    let tls = hyper_rustls::TlsClient::new();
-    let client = match env::var( "HTTP_PROXY" ) {
-        Ok( proxy ) => {
-            let proxy = match Url::parse( proxy.as_str() ) {
-                Ok( url ) => url,
-                Err( error ) => {
-                    println_err!( "Invalid HTTP_PROXY: #{:?}", error );
-                    exit( 101 );
-                }
-            };
-
-            let connector = HttpConnector::default();
-            let proxy_config = ProxyConfig::new(
-                proxy.scheme(),
-                proxy.host_str().unwrap().to_string(),
-                proxy.port_or_known_default().unwrap(),
-                connector,
-                tls
-            );
-            Client::with_proxy_config( proxy_config )
-        },
-        _ => {
-            let connector = HttpsConnector::new( tls );
-            Client::with_connector( connector )
-        }
-    };
-
     println_err!( "Downloading {}...", package_filename );
+    let client = Client::new();
     let mut response = client.get( url )
-        .header( Connection::close() )
-        .send().unwrap();
+        .header( header::Connection::close() )
+        .send()
+        .unwrap();
 
     let tmpdir = TempDir::new( format!( "cargo-web-{}-download", package.name ).as_str() ).unwrap();
     let dlpath = tmpdir.path().join( &package_filename );
     let mut fp = fs::File::create( &dlpath ).unwrap();
 
-    let length: Option< ContentLength > = response.headers.get().cloned();
+    let length: Option< header::ContentLength > = response.headers().get().cloned();
     let length = length.map( |length| length.0 ).unwrap_or( package.size );
     let mut pb = pbr::ProgressBar::new( length );
     pb.set_units( pbr::Units::Bytes );
