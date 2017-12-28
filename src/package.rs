@@ -14,7 +14,7 @@ use reqwest::{
 
 use tempdir::TempDir;
 
-use digest::{Input, Digest};
+use digest::Digest;
 
 use utils::{
     read,
@@ -86,7 +86,7 @@ pub fn download_package( package: &PrebuiltPackage ) -> PathBuf {
         };
 
         let slice = &buffer[ 0..length ];
-        hasher.digest( slice );
+        hasher.input( slice );
         fp.write_all( slice ).unwrap();
         pb.add( length as u64 );
     }
