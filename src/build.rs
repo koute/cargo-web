@@ -24,14 +24,21 @@ pub struct BuildArgsMatcher< 'a > {
 }
 
 impl< 'a > BuildArgsMatcher< 'a > {
-    fn build_type( &self ) -> BuildType {
-        let build_type = if self.matches.is_present( "release" ) {
+    fn requested_build_type( &self ) -> BuildType {
+        if self.matches.is_present( "release" ) {
             BuildType::Release
         } else {
             BuildType::Debug
-        };
+        }
+    }
 
-        if self.matches.is_present( "target-webasm" ) && build_type == BuildType::Debug {
+    fn targetting_native_wasm( &self ) -> bool {
+        self.matches.is_present( "target-webasm" )
+    }
+
+    fn build_type( &self ) -> BuildType {
+        let build_type = self.requested_build_type();
+        if self.targetting_native_wasm() && build_type == BuildType::Debug {
             // TODO: Remove this in the future.
             println_err!( "warning: debug builds on the wasm-unknown-unknown are currently totally broken" );
             println_err!( "         forcing a release build" );
@@ -130,14 +137,14 @@ pub fn run_with_broken_first_build_hack( package: &CargoPackage, build_config: &
     Ok(())
 }
 
-pub fn set_link_args( config: &Config ) {
-    if let Some( ref link_args ) = config.link_args {
-        let mut rustflags = String::new();
-        if let Ok( flags ) = env::var( "RUSTFLAGS" ) {
-            rustflags.push_str( flags.as_str() );
-            rustflags.push_str( " " );
-        }
+pub fn set_rust_flags( config: &Config, build_matcher: &BuildArgsMatcher ) {
+    let mut rustflags = String::new();
+    if let Ok( flags ) = env::var( "RUSTFLAGS" ) {
+        rustflags.push_str( flags.as_str() );
+        rustflags.push_str( " " );
+    }
 
+    if let Some( ref link_args ) = config.link_args {
         for arg in link_args {
             if arg.contains( " " ) {
                 // Not sure how to handle spaces, as `-C link-arg="{}"` doesn't work.
@@ -147,7 +154,11 @@ pub fn set_link_args( config: &Config ) {
             }
             rustflags.push_str( format!( "-C link-arg={} ", arg ).as_str() );
         }
-
-        env::set_var( "RUSTFLAGS", rustflags.trim() );
     }
+
+    if build_matcher.targetting_native_wasm() && build_matcher.requested_build_type() == BuildType::Debug {
+        rustflags.push_str( "-C debuginfo=2 " );
+    }
+
+    env::set_var( "RUSTFLAGS", rustflags.trim() );
 }

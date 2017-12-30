@@ -24,7 +24,7 @@ use cargo_shim::{
 
 use build::{
     BuildArgsMatcher,
-    set_link_args,
+    set_rust_flags,
     run_with_broken_first_build_hack
 };
 use config::Config;
@@ -138,7 +138,7 @@ pub fn command_test< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProj
 
     let package = build_matcher.package_or_default()?;
     let config = Config::load_for_package_printing_warnings( &package ).unwrap().unwrap_or_default();
-    set_link_args( &config );
+    set_rust_flags( &config, &build_matcher );
 
     let targets = build_matcher.target_or_select( package, |target| {
         target.kind == TargetKind::Lib || target.kind == TargetKind::Bin || target.kind == TargetKind::Test
