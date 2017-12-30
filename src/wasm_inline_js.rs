@@ -80,9 +80,12 @@ pub fn process_and_extract( ctx: &mut Context ) -> Vec< JsSnippet > {
         }
     }
 
-    for data in &ctx.data {
+    let mut data_entries = Vec::new();
+    mem::swap( &mut data_entries, &mut ctx.data );
+
+    data_entries.retain( |data| {
         if data.offset.len() != 2 {
-            continue;
+            return true;
         }
 
         let (offset, type_index) = match (&data.offset[ 0 ], &data.offset[ 1 ]) {
@@ -90,10 +93,10 @@ pub fn process_and_extract( ctx: &mut Context ) -> Vec< JsSnippet > {
                 if let Some( &type_index ) = snippet_offset_to_type_index.get( &offset ) {
                     (offset, type_index)
                 } else {
-                    continue;
+                    return true;
                 }
             },
-            _ => continue
+            _ => return true
         };
 
         let mut value_slice = data.value.as_slice();
@@ -131,7 +134,11 @@ pub fn process_and_extract( ctx: &mut Context ) -> Vec< JsSnippet > {
             snippet_index_by_hash.insert( code_hash, snippets.len() );
             snippets.push( snippet );
         }
-    }
+
+        return false;
+    });
+
+    ctx.data = data_entries;
 
     for snippet in &mut snippets {
         let type_index = ctx.get_or_add_fn_type( snippet.ty.clone() );
