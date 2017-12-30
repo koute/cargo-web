@@ -188,7 +188,13 @@ pub fn command_start< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoPro
     let artifacts = build_config.potential_artifacts( &package.crate_root );
 
     let output_path = &artifacts[ 0 ];
-    let wasm_path = output_path.with_extension( "wasm" );
+    let mut wasm_path = output_path.with_extension( "wasm" );
+    if build_matcher.targeting_emscripten_wasm() {
+        wasm_path =
+            wasm_path.parent().unwrap().join(
+                wasm_path.file_name().unwrap().to_string_lossy().into_owned().replace( '-', "_" )
+            );
+    }
     let wasm_url = format!( "/{}", wasm_path.file_name().unwrap().to_str().unwrap() );
     let mut outputs = vec![
         Output {
