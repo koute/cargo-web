@@ -98,10 +98,15 @@ const DEFAULT_TEST_INDEX_HTML: &'static str = r#"
 "#;
 
 pub fn command_test< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject ) -> Result< (), Error > {
+    let build_matcher = BuildArgsMatcher {
+        matches: matches,
+        project: project
+    };
+
     let use_nodejs = matches.is_present( "nodejs" );
     let use_system_emscripten = matches.is_present( "use-system-emscripten" );
-    let targeting_webasm = matches.is_present( "target-webasm-emscripten" );
-    let targeting_native_webasm = matches.is_present( "target-webasm" );
+    let targeting_webasm = build_matcher.targeting_emscripten_wasm();
+    let targeting_native_webasm = build_matcher.targeting_native_wasm();
     let extra_path = if targeting_native_webasm {
         if !use_nodejs {
             return Err( Error::ConfigurationError( "running tests for the native wasm target is currently only supported with `--nodejs`".into() ) );
@@ -130,11 +135,6 @@ pub fn command_test< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProj
             return Err( Error::EnvironmentError( "you need to have either Chromium or Chrome installed and in your PATH to run the tests!".into() ) );
         }
     }
-
-    let build_matcher = BuildArgsMatcher {
-        matches: matches,
-        project: project
-    };
 
     let package = build_matcher.package_or_default()?;
     let config = Config::load_for_package_printing_warnings( &package ).unwrap().unwrap_or_default();

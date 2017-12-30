@@ -17,14 +17,14 @@ use emscripten::check_for_emcc;
 use utils::CommandExt;
 
 pub fn command_build< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject ) -> Result< (), Error > {
-    let use_system_emscripten = matches.is_present( "use-system-emscripten" );
-    let targeting_webasm = matches.is_present( "target-webasm-emscripten" ) || matches.is_present( "target-webasm" );
-    let extra_path = if matches.is_present( "target-webasm" ) { None } else { check_for_emcc( use_system_emscripten, targeting_webasm ) };
-
     let build_matcher = BuildArgsMatcher {
         matches: matches,
         project: project
     };
+
+    let use_system_emscripten = matches.is_present( "use-system-emscripten" );
+    let targeting_webasm = build_matcher.targeting_wasm();
+    let extra_path = if !build_matcher.targeting_emscripten() { None } else { check_for_emcc( use_system_emscripten, targeting_webasm ) };
 
     let package = build_matcher.package_or_default()?;
     let config = Config::load_for_package_printing_warnings( &package ).unwrap().unwrap_or_default();

@@ -151,15 +151,15 @@ fn address_or_default< 'a >( matches: &clap::ArgMatches< 'a > ) -> net::SocketAd
 }
 
 pub fn command_start< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoProject ) -> Result< (), Error > {
-    let use_system_emscripten = matches.is_present( "use-system-emscripten" );
-    let targeting_webasm_unknknown_unknown = matches.is_present( "target-webasm" );
-    let targeting_webasm = matches.is_present( "target-webasm-emscripten" ) || targeting_webasm_unknknown_unknown;
-    let extra_path = if matches.is_present( "target-webasm" ) { None } else { check_for_emcc( use_system_emscripten, targeting_webasm ) };
-
     let build_matcher = BuildArgsMatcher {
         matches: matches,
         project: project
     };
+
+    let use_system_emscripten = matches.is_present( "use-system-emscripten" );
+    let targeting_native_wasm = build_matcher.targeting_native_wasm();
+    let targeting_webasm = build_matcher.targeting_wasm();
+    let extra_path = if !build_matcher.targeting_emscripten() { None } else { check_for_emcc( use_system_emscripten, targeting_webasm ) };
 
     let package = build_matcher.package_or_default()?;
     let config = Config::load_for_package_printing_warnings( &package ).unwrap().unwrap_or_default();
@@ -204,7 +204,7 @@ pub fn command_start< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoPro
         });
     }
 
-    if targeting_webasm_unknknown_unknown {
+    if targeting_native_wasm {
         let js_path = output_path.with_extension( "js" );
         outputs.push( Output {
             path: js_path.clone(),

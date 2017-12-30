@@ -32,13 +32,29 @@ impl< 'a > BuildArgsMatcher< 'a > {
         }
     }
 
-    fn targetting_native_wasm( &self ) -> bool {
+    pub fn targeting_emscripten_asmjs( &self ) -> bool {
+        !self.targeting_emscripten_wasm() && !self.targeting_native_wasm()
+    }
+
+    pub fn targeting_emscripten_wasm( &self ) -> bool {
+        self.matches.is_present( "target-webasm-emscripten" )
+    }
+
+    pub fn targeting_native_wasm( &self ) -> bool {
         self.matches.is_present( "target-webasm" )
+    }
+
+    pub fn targeting_wasm( &self ) -> bool {
+        self.targeting_emscripten_wasm() || self.targeting_native_wasm()
+    }
+
+    pub fn targeting_emscripten( &self ) -> bool {
+        self.targeting_emscripten_wasm() || self.targeting_emscripten_asmjs()
     }
 
     fn build_type( &self ) -> BuildType {
         let build_type = self.requested_build_type();
-        if self.targetting_native_wasm() && build_type == BuildType::Debug {
+        if self.targeting_native_wasm() && build_type == BuildType::Debug {
             // TODO: Remove this in the future.
             println_err!( "warning: debug builds on the wasm-unknown-unknown are currently totally broken" );
             println_err!( "         forcing a release build" );
@@ -156,7 +172,7 @@ pub fn set_rust_flags( config: &Config, build_matcher: &BuildArgsMatcher ) {
         }
     }
 
-    if build_matcher.targetting_native_wasm() && build_matcher.requested_build_type() == BuildType::Debug {
+    if build_matcher.targeting_native_wasm() && build_matcher.requested_build_type() == BuildType::Debug {
         rustflags.push_str( "-C debuginfo=2 " );
     }
 
