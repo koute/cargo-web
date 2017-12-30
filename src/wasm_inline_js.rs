@@ -138,6 +138,7 @@ pub fn process_and_extract( ctx: &mut Context ) -> Vec< JsSnippet > {
         let function_index = ctx.add_function( FunctionKind::Import {
             export: Export::none(),
             import: Import { module: "env".to_owned(), field: snippet.name.clone() },
+            name: Some( snippet.name.clone() ),
             type_index
         });
 

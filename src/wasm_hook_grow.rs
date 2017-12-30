@@ -17,7 +17,8 @@ pub fn process( ctx: &mut Context ) {
         import: Import {
             module: "env".to_owned(),
             field: "__web_on_grow".to_owned()
-        }
+        },
+        name: Some( "__web_on_grow".to_owned() )
     });
 
     ctx.patch_code( |opcodes| {

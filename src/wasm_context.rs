@@ -87,6 +87,7 @@ pub enum FunctionKind {
     Import {
         export: Export,
         type_index: TypeIndex,
+        name: Option< String >,
         import: Import
     },
     Definition {
@@ -117,6 +118,15 @@ impl ImportExport for FunctionKind {
         match self {
             &mut FunctionKind::Import { ref mut export, .. } => export,
             &mut FunctionKind::Definition { ref mut export, .. } => export,
+        }
+    }
+}
+
+impl FunctionKind {
+    fn name_mut( &mut self ) -> &mut Option< String > {
+        match self {
+            &mut FunctionKind::Import { ref mut name, .. } => name,
+            &mut FunctionKind::Definition { ref mut name, .. } => name
         }
     }
 }
@@ -430,7 +440,8 @@ impl Context {
                                 ctx.functions.insert( ctx.next_function_index, FunctionKind::Import {
                                     export: Export::none(),
                                     type_index,
-                                    import
+                                    import,
+                                    name: None
                                 });
                                 ctx.next_function_index += 1;
                                 function_imports_count += 1;
@@ -580,13 +591,9 @@ impl Context {
                                 },
                                 1 => {
                                     decode_name_map( &mut payload, |function_index, function_name| {
-                                        match ctx.functions.get_mut( &function_index ).unwrap() {
-                                            &mut FunctionKind::Definition { ref mut name, .. } => {
-                                                assert!( name.is_none() );
-                                                *name = Some( function_name.to_owned() );
-                                            },
-                                            _ => panic!()
-                                        }
+                                        let name = ctx.functions.get_mut( &function_index ).unwrap().name_mut();
+                                        assert!( name.is_none() );
+                                        *name = Some( function_name.to_owned() );
                                     }).unwrap();
                                 },
                                 2 => {
@@ -708,13 +715,17 @@ impl Context {
 
         for (new_index, function) in functions.entries {
             let export = match function {
-                FunctionKind::Import { type_index, import, export } => {
+                FunctionKind::Import { type_index, import, export, name } => {
                     let type_index = type_map.get( &type_index ).cloned().unwrap();
                     section_imports.push( pw::ImportEntry::new(
                         import.module,
                         import.field,
                         pw::External::Function( type_index )
                     ));
+
+                    if let Some( name ) = name {
+                        function_names.push( (new_index, name) );
+                    }
 
                     export
                 },
