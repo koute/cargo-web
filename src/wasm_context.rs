@@ -969,7 +969,8 @@ fn test_function_import_removal() {
         import: Import {
             module: "env".to_owned(),
             field: "foobar".to_owned()
-        }
+        },
+        name: Some( "foobar".to_owned() )
     });
     ctx.add_function( FunctionKind::Definition {
         type_index,
