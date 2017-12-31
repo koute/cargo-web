@@ -237,13 +237,13 @@ pub fn command_start< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoPro
         if let Some( ref target_static_path ) = target_static_path {
             response = rouille::match_assets( &request, target_static_path );
             if response.is_success() {
-                return response;
+                return response.with_no_cache();
             }
         }
 
         response = rouille::match_assets( &request, &crate_static_path );
         if response.is_success() {
-            return response;
+            return response.with_no_cache();
         }
 
         let url = request.url();
