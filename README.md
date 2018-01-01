@@ -41,6 +41,10 @@ Other features which are (eventually) planned but are yet not here:
 
 [stdweb]: https://github.com/koute/stdweb
 
+## Donate
+
+[![Become a patron](https://koute.github.io/img/become_a_patron_button.png)](https://www.patreon.com/koute)
+
 ## Installation
 
     $ cargo install cargo-web
