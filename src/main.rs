@@ -22,7 +22,6 @@ extern crate toml;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
-extern crate cargo_shim;
 extern crate handlebars;
 extern crate unicode_categories;
 extern crate ordermap;
@@ -31,6 +30,9 @@ extern crate parity_wasm;
 #[macro_use]
 extern crate log;
 extern crate rustc_demangle;
+
+extern crate cargo_metadata;
+extern crate regex;
 
 use std::process::exit;
 use std::env;
@@ -42,6 +44,7 @@ use clap::{
     SubCommand
 };
 
+mod cargo_shim;
 use cargo_shim::*;
 
 #[macro_use]
