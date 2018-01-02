@@ -124,12 +124,23 @@ impl< 'a > BuildArgsMatcher< 'a > {
         }
     }
 
+    fn features( &self ) -> Vec< &str > {
+        if let Some( features ) = self.matches.value_of( "features" ) {
+            features.split_whitespace().collect()
+        } else {
+            Vec::new()
+        }
+    }
+
     pub fn build_config( &self, package: &CargoPackage, target: &CargoTarget, profile: Profile ) -> BuildConfig {
         BuildConfig {
             build_target: target_to_build_target( target, profile ),
             build_type: self.build_type(),
             triplet: Some( self.triplet_or_default().into() ),
-            package: Some( package.name.clone() )
+            package: Some( package.name.clone() ),
+            features: self.features().into_iter().map( |feature| feature.to_owned() ).collect(),
+            no_default_features: self.matches.is_present( "no-default-features" ),
+            enable_all_features: self.matches.is_present( "all-features" )
         }
     }
 }

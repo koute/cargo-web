@@ -95,7 +95,10 @@ pub struct BuildConfig {
     pub build_target: BuildTarget,
     pub build_type: BuildType,
     pub triplet: Option< String >,
-    pub package: Option< String >
+    pub package: Option< String >,
+    pub features: Vec< String >,
+    pub no_default_features: bool,
+    pub enable_all_features: bool
 }
 
 fn profile_to_arg( profile: Profile ) -> &'static str {
@@ -156,6 +159,19 @@ impl BuildConfig {
             BuildTarget::IntegrationBench( ref name ) => {
                 command.arg( "--bench" ).arg( name.as_str() );
             }
+        }
+
+        if self.no_default_features {
+            command.arg( "--no-default-features" );
+        }
+
+        if self.enable_all_features {
+            command.arg( "--all-features" );
+        }
+
+        if !self.features.is_empty() {
+            command.arg( "--features" );
+            command.arg( &self.features.join( " " ) );
         }
 
         command

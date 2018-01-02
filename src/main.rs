@@ -78,6 +78,26 @@ fn add_shared_build_params< 'a, 'b >( app: App< 'a, 'b > ) -> App< 'a, 'b > {
                 .takes_value( true )
         )
         .arg(
+            Arg::with_name( "features" )
+                .long( "features" )
+                .help( "Space-separated list of features to also build" )
+                .value_name( "FEATURES" )
+                .takes_value( true )
+        )
+        .arg(
+            Arg::with_name( "all-features" )
+                .long( "all-features" )
+                .help( "Build all available features" )
+                // Technically Cargo doesn't treat it as conflicting,
+                // but it seems less confusing to *not* allow these together.
+                .conflicts_with_all( &[ "features", "no-default-features" ] )
+        )
+        .arg(
+            Arg::with_name( "no-default-features" )
+                .long( "no-default-features" )
+                .help( "Do not build the `default` feature" )
+        )
+        .arg(
             Arg::with_name( "use-system-emscripten" )
                 .long( "use-system-emscripten" )
                 .help( "Won't try to download Emscripten; will always use the system one" )
