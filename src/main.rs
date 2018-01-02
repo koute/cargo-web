@@ -64,6 +64,46 @@ mod cmd_build;
 mod cmd_start;
 mod cmd_test;
 
+fn add_shared_build_params< 'a, 'b >( app: App< 'a, 'b > ) -> App< 'a, 'b > {
+    return app
+        .arg(
+            Arg::with_name( "package" )
+                .short( "p" )
+                .long( "package" )
+                .help( "Package to build" )
+                .value_name( "NAME" )
+                .takes_value( true )
+        )
+        .arg(
+            Arg::with_name( "use-system-emscripten" )
+                .long( "use-system-emscripten" )
+                .help( "Won't try to download Emscripten; will always use the system one" )
+        )
+        .arg(
+            Arg::with_name( "release" )
+                .long( "release" )
+                .help( "Build artifacts in release mode, with optimizations" )
+        )
+        .arg(
+            Arg::with_name( "target-asmjs-emscripten" )
+                .long( "target-asmjs-emscripten" )
+                .help( "Generate asmjs through Emscripten (default)" )
+                .overrides_with_all( &["target-webasm-emscripten", "target-webasm"] )
+        )
+        .arg(
+            Arg::with_name( "target-webasm-emscripten" )
+                .long( "target-webasm-emscripten" )
+                .help( "Generate webasm through Emscripten" )
+                .overrides_with_all( &["target-asmjs-emscripten", "target-webasm"] )
+        )
+        .arg(
+            Arg::with_name( "target-webasm" )
+                .long( "target-webasm" )
+                .help( "Generates webasm through Rust's native backend (HIGHLY EXPERIMENTAL!)" )
+                .overrides_with_all( &["target-asmjs-emscripten", "target-webasm-emscripten"] )
+        );
+}
+
 fn main() {
     let args = {
         // To allow running both as 'cargo-web' and as 'cargo web'.
@@ -84,220 +124,119 @@ fn main() {
         filtered_args
     };
 
+    let mut build_subcommand =
+        SubCommand::with_name( "build" )
+            .about( "Compile a local package and all of its dependencies" )
+            .arg(
+                Arg::with_name( "lib" )
+                    .long( "lib" )
+                    .help( "Build only this package's library" )
+            )
+            .arg(
+                Arg::with_name( "bin" )
+                    .long( "bin" )
+                    .help( "Build only the specified binary" )
+                    .value_name( "NAME" )
+                    .takes_value( true )
+            )
+            .arg(
+                Arg::with_name( "example" )
+                    .long( "example" )
+                    .help( "Build only the specified example" )
+                    .value_name( "NAME" )
+                    .takes_value( true )
+            )
+            .arg(
+                Arg::with_name( "test" )
+                    .long( "test" )
+                    .help( "Build only the specified test target" )
+                    .value_name( "NAME" )
+                    .takes_value( true )
+            )
+            .arg(
+                Arg::with_name( "bench" )
+                    .long( "bench" )
+                    .help( "Build only the specified benchmark target" )
+                    .value_name( "NAME" )
+                    .takes_value( true )
+            );
+
+    let mut test_subcommand =
+        SubCommand::with_name( "test" )
+            .about( "Compiles and runs tests" )
+            .arg(
+                Arg::with_name( "no-run" )
+                    .long( "no-run" )
+                    .help( "Compile, but don't run tests" )
+            )
+            .arg(
+                Arg::with_name( "nodejs" )
+                    .long( "nodejs" )
+                    .help( "Uses Node.js to run the tests" )
+            )
+            .arg(
+                Arg::with_name( "passthrough" )
+                    .help( "-- followed by anything will pass the arguments to the test runner")
+                    .multiple( true )
+                    .takes_value( true )
+                    .last( true )
+            );
+
+    let mut start_subcommand =
+        SubCommand::with_name( "start" )
+            .about( "Runs an embedded web server serving the built project" )
+            .arg(
+                Arg::with_name( "bin" )
+                    .long( "bin" )
+                    .help( "Build only the specified binary" )
+                    .value_name( "NAME" )
+                    .takes_value( true )
+            )
+            .arg(
+                Arg::with_name( "example" )
+                    .long( "example" )
+                    .help( "Serves the specified example" )
+                    .value_name( "NAME" )
+                    .takes_value( true )
+            )
+            .arg(
+                Arg::with_name( "test" )
+                    .long( "test" )
+                    .help( "Build only the specified test target" )
+                    .value_name( "NAME" )
+                    .takes_value( true )
+            )
+            .arg(
+                Arg::with_name( "bench" )
+                    .long( "bench" )
+                    .help( "Build only the specified benchmark target" )
+                    .value_name( "NAME" )
+                    .takes_value( true )
+            ).arg(
+                Arg::with_name( "host" )
+                    .long( "host" )
+                    .help( "Bind the server to this address, default `localhost`")
+                    .value_name( "HOST" )
+                    .takes_value( true )
+            ).arg(
+                Arg::with_name( "port" )
+                    .long( "port" )
+                    .help( "Bind the server to this port, default 8000" )
+                    .value_name( "PORT" )
+                    .takes_value( true )
+            );
+
+    build_subcommand = add_shared_build_params( build_subcommand );
+    test_subcommand = add_shared_build_params( test_subcommand );
+    start_subcommand = add_shared_build_params( start_subcommand );
+
     let matches = App::new( "cargo-web" )
         .version( env!( "CARGO_PKG_VERSION" ) )
         .setting( AppSettings::SubcommandRequiredElseHelp )
         .setting( AppSettings::VersionlessSubcommands )
-        .subcommand(
-            SubCommand::with_name( "build" )
-                .about( "Compile a local package and all of its dependencies" )
-                .arg(
-                    Arg::with_name( "use-system-emscripten" )
-                        .long( "use-system-emscripten" )
-                        .help( "Won't try to download Emscripten; will always use the system one" )
-                )
-                .arg(
-                    Arg::with_name( "release" )
-                        .long( "release" )
-                        .help( "Build artifacts in release mode, with optimizations" )
-                )
-                .arg(
-                    Arg::with_name( "target-asmjs-emscripten" )
-                        .long( "target-asmjs-emscripten" )
-                        .help( "Generate asmjs through Emscripten (default)" )
-                        .overrides_with_all( &["target-webasm-emscripten", "target-webasm"] )
-                )
-                .arg(
-                    Arg::with_name( "target-webasm-emscripten" )
-                        .long( "target-webasm-emscripten" )
-                        .help( "Generate webasm through Emscripten" )
-                        .overrides_with_all( &["target-asmjs-emscripten", "target-webasm"] )
-                )
-                .arg(
-                    Arg::with_name( "target-webasm" )
-                        .long( "target-webasm" )
-                        .help( "Generates webasm through Rust's native backend (HIGHLY EXPERIMENTAL!)" )
-                        .overrides_with_all( &["target-asmjs-emscripten", "target-webasm-emscripten"] )
-                )
-                .arg(
-                    Arg::with_name( "package" )
-                        .short( "p" )
-                        .long( "package" )
-                        .help( "Package to build" )
-                        .value_name( "NAME" )
-                        .takes_value( true )
-                )
-                .arg(
-                    Arg::with_name( "lib" )
-                        .long( "lib" )
-                        .help( "Build only this package's library" )
-                )
-                .arg(
-                    Arg::with_name( "bin" )
-                        .long( "bin" )
-                        .help( "Build only the specified binary" )
-                        .value_name( "NAME" )
-                        .takes_value( true )
-                )
-                .arg(
-                    Arg::with_name( "example" )
-                        .long( "example" )
-                        .help( "Build only the specified example" )
-                        .value_name( "NAME" )
-                        .takes_value( true )
-                )
-                .arg(
-                    Arg::with_name( "test" )
-                        .long( "test" )
-                        .help( "Build only the specified test target" )
-                        .value_name( "NAME" )
-                        .takes_value( true )
-                )
-                .arg(
-                    Arg::with_name( "bench" )
-                        .long( "bench" )
-                        .help( "Build only the specified benchmark target" )
-                        .value_name( "NAME" )
-                        .takes_value( true )
-                )
-        )
-        .subcommand(
-            SubCommand::with_name( "test" )
-                .about( "Compiles and runs tests" )
-                .arg(
-                    Arg::with_name( "use-system-emscripten" )
-                        .long( "use-system-emscripten" )
-                        .help( "Won't try to download Emscripten; will always use the system one" )
-                )
-                .arg(
-                    Arg::with_name( "no-run" )
-                        .long( "no-run" )
-                        .help( "Compile, but don't run tests" )
-                )
-                .arg(
-                    Arg::with_name( "target-asmjs-emscripten" )
-                        .long( "target-asmjs-emscripten" )
-                        .help( "Generate asmjs through Emscripten (default)" )
-                        .overrides_with_all( &["target-webasm-emscripten", "target-webasm"] )
-                )
-                .arg(
-                    Arg::with_name( "target-webasm-emscripten" )
-                        .long( "target-webasm-emscripten" )
-                        .help( "Generate webasm through Emscripten" )
-                        .overrides_with_all( &["target-asmjs-emscripten", "target-webasm"] )
-                )
-                .arg(
-                    Arg::with_name( "target-webasm" )
-                        .long( "target-webasm" )
-                        .help( "Generates webasm through Rust's native backend (HIGHLY EXPERIMENTAL!)" )
-                        .overrides_with_all( &["target-asmjs-emscripten", "target-webasm-emscripten"] )
-                )
-                .arg(
-                    Arg::with_name( "package" )
-                        .short( "p" )
-                        .long( "package" )
-                        .help( "Package to build" )
-                        .value_name( "NAME" )
-                        .takes_value( true )
-                )
-                .arg(
-                    Arg::with_name( "release" )
-                        .long( "release" )
-                        .help( "Build artifacts in release mode, with optimizations" )
-                )
-                .arg(
-                    Arg::with_name( "nodejs" )
-                        .long( "nodejs" )
-                        .help( "Uses Node.js to run the tests" )
-                )
-                .arg(
-                    Arg::with_name( "passthrough" )
-                        .help( "-- followed by anything will pass the arguments to the test runner")
-                        .multiple( true )
-                        .takes_value( true )
-                        .last( true )
-                )
-        )
-        .subcommand(
-            SubCommand::with_name( "start" )
-                .about( "Runs an embedded web server serving the built project" )
-                .arg(
-                    Arg::with_name( "use-system-emscripten" )
-                        .long( "use-system-emscripten" )
-                        .help( "Won't try to download Emscripten; will always use the system one" )
-                )
-                .arg(
-                    Arg::with_name( "release" )
-                        .long( "release" )
-                        .help( "Build artifacts in release mode, with optimizations" )
-                )
-                .arg(
-                    Arg::with_name( "target-asmjs-emscripten" )
-                        .long( "target-asmjs-emscripten" )
-                        .help( "Generate asmjs through Emscripten (default)" )
-                        .overrides_with_all( &["target-webasm-emscripten", "target-webasm"] )
-                )
-                .arg(
-                    Arg::with_name( "target-webasm-emscripten" )
-                        .long( "target-webasm-emscripten" )
-                        .help( "Generate webasm through Emscripten" )
-                        .overrides_with_all( &["target-asmjs-emscripten", "target-webasm"] )
-                )
-                .arg(
-                    Arg::with_name( "target-webasm" )
-                        .long( "target-webasm" )
-                        .help( "Generates webasm through Rust's native backend (HIGHLY EXPERIMENTAL!)" )
-                        .overrides_with_all( &["target-asmjs-emscripten", "target-webasm-emscripten"] )
-                )
-                .arg(
-                    Arg::with_name( "package" )
-                        .short( "p" )
-                        .long( "package" )
-                        .help( "Package to build" )
-                        .value_name( "NAME" )
-                        .takes_value( true )
-                )
-                .arg(
-                    Arg::with_name( "bin" )
-                        .long( "bin" )
-                        .help( "Build only the specified binary" )
-                        .value_name( "NAME" )
-                        .takes_value( true )
-                )
-                .arg(
-                    Arg::with_name( "example" )
-                        .long( "example" )
-                        .help( "Serves the specified example" )
-                        .value_name( "NAME" )
-                        .takes_value( true )
-                )
-                .arg(
-                    Arg::with_name( "test" )
-                        .long( "test" )
-                        .help( "Build only the specified test target" )
-                        .value_name( "NAME" )
-                        .takes_value( true )
-                )
-                .arg(
-                    Arg::with_name( "bench" )
-                        .long( "bench" )
-                        .help( "Build only the specified benchmark target" )
-                        .value_name( "NAME" )
-                        .takes_value( true )
-                ).arg(
-                    Arg::with_name( "host" )
-                        .long( "host" )
-                        .help( "Bind the server to this address, default `localhost`")
-                        .value_name( "HOST" )
-                        .takes_value( true )
-                ).arg(
-                    Arg::with_name( "port" )
-                        .long( "port" )
-                        .help( "Bind the server to this port, default 8000" )
-                        .value_name( "PORT" )
-                        .takes_value( true )
-                )
-        )
+        .subcommand( build_subcommand )
+        .subcommand( test_subcommand )
+        .subcommand( start_subcommand )
         .get_matches_from( args );
 
     let project = CargoProject::new( None );
