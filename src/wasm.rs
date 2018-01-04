@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::fs::{self, File};
 use std::io::Write;
 
@@ -15,11 +15,12 @@ use wasm_hook_grow;
 use wasm_intrinsics;
 use wasm_runtime;
 
-pub fn process_wasm_files< P: AsRef< Path > >( build: &BuildConfig, artifacts: &[P] ) {
+pub fn process_wasm_files< P: AsRef< Path > >( build: &BuildConfig, artifacts: &[P] ) -> Vec< PathBuf > {
     if !build.triplet.as_ref().map( |triplet| triplet == "wasm32-unknown-unknown" ).unwrap_or( false ) {
-        return;
+        return Vec::new();
     }
 
+    let mut outputs = Vec::new();
     for artifact in artifacts {
         let path = artifact.as_ref();
         if !path.extension().map( |ext| ext == "wasm" ).unwrap_or( false ) {
@@ -27,6 +28,8 @@ pub fn process_wasm_files< P: AsRef< Path > >( build: &BuildConfig, artifacts: &
         }
 
         let js_path = path.with_extension( "js" );
+        outputs.push( js_path.clone() );
+
         if js_path.exists() {
             let js_mtime = fs::metadata( &js_path ).unwrap().modified().unwrap();
             let wasm_mtime = fs::metadata( path ).unwrap().modified().unwrap();
@@ -58,4 +61,6 @@ pub fn process_wasm_files< P: AsRef< Path > >( build: &BuildConfig, artifacts: &
 
         println_err!( "    Finished processing of {:?}!", path.file_name().unwrap() );
     }
+
+    outputs
 }

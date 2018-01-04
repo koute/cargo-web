@@ -1,5 +1,4 @@
-use std::process::{Command, exit};
-use std::env;
+use std::process::exit;
 
 use clap;
 use cargo_shim::{
@@ -10,12 +9,13 @@ use cargo_shim::{
     BuildType,
     BuildConfig,
     TargetKind,
+    CargoResult,
     target_to_build_target
 };
 
 use config::Config;
+use emscripten::initialize_emscripten;
 use error::Error;
-use utils::CommandExt;
 use wasm;
 
 pub struct BuildArgsMatcher< 'a > {
@@ -50,6 +50,10 @@ impl< 'a > BuildArgsMatcher< 'a > {
 
     pub fn targeting_emscripten( &self ) -> bool {
         self.targeting_emscripten_wasm() || self.targeting_emscripten_asmjs()
+    }
+
+    fn use_system_emscripten( &self ) -> bool {
+        self.matches.is_present( "use-system-emscripten" )
     }
 
     fn build_type( &self ) -> BuildType {
@@ -132,60 +136,80 @@ impl< 'a > BuildArgsMatcher< 'a > {
         }
     }
 
-    pub fn build_config( &self, package: &CargoPackage, target: &CargoTarget, profile: Profile ) -> BuildConfig {
-        BuildConfig {
+    pub fn prepare_builder( &self, config: &Config, package: &CargoPackage, target: &CargoTarget, profile: Profile ) -> Builder {
+        let mut extra_paths = Vec::new();
+        let mut extra_rustflags = Vec::new();
+        let mut extra_environment = Vec::new();
+
+        if self.targeting_emscripten() {
+            if let Some( emscripten ) = initialize_emscripten( self.use_system_emscripten(), self.targeting_wasm() ) {
+                extra_paths.push( emscripten.emscripten_path.clone() );
+
+                let emscripten_path = emscripten.emscripten_path.to_string_lossy().into_owned();
+                let emscripten_llvm_path = emscripten.emscripten_llvm_path.to_string_lossy().into_owned();
+
+                extra_environment.push( ("EMSCRIPTEN".to_owned(), emscripten_path) );
+                extra_environment.push( ("EMSCRIPTEN_FASTCOMP".to_owned(), emscripten_llvm_path.clone()) );
+                extra_environment.push( ("LLVM".to_owned(), emscripten_llvm_path) );
+                if let Some( binaryen_path ) = emscripten.binaryen_path {
+                    let binaryen_path = binaryen_path.to_string_lossy().into_owned();
+                    extra_environment.push( ("BINARYEN".to_owned(), binaryen_path) );
+                }
+            }
+        }
+
+        if let Some( ref link_args ) = config.link_args {
+            for arg in link_args {
+                if arg.contains( " " ) {
+                    // Not sure how to handle spaces, as `-C link-arg="{}"` doesn't work.
+                    println_err!( "error: you have a space in one of the entries in `link-args` in your `Web.toml`;" );
+                    println_err!( "       this is currently unsupported - aborting!" );
+                    exit( 101 );
+                }
+
+                extra_rustflags.push( "-C".to_owned() );
+                extra_rustflags.push( format!( "link-arg={}", arg ) );
+            }
+        }
+
+        if self.targeting_native_wasm() && self.requested_build_type() == BuildType::Debug {
+            extra_rustflags.push( "-C".to_owned() );
+            extra_rustflags.push( "debuginfo=2".to_owned() );
+        }
+
+        Builder::new( BuildConfig {
             build_target: target_to_build_target( target, profile ),
             build_type: self.build_type(),
             triplet: Some( self.triplet_or_default().into() ),
             package: Some( package.name.clone() ),
             features: self.features().into_iter().map( |feature| feature.to_owned() ).collect(),
             no_default_features: self.matches.is_present( "no-default-features" ),
-            enable_all_features: self.matches.is_present( "all-features" )
-        }
+            enable_all_features: self.matches.is_present( "all-features" ),
+            extra_paths,
+            extra_rustflags,
+            extra_environment
+        })
     }
 }
 
-pub fn run_with_broken_first_build_hack( package: &CargoPackage, build_config: &BuildConfig, command: &mut Command ) -> Result< (), Error > {
-    if command.run().is_ok() == false {
-        return Err( Error::BuildError );
+pub struct Builder( BuildConfig );
+
+impl Builder {
+    pub fn new( build_config: BuildConfig ) -> Self {
+        Builder( build_config )
     }
 
-    let artifacts = build_config.potential_artifacts( &package.crate_root );
-    wasm::process_wasm_files( build_config, &artifacts );
-
-    // HACK: For some reason when you install emscripten for the first time
-    // the first build is always a dud (it produces no artifacts), so we do this.
-    if artifacts.is_empty() {
-        if command.run().is_ok() == false {
+    pub fn run( &self ) -> Result< CargoResult, Error > {
+        let mut result = self.0.build();
+        if result.is_ok() == false {
             return Err( Error::BuildError );
         }
-    }
 
-    Ok(())
-}
-
-pub fn set_rust_flags( config: &Config, build_matcher: &BuildArgsMatcher ) {
-    let mut rustflags = String::new();
-    if let Ok( flags ) = env::var( "RUSTFLAGS" ) {
-        rustflags.push_str( flags.as_str() );
-        rustflags.push_str( " " );
-    }
-
-    if let Some( ref link_args ) = config.link_args {
-        for arg in link_args {
-            if arg.contains( " " ) {
-                // Not sure how to handle spaces, as `-C link-arg="{}"` doesn't work.
-                println_err!( "error: you have a space in one of the entries in `link-args` in your `Web.toml`;" );
-                println_err!( "       this is currently unsupported - aborting!" );
-                exit( 101 );
-            }
-            rustflags.push_str( format!( "-C link-arg={} ", arg ).as_str() );
+        let extra_artifacts = wasm::process_wasm_files( &self.0, result.artifacts() );
+        for artifact in extra_artifacts {
+            result.add_artifact( artifact );
         }
-    }
 
-    if build_matcher.targeting_native_wasm() && build_matcher.requested_build_type() == BuildType::Debug {
-        rustflags.push_str( "-C debuginfo=2 " );
+        Ok( result )
     }
-
-    env::set_var( "RUSTFLAGS", rustflags.trim() );
 }

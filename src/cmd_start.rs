@@ -3,7 +3,9 @@ use std::sync::mpsc::channel;
 use std::sync::{Mutex, Arc};
 use std::time::Duration;
 use std::thread;
+use std::mem;
 use std::net::{self, ToSocketAddrs};
+use std::ops::DerefMut;
 
 use notify::{
     RecommendedWatcher,
@@ -21,23 +23,19 @@ use cargo_shim::{
     CargoProject,
     TargetKind,
     CargoTarget,
-    BuildConfig
+    CargoResult
 };
 
 use build::{
     BuildArgsMatcher,
-    set_rust_flags,
-    run_with_broken_first_build_hack
+    Builder
 };
 use config::Config;
-use emscripten::check_for_emcc;
 use error::Error;
 use utils::{
-    CommandExt,
     read,
     read_bytes
 };
-use wasm;
 
 const DEFAULT_INDEX_HTML: &'static str = r#"
 <!DOCTYPE html>
@@ -88,17 +86,28 @@ impl Output {
     fn is_js( &self ) -> bool {
         self.has_extension( "js" )
     }
+}
 
-    fn is_wasm( &self ) -> bool {
-        self.has_extension( "wasm" )
+fn result_to_outputs( result: CargoResult ) -> Vec< Output > {
+    assert!( result.is_ok() );
+
+    let mut outputs = Vec::new();
+    for artifact in result.artifacts() {
+        if let Ok( data ) = read_bytes( &artifact ) {
+            outputs.push( Output {
+                path: artifact.clone(),
+                data
+            });
+        }
     }
+
+    outputs
 }
 
 fn monitor_for_changes_and_rebuild(
     package: &CargoPackage,
     target: &CargoTarget,
-    build: BuildConfig,
-    extra_path: Option< &Path >,
+    builder: Builder,
     outputs: Arc< Mutex< Vec< Output > > >
 ) -> RecommendedWatcher {
     let (tx, rx) = channel();
@@ -108,8 +117,6 @@ fn monitor_for_changes_and_rebuild(
     // TODO: Support Cargo.toml reloading.
     watcher.watch( &target.source_directory, RecursiveMode::Recursive ).unwrap();
     watcher.watch( &package.manifest_path, RecursiveMode::NonRecursive ).unwrap();
-
-    let extra_path = extra_path.map( |path| path.to_owned() );
     thread::spawn( move || {
         let rx = rx;
         while let Ok( event ) = rx.recv() {
@@ -122,21 +129,10 @@ fn monitor_for_changes_and_rebuild(
             };
 
             println_err!( "==== Triggering `cargo build` ====" );
-
-            let mut command = build.as_command();
-            if let Some( ref extra_path ) = extra_path {
-                command.append_to_path( extra_path );
-            }
-
-            if command.run().is_ok() {
-                let mut outputs = outputs.lock().unwrap();
-                wasm::process_wasm_files( &build, &outputs );
-
-                for output in outputs.iter_mut() {
-                    if let Ok( data ) = read_bytes( &output.path ) {
-                        output.data = data;
-                    }
-                }
+            let new_result = builder.run();
+            if let Ok( new_result ) = new_result {
+                let mut new_outputs = result_to_outputs( new_result );
+                mem::swap( outputs.lock().unwrap().deref_mut(), &mut new_outputs )
             }
         }
     });
@@ -156,15 +152,8 @@ pub fn command_start< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoPro
         project: project
     };
 
-    let use_system_emscripten = matches.is_present( "use-system-emscripten" );
-    let targeting_native_wasm = build_matcher.targeting_native_wasm();
-    let targeting_webasm = build_matcher.targeting_wasm();
-    let extra_path = if !build_matcher.targeting_emscripten() { None } else { check_for_emcc( use_system_emscripten, targeting_webasm ) };
-
     let package = build_matcher.package_or_default()?;
     let config = Config::load_for_package_printing_warnings( &package ).unwrap().unwrap_or_default();
-    set_rust_flags( &config, &build_matcher );
-
     let targets = build_matcher.target_or_select( package, |target| {
         target.kind == TargetKind::Bin
     })?;
@@ -176,52 +165,13 @@ pub fn command_start< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoPro
     }
 
     let target = &targets[ 0 ];
-    let build_config = build_matcher.build_config( package, target, Profile::Main );
-
-    let mut command = build_config.as_command();
-    if let Some( ref extra_path ) = extra_path {
-        command.append_to_path( extra_path );
-    }
-
-    run_with_broken_first_build_hack( package, &build_config, &mut command )?;
-
-    let artifacts = build_config.potential_artifacts( &package.crate_root );
-
-    let output_path = &artifacts[ 0 ];
-    let mut wasm_path = output_path.with_extension( "wasm" );
-    if build_matcher.targeting_emscripten_wasm() {
-        wasm_path =
-            wasm_path.parent().unwrap().join(
-                wasm_path.file_name().unwrap().to_string_lossy().into_owned().replace( '-', "_" )
-            );
-    }
-    let wasm_url = format!( "/{}", wasm_path.file_name().unwrap().to_str().unwrap() );
-    let mut outputs = vec![
-        Output {
-            path: output_path.to_owned(),
-            data: read_bytes( output_path ).unwrap()
-        }
-    ];
-
-    if targeting_webasm {
-        outputs.push( Output {
-            path: wasm_path.clone(),
-            data: read_bytes( wasm_path ).unwrap(),
-        });
-    }
-
-    if targeting_native_wasm {
-        let js_path = output_path.with_extension( "js" );
-        outputs.push( Output {
-            path: js_path.clone(),
-            data: read_bytes( js_path ).unwrap()
-        });
-    }
-
+    let builder = build_matcher.prepare_builder( &config, package, target, Profile::Main );
+    let result = builder.run()?;
+    let outputs = result_to_outputs( result );
     let outputs = Arc::new( Mutex::new( outputs ) );
 
     #[allow(unused_variables)]
-    let watcher = monitor_for_changes_and_rebuild( &package, &target, build_config, extra_path.as_ref().map( |path| path.as_path() ), outputs.clone() );
+    let watcher = monitor_for_changes_and_rebuild( &package, &target, builder, outputs.clone() );
 
     let crate_static_path = package.crate_root.join( "static" );
     let target_static_path = match target.kind {
@@ -247,7 +197,7 @@ pub fn command_start< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoPro
         }
 
         let url = request.url();
-        response = if url == "/" || url == "index.html" {
+        if url == "/" || url == "index.html" {
             let data = target_static_path.as_ref().and_then( |path| {
                 read( path.join( "index.html" ) ).ok()
             }).or_else( || {
@@ -255,21 +205,39 @@ pub fn command_start< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoPro
             });
 
             if let Some( data ) = data {
-                rouille::Response::html( data )
+                return rouille::Response::html( data ).with_no_cache();
             } else {
-                rouille::Response::html( DEFAULT_INDEX_HTML )
+                return rouille::Response::html( DEFAULT_INDEX_HTML ).with_no_cache();
             }
-        } else if url == "/js/app.js" {
+        }
+
+        if url == "/js/app.js" {
             let data = outputs.lock().unwrap().iter().find( |output| output.is_js() ).unwrap().data.clone();
-            rouille::Response::from_data( "application/javascript", data )
-        } else if url == wasm_url {
-            let data = outputs.lock().unwrap().iter().find( |output| output.is_wasm() ).unwrap().data.clone();
-            rouille::Response::from_data( "application/wasm", data )
+            return rouille::Response::from_data( "application/javascript", data ).with_no_cache();
+        }
+
+        let requested_file = if url.starts_with( '/' ) {
+            &url[ 1.. ]
         } else {
-            rouille::Response::empty_404()
+            &url
         };
 
-        response.with_no_cache()
+        let outputs_guard = outputs.lock().unwrap();
+        let output = outputs_guard.iter().find( |output| {
+            output.path.file_name().map( |filename| requested_file == filename ).unwrap_or( false )
+        });
+
+        if let Some( output ) = output {
+            let mime = match output.path.extension().map( |ext| ext.to_str().unwrap() ) {
+                Some( "wasm" ) => "application/wasm",
+                Some( "js" ) => "application/javascript",
+                _ => "application/octet-stream"
+            };
+
+            return rouille::Response::from_data( mime, output.data.clone() ).with_no_cache();
+        }
+
+        rouille::Response::empty_404().with_no_cache()
     }).unwrap();
 
     println_err!( "" );
@@ -287,5 +255,6 @@ pub fn command_start< 'a >( matches: &clap::ArgMatches< 'a >, project: &CargoPro
     println_err!( "You can access the web server at `http://{}`.", &address );
 
     server.run();
+
     Ok(())
 }

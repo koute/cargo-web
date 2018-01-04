@@ -22,6 +22,7 @@ extern crate toml;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
+extern crate serde_json;
 extern crate handlebars;
 extern crate unicode_categories;
 extern crate ordermap;
@@ -32,7 +33,7 @@ extern crate log;
 extern crate rustc_demangle;
 
 extern crate cargo_metadata;
-extern crate regex;
+extern crate ansi_term;
 
 use std::process::exit;
 use std::env;

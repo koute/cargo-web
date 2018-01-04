@@ -1,6 +1,5 @@
 use std::process::exit;
 use std::path::{Path, PathBuf};
-use std::env;
 
 use package::{
     PrebuiltPackage,
@@ -62,52 +61,15 @@ fn binaryen_package() -> Option< PrebuiltPackage > {
     Some( package )
 }
 
-pub fn check_for_emcc( use_system_emscripten: bool, targeting_webasm: bool ) -> Option< PathBuf > {
-    let emscripten_package =
-        if use_system_emscripten {
-            None
-        } else {
-            emscripten_package()
-        };
+fn check_emscripten() {
+    let binary = if cfg!( windows ) {
+        "emcc.bat"
+    } else {
+        "emcc"
+    };
 
-    let binaryen_package =
-        if use_system_emscripten || !targeting_webasm {
-            None
-        } else {
-            binaryen_package()
-        };
-
-    if let Some( package ) = binaryen_package {
-        let binaryen_path = download_package( &package );
-        env::set_var( "BINARYEN", &binaryen_path.join( "binaryen" ) );
-    }
-
-    if let Some( package ) = emscripten_package {
-        let emscripten_path = download_package( &package );
-        let emscripten_bin_path = emscripten_path.join( "emscripten" );
-        let emscripten_llvm_path = emscripten_path.join( "emscripten-fastcomp" );
-
-        env::set_var( "EMSCRIPTEN", &emscripten_bin_path );
-        env::set_var( "EMSCRIPTEN_FASTCOMP", &emscripten_llvm_path );
-        env::set_var( "LLVM", &emscripten_llvm_path );
-
-        return Some( emscripten_bin_path );
-    }
-
-    if check_if_command_exists( "emcc", None ) {
-        return None;
-    }
-
-    if cfg!( any(linux) ) && Path::new( "/usr/lib/emscripten/emcc" ).exists() {
-        if check_if_command_exists( "emcc", Some( "/usr/lib/emscripten" ) ) {
-            // Arch package doesn't put Emscripten anywhere in the $PATH, but
-            // it's there and it works.
-            return Some( "/usr/lib/emscripten".into() );
-        }
-    } else if cfg!( any(windows) ) {
-        if check_if_command_exists( "emcc.bat", None ) {
-            return None;
-        }
+    if check_if_command_exists( binary, None ) {
+        return;
     }
 
     println_err!( "error: you don't have Emscripten installed!" );
@@ -140,4 +102,58 @@ pub fn check_for_emcc( use_system_emscripten: bool, targeting_webasm: bool ) -> 
     }
 
     exit( 101 );
+}
+
+pub struct Emscripten {
+    pub binaryen_path: Option< PathBuf >,
+    pub emscripten_path: PathBuf,
+    pub emscripten_llvm_path: PathBuf
+}
+
+pub fn initialize_emscripten(
+    use_system_emscripten: bool,
+    targeting_webasm: bool
+) -> Option< Emscripten > {
+
+    if use_system_emscripten {
+        check_emscripten();
+        return None;
+    }
+
+    let emscripten_package = match emscripten_package() {
+        Some( pkg ) => pkg,
+        None => {
+            check_emscripten();
+            return None;
+        }
+    };
+
+    let binaryen_package = if targeting_webasm {
+        match binaryen_package() {
+            Some( pkg ) => Some( pkg ),
+            None => {
+                check_emscripten();
+                return None;
+            }
+        }
+    } else {
+        None
+    };
+
+
+    let emscripten_root = download_package( &emscripten_package );
+    let emscripten_path = emscripten_root.join( "emscripten" );
+    let emscripten_llvm_path = emscripten_root.join( "emscripten-fastcomp" );
+    let binaryen_path = if let Some( binaryen_package ) = binaryen_package {
+        let binaryen_root = download_package( &binaryen_package );
+        Some( binaryen_root.join( "binaryen" ) )
+    } else {
+        None
+    };
+
+    Some( Emscripten {
+        binaryen_path,
+        emscripten_path,
+        emscripten_llvm_path
+    })
 }

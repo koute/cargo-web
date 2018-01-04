@@ -1,8 +1,18 @@
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::path::{Path, PathBuf};
+use std::io::{BufRead, BufReader};
+use std::ffi::OsString;
+use std::env;
+use std::thread;
 
 use cargo_metadata;
-use regex::Regex;
+use serde_json;
+
+mod cargo_output;
+mod rustc_diagnostic;
+mod diagnostic_formatter;
+
+use self::cargo_output::CargoOutput;
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum BuildType {
@@ -48,7 +58,7 @@ pub struct CargoTarget {
 
 impl CargoProject {
     pub fn new( manifest_path: Option< &str > ) -> CargoProject {
-        let metadata = cargo_metadata::metadata( manifest_path ).unwrap();
+        let metadata = cargo_metadata::metadata( manifest_path.map( |path| Path::new( path ) ) ).unwrap();
         CargoProject {
             packages: metadata.packages.into_iter().map( |package| {
                 let manifest_path: PathBuf = package.manifest_path.into();
@@ -98,7 +108,10 @@ pub struct BuildConfig {
     pub package: Option< String >,
     pub features: Vec< String >,
     pub no_default_features: bool,
-    pub enable_all_features: bool
+    pub enable_all_features: bool,
+    pub extra_paths: Vec< PathBuf >,
+    pub extra_rustflags: Vec< String >,
+    pub extra_environment: Vec< (String, String) >
 }
 
 fn profile_to_arg( profile: Profile ) -> &'static str {
@@ -120,9 +133,13 @@ pub fn target_to_build_target( target: &CargoTarget, profile: Profile ) -> Build
 }
 
 impl BuildConfig {
-    pub fn as_command( &self ) -> Command {
+    fn as_command( &self ) -> Command {
         let mut command = Command::new( "cargo" );
         command.arg( "rustc" );
+        command.arg( "--message-format" );
+        command.arg( "json" );
+        command.arg( "--color" );
+        command.arg( "always" );
 
         if let Some( ref triplet ) = self.triplet {
             command.arg( "--target" ).arg( triplet.as_str() );
@@ -177,98 +194,175 @@ impl BuildConfig {
         command
     }
 
-    pub fn output_directory< P: AsRef< Path > >( &self, crate_root: P ) -> PathBuf {
-        let crate_root = crate_root.as_ref();
-        let mut directory = crate_root.join( "target" );
-        if let Some( ref triplet ) = self.triplet {
-            directory = directory.join( &triplet );
+    pub fn build( &self ) -> CargoResult {
+        let mut result = self.build_internal();
+        if result.is_ok() == false {
+            return result;
         }
 
-        directory = match self.build_type {
-            BuildType::Debug => directory.join( "debug" ),
-            BuildType::Release => directory.join( "release" )
-        };
-
-        match self.build_target {
-            BuildTarget::ExampleBin( _ ) => directory.join( "examples" ),
-            _ => directory
-        }
-    }
-
-    // Ugh... this is really dumb, and probably buggy, but Cargo doesn't support a seemingly fundamental
-    // feature like being able to tell us what exactly it generated, so we have to guess. Hopefully
-    // it will get fixed eventually.
-    pub fn potential_artifacts< P: AsRef< Path > >( &self, crate_root: P ) -> Vec< PathBuf > {
-        let mut matchers = Vec::new();
-
-        macro_rules! matcher {
-            ($regex:expr) => {
-                matchers.push( Regex::new( $regex.as_ref() ).unwrap() )
-            }
-        };
-
-        macro_rules! prefix_matcher {
-            ($prefix:expr) => {
-                matcher!( format!( "^{}-", $prefix.replace("-", "_") ) )
-            }
-        };
-
-        let is_web_target = self.triplet.as_ref().map( |triplet| {
-            let triplet = triplet.as_str();
-            triplet == "asmjs-unknown-emscripten" ||
-            triplet == "wasm32-unknown-emscripten"
+        // HACK: For some reason when you install emscripten for the first time
+        // the first build is always a dud (it produces no artifacts), so we retry once.
+        let is_emscripten = self.triplet.as_ref().map( |triplet| {
+            triplet == "wasm32-unknown-emscripten" || triplet == "asmjs-unknown-emscripten"
         }).unwrap_or( false );
 
-        if is_web_target {
-            matcher!( "\\.js$" );
-        } if cfg!( target_os = "windows" ) {
-            match self.build_target {
-                BuildTarget::Lib( _, Profile::Main ) => matcher!( "\\.(lib|dll)$" ),
-                _ => {}
-            }
-        } if cfg!( target_os = "linux" ) {
-            match self.build_target {
-                BuildTarget::Lib( _, Profile::Main ) => matcher!( "\\.(a|so)$" ),
-                _ => {}
-            }
+        if is_emscripten && result.artifacts().is_empty() {
+            result = self.build_internal();
         }
 
-        match self.build_target {
-            BuildTarget::Lib( _, Profile::Main ) => {},
-            BuildTarget::Lib( ref name, Profile::Test ) => prefix_matcher!( name ),
-            BuildTarget::Lib( ref name, Profile::Bench ) => prefix_matcher!( name ),
-            BuildTarget::Bin( ref name, profile ) => {
-                match profile {
-                    Profile::Main => matcher!( format!( "^{}(\\.|$)", name ) ),
-                    Profile::Test | Profile::Bench => prefix_matcher!( name )
-                }
-            },
-            BuildTarget::ExampleBin( ref name ) => matcher!( format!( "^{}(\\.|$)", name ) ),
-            BuildTarget::IntegrationTest( ref name ) => prefix_matcher!( name ),
-            BuildTarget::IntegrationBench( ref name ) => prefix_matcher!( name )
+        return result;
+    }
+
+    fn build_internal( &self ) -> CargoResult {
+        let mut command = self.as_command();
+
+        let mut paths = env::var_os( "PATH" )
+            .map( |paths| env::split_paths( &paths ).collect() )
+            .unwrap_or( Vec::new() );
+
+        for path in &self.extra_paths {
+            paths.push( path.into() );
         }
 
-        let crate_root = crate_root.as_ref();
-        let output_directory = self.output_directory( crate_root );
+        let new_paths = env::join_paths( paths ).unwrap();
+        command.env( "PATH", new_paths );
 
-        let mut output = Vec::new();
-        let output_directory_iter = match output_directory.read_dir() {
-            Ok( iter ) => iter,
-            Err( _ ) => return output
+        let mut rustflags = env::var_os( "RUSTFLAGS" ).unwrap_or( OsString::new() );
+        for flag in &self.extra_rustflags {
+            if !rustflags.is_empty() {
+                rustflags.push( " " );
+            }
+            rustflags.push( flag );
+        }
+        command.env( "RUSTFLAGS", rustflags );
+
+        for &(ref key, ref value) in &self.extra_environment {
+            command.env( key, value );
+        }
+
+        command.stdout( Stdio::piped() );
+        command.stderr( Stdio::piped() );
+
+        let mut child = match command.spawn() {
+            Ok( child ) => child,
+            Err( _ ) => {
+                return CargoResult {
+                    status: None,
+                    artifacts: Vec::new()
+                };
+            }
         };
 
-        for entry in output_directory_iter {
-            let entry = entry.unwrap();
-            let filename = entry.file_name();
-            let filename = filename.to_string_lossy().into_owned();
+        let stderr = BufReader::new( child.stderr.take().unwrap() );
+        let stdout = BufReader::new( child.stdout.take().unwrap() );
 
-            if !matchers.iter().all( |regex| regex.is_match( filename.as_str() ) ) {
+        thread::spawn( move || {
+            let mut skip = 0;
+            for line in stderr.lines() {
+                let line = match line {
+                    Ok( line ) => line,
+                    Err( _ ) => break
+                };
+
+                if skip > 0 {
+                    skip -= 1;
+                    continue;
+                }
+
+                // This is really ugly, so let's skip it.
+                if line.trim() == "Caused by:" {
+                    skip += 1;
+                    continue;
+                }
+
+                eprintln!( "{}", line );
+            }
+        });
+
+        let result = child.wait();
+        let status = result.unwrap().code().expect( "failed to grab cargo status code" );
+
+        let mut artifacts: Vec< PathBuf > = Vec::new();
+        for line in stdout.lines() {
+            let line = match line {
+                Ok( line ) => line,
+                Err( _ ) => break
+            };
+
+            let line = line.trim();
+            if line.is_empty() {
                 continue;
             }
 
-            output.push( output_directory.join( filename ) );
+            let json: serde_json::Value = serde_json::from_str( &line ).expect( "failed to parse cargo output" );
+            let line = serde_json::to_string_pretty( &json ).unwrap();
+            if let Some( output ) = CargoOutput::parse( &line ) {
+                match output {
+                    CargoOutput::Message( message ) => {
+                        diagnostic_formatter::print( &message );
+                    },
+                    CargoOutput::Artifact( artifact ) => {
+                        for filename in artifact.filenames {
+                            // NOTE: Since we extract the paths from the JSON
+                            //       we get a list of artifacts as `String`s instead of `PathBuf`s.
+                            artifacts.push( filename.into() );
+                        }
+                    },
+                    _ => {}
+                }
+            }
         }
 
-        output
+        // For some reason when building tests cargo doesn't treat
+        // the `.wasm` file as an artifact.
+        if status == 0 && self.triplet.as_ref().map( |triplet| triplet == "wasm32-unknown-emscripten" ).unwrap_or( false ) {
+            match self.build_target {
+                BuildTarget::Bin( _, Profile::Test ) | BuildTarget::Lib( _, Profile::Test ) => {
+                    let wasm_path = {
+                        let main_artifact = artifacts.iter()
+                            .find( |artifact| artifact.extension().map( |ext| ext == "js" ).unwrap_or( false ) );
+
+                        if let Some( main_artifact ) = main_artifact {
+                            let filename = main_artifact.file_name().unwrap();
+                            let wasm_path = main_artifact.parent().unwrap().join( "deps" ).join( filename ).with_extension( "wasm" );
+                            assert!( wasm_path.exists(), "internal error: wasm doesn't exist where I expected it to be" );
+
+                            Some( wasm_path )
+                        } else {
+                            None
+                        }
+                    };
+
+                    if let Some( wasm_path ) = wasm_path {
+                        artifacts.push( wasm_path );
+                    }
+                },
+                _ => {}
+            }
+        }
+
+        CargoResult {
+            status: Some( status ),
+            artifacts
+        }
+    }
+}
+
+pub struct CargoResult {
+    status: Option< i32 >,
+    artifacts: Vec< PathBuf >
+}
+
+impl CargoResult {
+    pub fn is_ok( &self ) -> bool {
+        self.status == Some( 0 )
+    }
+
+    pub fn artifacts( &self ) -> &[PathBuf] {
+        &self.artifacts
+    }
+
+    pub fn add_artifact< P: AsRef< Path > >( &mut self, artifact: P ) {
+        self.artifacts.push( artifact.as_ref().to_owned() );
     }
 }
