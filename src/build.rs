@@ -156,6 +156,16 @@ impl< 'a > BuildArgsMatcher< 'a > {
                     extra_environment.push( ("BINARYEN".to_owned(), binaryen_path) );
                 }
             }
+
+            // When compiling tests we want the exit runtime,
+            // when compiling for the Web we don't want it
+            // since that's more efficient.
+            let exit_runtime = profile == Profile::Main;
+
+            extra_rustflags.push( "-C".to_owned() );
+            extra_rustflags.push( "link-arg=-s".to_owned() );
+            extra_rustflags.push( "-C".to_owned() );
+            extra_rustflags.push( format!( "link-arg=NO_EXIT_RUNTIME={}", exit_runtime as u32 ) );
         }
 
         if let Some( ref link_args ) = config.link_args {
