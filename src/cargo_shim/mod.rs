@@ -206,9 +206,17 @@ impl BuildConfig {
             triplet == "wasm32-unknown-emscripten" || triplet == "asmjs-unknown-emscripten"
         }).unwrap_or( false );
 
-        if is_emscripten && result.artifacts().is_empty() {
-            debug!( "No artifacts were generated yet build succeeded; retrying..." );
-            result = self.build_internal();
+        if is_emscripten {
+            let no_js_generated = result
+                .artifacts()
+                .iter()
+                .find( |artifact| artifact.extension().map( |ext| ext == "js" ).unwrap_or( false ) )
+                .is_none();
+
+            if no_js_generated {
+                debug!( "No artifacts were generated yet build succeeded; retrying..." );
+                result = self.build_internal();
+            }
         }
 
         return result;
