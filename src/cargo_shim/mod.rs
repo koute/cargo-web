@@ -289,10 +289,6 @@ impl BuildConfig {
             }
         });
 
-        let result = child.wait();
-        let status = result.unwrap().code().expect( "failed to grab cargo status code" );
-        debug!( "Cargo finished with status: {}", status );
-
         let mut artifacts: Vec< PathBuf > = Vec::new();
         for line in stdout.lines() {
             let line = match line {
@@ -324,6 +320,10 @@ impl BuildConfig {
                 }
             }
         }
+
+        let result = child.wait();
+        let status = result.unwrap().code().expect( "failed to grab cargo status code" );
+        debug!( "Cargo finished with status: {}", status );
 
         // For some reason when building tests cargo doesn't treat
         // the `.wasm` file as an artifact.
