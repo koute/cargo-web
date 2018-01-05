@@ -31,6 +31,7 @@ extern crate parity_wasm;
 #[macro_use]
 extern crate log;
 extern crate rustc_demangle;
+extern crate env_logger;
 
 extern crate cargo_metadata;
 extern crate ansi_term;
@@ -129,6 +130,8 @@ fn add_shared_build_params< 'a, 'b >( app: App< 'a, 'b > ) -> App< 'a, 'b > {
 }
 
 fn main() {
+    let _ = env_logger::init();
+
     let args = {
         // To allow running both as 'cargo-web' and as 'cargo web'.
         let mut args = env::args();

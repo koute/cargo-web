@@ -38,6 +38,7 @@ ordermap = "0.3"
 parity-wasm = "0.19"
 log = "0.4"
 rustc-demangle = "0.1.5"
+env_logger = "0.5.0-rc.1"
 
 [features]
 development-mode = []
