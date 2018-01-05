@@ -5,45 +5,47 @@
 This cargo subcommand aims to make it easy and convenient to build, develop
 and deploy client-side Web applications written in Rust.
 
-It's currently very early in development; for now it supports
-the following sub-subcommands:
-
-  * `cargo web build` - builds your project
-  * `cargo web test [--nodejs]` - automatically runs your tests in a web browser (experimental)
-                                  or under Nodejs
-  * `cargo web start` - builds the project, starts an embedded webserver
-                        and rebuilds as needed
-
-It supports all three of Rust's Web backends when passed one of the following parameters:
-
-  * `--target-asmjs-emscripten` - builds for `asmjs-unknown-emscripten` (default)
-  * `--target-webasm-emscripten` - builds for `wasm32-unknown-emscripten`
-  * `--target-webasm` - builds for Rust's native `wasm32-unknown-unknown`, requires Rust nightly
-
-Before compiling anything you will have to install the corresponding targets
-with `rustup` yourself, e.g.:
-
-    $ rustup target add asmjs-unknown-emscripten
-
-On i686 and x86_64 Linux it will also automatically download Emscripten for you
-when building for the `*-emscripten` targets.
-
-It's also highly recommended that you check out the [stdweb] crate if you want
-to interact with the JavaScript world in your project.
-
-Other features which are (eventually) planned but are yet not here:
-
-  * Fully headless test running.
-  * Feature parity with cargo.
-  * Built-in minification.
-  * Possibly a bridge into the `npm` ecosystem to fetch JavaScript libraries.
-  * Anything else you might expect from a tool like this (suggestions welcome!).
-
-[stdweb]: https://github.com/koute/stdweb
-
 ## Donate
 
 [![Become a patron](https://koute.github.io/img/become_a_patron_button.png)](https://www.patreon.com/koute)
+
+## Features
+
+Currently it supports the following features:
+
+  * `cargo web build` - will build your project using one of Rust's three Web backends:
+    * [asm.js] using Emscripten (when you pass `--target-asmjs-emscripten`; default)
+    * [WebAssembly] using Emscripten (when you pass `--target-webasm-emscripten`)
+    * [WebAssembly] using Rust's native WebAssembly backend (when you pass `--target-webasm`)
+  * `cargo web test` - will run your tests either under:
+    * Under a headless instance of Google Chrome (default)
+    * Under [Node.js] (when you pass `--nodejs`)
+  * `cargo web start` - will build your project, start an embedded webserver and will continously
+    rebuild it if necessary.
+  * Will automatically download and install Emscripten for you (if necessary) on the following platforms:
+    * Linux x86-64
+    * Linux x86
+
+[asm.js]: https://en.wikipedia.org/wiki/Asm.js
+[WebAssembly]: https://en.wikipedia.org/wiki/WebAssembly
+[Node.js]: https://nodejs.org/en/
+
+Before compiling anything you will have to install the corresponding targets
+with `rustup` yourself:
+
+  * For compiling to asmjs through Emscripten:
+        `rustup target add asmjs-unknown-emscripten`
+  * For compiling to WebAssembly through Emscripten:
+        `rustup target add wasm32-unknown-emscripten`
+  * For compiling to WebAssembly through Rust's native backend:
+        `rustup target add wasm32-unknown-unknown`
+
+It's also highly recommended that you check out the [stdweb] crate if you want
+to interact with the JavaScript world in your project. (In fact, `cargo-web`
+is what makes it possible to use `stdweb`'s `js!` macro on Rust's native WebAssembly
+backend.)
+
+[stdweb]: https://github.com/koute/stdweb
 
 ## Installation
 
