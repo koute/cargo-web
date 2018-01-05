@@ -3,6 +3,8 @@
 set -euo pipefail
 IFS=$'\n\t'
 
+export RUST_BACKTRACE=1
+
 if [ "$TARGET" = "none" ]; then
     cargo test --verbose
     exit 0
