@@ -4,6 +4,7 @@ set -euo pipefail
 IFS=$'\n\t'
 
 export RUST_BACKTRACE=1
+export CARGO_WEB_LOG=cargo_web=debug
 
 if [ "$TARGET" = "none" ]; then
     cargo test --verbose
