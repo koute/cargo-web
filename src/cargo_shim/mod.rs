@@ -225,13 +225,13 @@ impl BuildConfig {
     fn build_internal( &self ) -> CargoResult {
         let mut command = self.as_command();
 
-        let mut paths = env::var_os( "PATH" )
+        let env_paths = env::var_os( "PATH" )
             .map( |paths| env::split_paths( &paths ).collect() )
             .unwrap_or( Vec::new() );
 
-        for path in &self.extra_paths {
-            paths.push( path.into() );
-        }
+        let mut paths = Vec::new();
+        paths.extend( self.extra_paths.clone().into_iter() );
+        paths.extend( env_paths.into_iter() );
 
         let new_paths = env::join_paths( paths ).unwrap();
         debug!( "Will launch cargo with PATH: {:?}", new_paths );
