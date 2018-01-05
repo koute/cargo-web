@@ -207,6 +207,7 @@ impl BuildConfig {
         }).unwrap_or( false );
 
         if is_emscripten && result.artifacts().is_empty() {
+            debug!( "No artifacts were generated yet build succeeded; retrying..." );
             result = self.build_internal();
         }
 
@@ -243,6 +244,7 @@ impl BuildConfig {
         command.stdout( Stdio::piped() );
         command.stderr( Stdio::piped() );
 
+        debug!( "Launching cargo: {:?}", command );
         let mut child = match command.spawn() {
             Ok( child ) => child,
             Err( _ ) => {
@@ -281,6 +283,7 @@ impl BuildConfig {
 
         let result = child.wait();
         let status = result.unwrap().code().expect( "failed to grab cargo status code" );
+        debug!( "Cargo finished with status: {}", status );
 
         let mut artifacts: Vec< PathBuf > = Vec::new();
         for line in stdout.lines() {
@@ -303,6 +306,7 @@ impl BuildConfig {
                     },
                     CargoOutput::Artifact( artifact ) => {
                         for filename in artifact.filenames {
+                            debug!( "Built artifact: {}", filename );
                             // NOTE: Since we extract the paths from the JSON
                             //       we get a list of artifacts as `String`s instead of `PathBuf`s.
                             artifacts.push( filename.into() );
