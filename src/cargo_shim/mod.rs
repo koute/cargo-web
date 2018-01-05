@@ -234,6 +234,7 @@ impl BuildConfig {
         }
 
         let new_paths = env::join_paths( paths ).unwrap();
+        debug!( "Will launch cargo with PATH: {:?}", new_paths );
         command.env( "PATH", new_paths );
 
         let mut rustflags = env::var_os( "RUSTFLAGS" ).unwrap_or( OsString::new() );
@@ -243,9 +244,11 @@ impl BuildConfig {
             }
             rustflags.push( flag );
         }
+        debug!( "Will launch cargo with RUSTFLAGS: {:?}", rustflags );
         command.env( "RUSTFLAGS", rustflags );
 
         for &(ref key, ref value) in &self.extra_environment {
+            debug!( "Will launch cargo with variable \"{}\" set to \"{}\"", key, value );
             command.env( key, value );
         }
 
