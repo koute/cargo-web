@@ -22,10 +22,13 @@ extern crate toml;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
+#[macro_use]
 extern crate serde_json;
 extern crate handlebars;
 extern crate unicode_categories;
 extern crate ordermap;
+extern crate websocket;
+extern crate regex;
 
 extern crate parity_wasm;
 #[macro_use]
@@ -65,6 +68,8 @@ mod wasm_runtime;
 mod wasm_context;
 mod wasm_intrinsics;
 mod emscripten;
+mod test_chromium;
+mod chrome_devtools;
 mod cmd_build;
 mod cmd_start;
 mod cmd_test;

@@ -34,6 +34,8 @@ serde_json = "1"
 handlebars = "0.29"
 unicode_categories = "0.1.1"
 ordermap = "0.3"
+websocket = "0.20"
+regex = "0.2"
 
 parity-wasm = "0.19"
 log = "0.4"
