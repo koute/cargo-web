@@ -135,7 +135,11 @@ fn add_shared_build_params< 'a, 'b >( app: App< 'a, 'b > ) -> App< 'a, 'b > {
 }
 
 fn main() {
-    let _ = env_logger::init();
+    if let Ok( value ) = env::var( "CARGO_WEB_LOG" ) {
+        let mut builder = env_logger::Builder::new();
+        builder.parse( &value );
+        builder.init();
+    }
 
     let args = {
         // To allow running both as 'cargo-web' and as 'cargo web'.
