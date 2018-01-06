@@ -9,6 +9,13 @@ and deploy client-side Web applications written in Rust.
 
 [![Become a patron](https://koute.github.io/img/become_a_patron_button.png)](https://www.patreon.com/koute)
 
+## Patrons
+
+This software was brought to you thanks to these wonderful people:
+  * Ben Berman
+
+Thank you!
+
 ## Features
 
 Currently it supports the following features:
