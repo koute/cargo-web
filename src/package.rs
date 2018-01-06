@@ -2,6 +2,7 @@ use std::process::exit;
 use std::path::PathBuf;
 use std::io::{self, Read, Write};
 use std::fs;
+use std::env;
 
 use app_dirs;
 use pbr;
@@ -9,7 +10,9 @@ use sha2;
 use reqwest::{
     header,
     Client,
-    Url
+    Proxy,
+    Result as ReqResult,
+    Url,
 };
 
 use tempdir::TempDir;
@@ -36,6 +39,24 @@ pub struct PrebuiltPackage {
     pub size: u64,
 }
 
+// Creates a new client, supporting configuration from operating system variables if available.
+fn create_client() -> ReqResult<Client> {
+    let mut builder = Client::builder();
+    match env::var("HTTPS_PROXY") {
+        Err(_) => {},
+        Ok(proxy) => { builder.proxy(Proxy::https(&proxy).unwrap()); }
+    };
+    match env::var("HTTP_PROXY") {
+        Err(_) => {},
+        Ok(proxy) => { builder.proxy(Proxy::http(&proxy).unwrap()); }
+    };
+    match env::var("ALL_PROXY") {
+        Err(_) => {},
+        Ok(proxy) => { builder.proxy(Proxy::all(&proxy).unwrap()); }
+    };
+    builder.build()
+}
+
 pub fn download_package( package: &PrebuiltPackage ) -> PathBuf {
     let url = Url::parse( package.url ).unwrap();
     let package_filename = url.path_segments().unwrap().last().unwrap().to_owned();
@@ -58,7 +79,7 @@ pub fn download_package( package: &PrebuiltPackage ) -> PathBuf {
     fs::create_dir_all( &unpack_path ).unwrap();
 
     println_err!( "Downloading {}...", package_filename );
-    let client = Client::new();
+    let client = create_client().unwrap();
     let mut response = client.get( url )
         .header( header::Connection::close() )
         .send()
