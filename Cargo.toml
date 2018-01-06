@@ -42,5 +42,9 @@ log = "0.4"
 rustc-demangle = "0.1.5"
 env_logger = "0.5.0-rc.1"
 
+[dependencies.semver]
+features = ["serde"]
+version = "0.8"
+
 [features]
 development-mode = []

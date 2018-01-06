@@ -39,6 +39,8 @@ extern crate env_logger;
 extern crate cargo_metadata;
 extern crate ansi_term;
 
+extern crate semver;
+
 use std::process::exit;
 use std::env;
 
@@ -195,6 +197,18 @@ fn main() {
                     .help( "Build only the specified benchmark target" )
                     .value_name( "NAME" )
                     .takes_value( true )
+            )
+            .arg(
+                Arg::with_name( "message-format" )
+                    .long( "message-format" )
+                    .help( "Selects the stdout output format" )
+                    .value_name( "FMT" )
+                    .takes_value( true )
+                    .default_value( "human" )
+                    .possible_values( &[
+                        "human",
+                        "json"
+                    ])
             );
 
     let mut test_subcommand =

@@ -100,6 +100,12 @@ pub enum BuildTarget {
     IntegrationBench( String )
 }
 
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub enum MessageFormat {
+    Human,
+    Json
+}
+
 #[derive(Clone, Debug)]
 pub struct BuildConfig {
     pub build_target: BuildTarget,
@@ -111,7 +117,8 @@ pub struct BuildConfig {
     pub enable_all_features: bool,
     pub extra_paths: Vec< PathBuf >,
     pub extra_rustflags: Vec< String >,
-    pub extra_environment: Vec< (String, String) >
+    pub extra_environment: Vec< (String, String) >,
+    pub message_format: MessageFormat
 }
 
 fn profile_to_arg( profile: Profile ) -> &'static str {
@@ -194,8 +201,10 @@ impl BuildConfig {
         command
     }
 
-    pub fn build( &self ) -> CargoResult {
-        let mut result = self.build_internal();
+    pub fn build< F >( &self, mut extra_artifact_generator: Option< F > ) -> CargoResult
+        where F: for <'a> FnMut( &'a Path ) -> Vec< PathBuf >
+    {
+        let mut result = self.build_internal( &mut extra_artifact_generator );
         if result.is_ok() == false {
             return result;
         }
@@ -215,14 +224,16 @@ impl BuildConfig {
 
             if no_js_generated {
                 debug!( "No artifacts were generated yet build succeeded; retrying..." );
-                result = self.build_internal();
+                result = self.build_internal( &mut extra_artifact_generator );
             }
         }
 
         return result;
     }
 
-    fn build_internal( &self ) -> CargoResult {
+    fn build_internal< F >( &self, extra_artifact_generator: &mut Option< F > ) -> CargoResult
+        where F: for <'a> FnMut( &'a Path ) -> Vec< PathBuf >
+    {
         let mut command = self.as_command();
 
         let env_paths = env::var_os( "PATH" )
@@ -292,7 +303,7 @@ impl BuildConfig {
             }
         });
 
-        let mut artifacts: Vec< PathBuf > = Vec::new();
+        let mut artifacts = Vec::new();
         for line in stdout.lines() {
             let line = match line {
                 Ok( line ) => line,
@@ -309,17 +320,28 @@ impl BuildConfig {
             if let Some( output ) = CargoOutput::parse( &line ) {
                 match output {
                     CargoOutput::Message( message ) => {
-                        diagnostic_formatter::print( &message );
-                    },
-                    CargoOutput::Artifact( artifact ) => {
-                        for filename in artifact.filenames {
-                            debug!( "Built artifact: {}", filename );
-                            // NOTE: Since we extract the paths from the JSON
-                            //       we get a list of artifacts as `String`s instead of `PathBuf`s.
-                            artifacts.push( filename.into() );
+                        match self.message_format {
+                            MessageFormat::Human => diagnostic_formatter::print( &message ),
+                            MessageFormat::Json => {
+                                println!( "{}", serde_json::to_string( &message.to_json_value() ).unwrap() );
+                            }
                         }
                     },
-                    _ => {}
+                    CargoOutput::Artifact( artifact ) => {
+                        for filename in &artifact.filenames {
+                            debug!( "Built artifact: {}", filename );
+                        }
+
+                        artifacts.push( artifact );
+                    },
+                    CargoOutput::BuildScriptExecuted( executed ) => {
+                        match self.message_format {
+                            MessageFormat::Human => {},
+                            MessageFormat::Json => {
+                                println!( "{}", serde_json::to_string( &executed.to_json_value() ).unwrap() );
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -328,37 +350,71 @@ impl BuildConfig {
         let status = result.unwrap().code().expect( "failed to grab cargo status code" );
         debug!( "Cargo finished with status: {}", status );
 
+        fn has_extension< P: AsRef< Path > >( path: P, extension: &str ) -> bool {
+            path.as_ref().extension().map( |ext| ext == extension ).unwrap_or( false )
+        }
+
+        fn find_artifact( artifacts: &[cargo_output::Artifact], extension: &str ) -> Option< (usize, usize) > {
+            artifacts.iter().enumerate().filter_map( |(artifact_index, artifact)| {
+                if let Some( filename_index ) = artifact.filenames.iter().position( |filename| has_extension( filename, extension ) ) {
+                    Some( (artifact_index, filename_index) )
+                } else {
+                    None
+                }
+            }).next()
+        }
+
         // For some reason when building tests cargo doesn't treat
         // the `.wasm` file as an artifact.
         if status == 0 && self.triplet.as_ref().map( |triplet| triplet == "wasm32-unknown-emscripten" ).unwrap_or( false ) {
             match self.build_target {
                 BuildTarget::Bin( _, Profile::Test ) | BuildTarget::Lib( _, Profile::Test ) => {
-                    let wasm_path = {
-                        let main_artifact = artifacts.iter()
-                            .find( |artifact| artifact.extension().map( |ext| ext == "js" ).unwrap_or( false ) );
+                    if find_artifact( &artifacts, "wasm" ).is_none() {
+                        if let Some( (artifact_index, filename_index) ) = find_artifact( &artifacts, "js" ) {
+                            let wasm_path = {
+                                let main_artifact = Path::new( &artifacts[ artifact_index ].filenames[ filename_index ] );
+                                let filename = main_artifact.file_name().unwrap();
+                                main_artifact.parent().unwrap().join( "deps" ).join( filename ).with_extension( "wasm" )
+                            };
 
-                        if let Some( main_artifact ) = main_artifact {
-                            let filename = main_artifact.file_name().unwrap();
-                            let wasm_path = main_artifact.parent().unwrap().join( "deps" ).join( filename ).with_extension( "wasm" );
                             assert!( wasm_path.exists(), "internal error: wasm doesn't exist where I expected it to be" );
-
-                            Some( wasm_path )
-                        } else {
-                            None
+                            artifacts[ artifact_index ].filenames.push( wasm_path.to_str().unwrap().to_owned() );
                         }
-                    };
-
-                    if let Some( wasm_path ) = wasm_path {
-                        artifacts.push( wasm_path );
                     }
                 },
                 _ => {}
             }
         }
 
+        let mut artifact_paths = Vec::new();
+        for mut artifact in artifacts {
+            if let Some( ref mut callback ) = extra_artifact_generator.as_mut() {
+                let mut extra_filenames = Vec::new();
+                for filename in &artifact.filenames {
+                    extra_filenames.extend(
+                        callback( Path::new( &filename ) ).into_iter().map( |artifact| artifact.to_str().unwrap().to_owned() )
+                    );
+                }
+                artifact.filenames.extend( extra_filenames );
+            }
+
+            match self.message_format {
+                MessageFormat::Human => {},
+                MessageFormat::Json => {
+                    println!( "{}", serde_json::to_string( &artifact.to_json_value() ).unwrap() );
+                }
+            }
+
+            for filename in artifact.filenames {
+                // NOTE: Since we extract the paths from the JSON
+                //       we get a list of artifacts as `String`s instead of `PathBuf`s.
+                artifact_paths.push( filename.into() )
+            }
+        }
+
         CargoResult {
             status: Some( status ),
-            artifacts
+            artifacts: artifact_paths
         }
     }
 }
@@ -375,9 +431,5 @@ impl CargoResult {
 
     pub fn artifacts( &self ) -> &[PathBuf] {
         &self.artifacts
-    }
-
-    pub fn add_artifact< P: AsRef< Path > >( &mut self, artifact: P ) {
-        self.artifacts.push( artifact.as_ref().to_owned() );
     }
 }

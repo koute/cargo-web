@@ -1,4 +1,5 @@
 use std::process::exit;
+use std::path::Path;
 
 use clap;
 use cargo_shim::{
@@ -10,6 +11,7 @@ use cargo_shim::{
     BuildConfig,
     TargetKind,
     CargoResult,
+    MessageFormat,
     target_to_build_target
 };
 
@@ -54,6 +56,18 @@ impl< 'a > BuildArgsMatcher< 'a > {
 
     fn use_system_emscripten( &self ) -> bool {
         self.matches.is_present( "use-system-emscripten" )
+    }
+
+    fn message_format( &self ) -> MessageFormat {
+        if let Some( name ) = self.matches.value_of( "message-format" ) {
+            match name {
+                "human" => MessageFormat::Human,
+                "json" => MessageFormat::Json,
+                _ => unreachable!()
+            }
+        } else {
+            MessageFormat::Human
+        }
     }
 
     fn build_type( &self ) -> BuildType {
@@ -197,7 +211,8 @@ impl< 'a > BuildArgsMatcher< 'a > {
             enable_all_features: self.matches.is_present( "all-features" ),
             extra_paths,
             extra_rustflags,
-            extra_environment
+            extra_environment,
+            message_format: self.message_format()
         })
     }
 }
@@ -210,14 +225,16 @@ impl Builder {
     }
 
     pub fn run( &self ) -> Result< CargoResult, Error > {
-        let mut result = self.0.build();
+        let result = self.0.build( Some( |path: &Path| {
+            if let Some( artifact ) = wasm::process_wasm_file( &self.0, path ) {
+                vec![ artifact ]
+            } else {
+                Vec::new()
+            }
+        }));
+
         if result.is_ok() == false {
             return Err( Error::BuildError );
-        }
-
-        let extra_artifacts = wasm::process_wasm_files( &self.0, result.artifacts() );
-        for artifact in extra_artifacts {
-            result.add_artifact( artifact );
         }
 
         Ok( result )
