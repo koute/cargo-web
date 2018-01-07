@@ -37,6 +37,7 @@ function __initialize( __wasm_module, __load_asynchronously ) {
         Object.defineProperty( Module, 'web_free', { value: Module.instance.exports.__web_free } );
         Object.defineProperty( Module, 'web_table', { value: Module.instance.exports.__web_table } );
 
+        {{{exports}}}
         __imports.env.__web_on_grow();
         {{call_main}}
     }

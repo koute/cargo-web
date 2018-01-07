@@ -58,7 +58,7 @@ pub struct Import {
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct Export {
-    names: Vec< String >
+    pub names: Vec< String >
 }
 
 impl Export {

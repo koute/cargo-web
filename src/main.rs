@@ -30,6 +30,7 @@ extern crate ordermap;
 extern crate websocket;
 extern crate regex;
 extern crate walkdir;
+extern crate base_x;
 
 extern crate parity_wasm;
 #[macro_use]
@@ -70,6 +71,7 @@ mod wasm_hook_grow;
 mod wasm_runtime;
 mod wasm_context;
 mod wasm_intrinsics;
+mod wasm_js_export;
 mod emscripten;
 mod test_chromium;
 mod chrome_devtools;
