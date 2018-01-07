@@ -143,34 +143,34 @@ fn print_diagnostic< W: Write >( use_color: bool, diag: &Diagnostic, fp: &mut W 
             )?;
             nth_line += 1;
         }
-        let last_line = span.text.last().unwrap();
-
-        write!( fp, "{arrow_color_s}{spaces} |{arrow_color_e}",
-            arrow_color_s = MaybePrint( use_color, arrow_color.prefix() ),
-            spaces = Spaces( line_number_digits ),
-            arrow_color_e = MaybePrint( use_color, arrow_color.suffix() ),
-        )?;
-        for _ in 0..last_line.highlight_start {
-            write!( fp, " " )?;
-        }
-        write!( fp, "{}{}",
-            MaybePrint( use_color, color.prefix() ),
-            MaybePrint( is_multiline, "|_" )
-        )?;
-        for _ in last_line.highlight_start..last_line.highlight_end - 1 {
-            if is_multiline {
-                write!( fp, "_" )?;
-            } else {
-                write!( fp, "^" )?;
+        if let Some( last_line ) = span.text.last() {
+            write!( fp, "{arrow_color_s}{spaces} |{arrow_color_e}",
+                arrow_color_s = MaybePrint( use_color, arrow_color.prefix() ),
+                spaces = Spaces( line_number_digits ),
+                arrow_color_e = MaybePrint( use_color, arrow_color.suffix() ),
+            )?;
+            for _ in 0..last_line.highlight_start {
+                write!( fp, " " )?;
             }
-        }
-        write!( fp, "^" )?;
+            write!( fp, "{}{}",
+                MaybePrint( use_color, color.prefix() ),
+                MaybePrint( is_multiline, "|_" )
+            )?;
+            for _ in last_line.highlight_start..last_line.highlight_end - 1 {
+                if is_multiline {
+                    write!( fp, "_" )?;
+                } else {
+                    write!( fp, "^" )?;
+                }
+            }
+            write!( fp, "^" )?;
 
-        if let Some( ref label ) = span.label {
-            write!( fp, " {}", label )?;
+            if let Some( ref label ) = span.label {
+                write!( fp, " {}", label )?;
+            }
+            write!( fp, "{}", MaybePrint( use_color, color.suffix() ) )?;
+            writeln!( fp, "" )?;
         }
-        write!( fp, "{}", MaybePrint( use_color, color.suffix() ) )?;
-        writeln!( fp, "" )?;
     }
 
     for child in &diag.children {
