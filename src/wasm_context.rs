@@ -531,6 +531,9 @@ impl Context {
                 },
                 pw::Section::Element( mut section ) => {
                     let entries = take( section.entries_mut() );
+                    if entries.is_empty() {
+                        continue;
+                    }
                     assert_eq!( entries.len(), 1, "multiple Element tables are not supported" );
                     assert!( ctx.fn_pointer_tables.is_none(), "duplicate Element table" );
                     let mut entry = entries.into_iter().next().unwrap();
