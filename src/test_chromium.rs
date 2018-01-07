@@ -23,7 +23,7 @@ use utils::{
     read_bytes,
     check_if_command_exists
 };
-use chrome_devtools::{Connection, Reply, ReplyError, ConsoleApiCalledBody};
+use chrome_devtools::{Connection, Reply, ReplyError, ConsoleApiCalledBody, ExceptionThrownBody};
 
 const DEFAULT_TEST_INDEX_HTML: &'static str = r#"
 <!DOCTYPE html>
@@ -220,6 +220,22 @@ pub fn test_in_chromium(
                 );
 
                 get_status_req = Some( id );
+            },
+            Reply::Event { ref method, ref body } if method == "Runtime.exceptionThrown" => {
+                let body: ExceptionThrownBody = serde_json::from_value( body.clone() ).expect( "Failed to parse `Runtime.exceptionThrown` event" );
+                println_err!( "error: unhandled exception thrown" );
+                if let Some( exception ) = body.exception_details.exception {
+                    if let Some( description ) = exception.description {
+                        println_err!( "error:     {}", description );
+                    }
+                }
+                if let Some( url ) = body.exception_details.url {
+                    println_err!( "error: source: {}:{}:{}", url, body.exception_details.line_number, body.exception_details.column_number );
+                }
+                // TODO: Better error message.
+                *any_failure = true;
+                finished = true;
+                break;
             },
             Reply::Event { ref method, ref body } if method == "Runtime.consoleAPICalled" => {
                 let body: ConsoleApiCalledBody = serde_json::from_value( body.clone() ).unwrap();

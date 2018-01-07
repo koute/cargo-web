@@ -322,7 +322,8 @@ pub struct RemoteObject {
     pub kind: String,
     pub value: Option< Value >,
     #[serde(rename = "className")]
-    pub class_name: Option< String >
+    pub class_name: Option< String >,
+    pub description: Option< String >
 }
 
 // https://chromedevtools.github.io/devtools-protocol/tot/Runtime/#event-consoleAPICalled
@@ -331,4 +332,25 @@ pub struct ConsoleApiCalledBody {
     #[serde(rename = "type")]
     pub kind: String,
     pub args: Vec< RemoteObject >
+}
+
+// https://chromedevtools.github.io/devtools-protocol/tot/Runtime/#event-exceptionThrown
+#[derive(Clone, Deserialize, Debug)]
+pub struct ExceptionThrownBody {
+    #[serde(rename = "exceptionDetails")]
+    pub exception_details: ExceptionDetails
+}
+
+// https://chromedevtools.github.io/devtools-protocol/tot/Runtime/#type-ExceptionDetails
+#[derive(Clone, Deserialize, Debug)]
+pub struct ExceptionDetails {
+    pub text: String,
+    pub exception: Option< RemoteObject >,
+    #[serde(rename = "lineNumber")]
+    pub line_number: u32,
+    #[serde(rename = "columnNumber")]
+    pub column_number: u32,
+    #[serde(rename = "scriptId")]
+    pub script_id: Option< String >,
+    pub url: Option< String >
 }
