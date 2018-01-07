@@ -133,6 +133,12 @@ fn add_shared_build_params< 'a, 'b >( app: App< 'a, 'b > ) -> App< 'a, 'b > {
                 .long( "target-webasm" )
                 .help( "Generates webasm through Rust's native backend (HIGHLY EXPERIMENTAL!)" )
                 .overrides_with_all( &["target-asmjs-emscripten", "target-webasm-emscripten"] )
+        )
+        .arg(
+            Arg::with_name( "verbose" )
+                .short( "v" )
+                .long( "verbose" )
+                .help( "Use verbose output" )
         );
 }
 

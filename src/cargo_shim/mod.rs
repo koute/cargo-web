@@ -118,7 +118,8 @@ pub struct BuildConfig {
     pub extra_paths: Vec< PathBuf >,
     pub extra_rustflags: Vec< String >,
     pub extra_environment: Vec< (String, String) >,
-    pub message_format: MessageFormat
+    pub message_format: MessageFormat,
+    pub is_verbose: bool
 }
 
 fn profile_to_arg( profile: Profile ) -> &'static str {
@@ -196,6 +197,10 @@ impl BuildConfig {
         if !self.features.is_empty() {
             command.arg( "--features" );
             command.arg( &self.features.join( " " ) );
+        }
+
+        if self.is_verbose {
+            command.arg( "--verbose" );
         }
 
         command
@@ -280,6 +285,7 @@ impl BuildConfig {
         let stderr = BufReader::new( child.stderr.take().unwrap() );
         let stdout = BufReader::new( child.stdout.take().unwrap() );
 
+        let is_verbose = self.is_verbose;
         thread::spawn( move || {
             let mut skip = 0;
             for line in stderr.lines() {
@@ -294,7 +300,7 @@ impl BuildConfig {
                 }
 
                 // This is really ugly, so let's skip it.
-                if line.trim() == "Caused by:" {
+                if line.trim() == "Caused by:" && !is_verbose {
                     skip += 1;
                     continue;
                 }

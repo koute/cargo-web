@@ -70,6 +70,10 @@ impl< 'a > BuildArgsMatcher< 'a > {
         }
     }
 
+    fn is_verbose( &self ) -> bool {
+        self.matches.is_present( "verbose" )
+    }
+
     fn build_type( &self ) -> BuildType {
         let build_type = self.requested_build_type();
         if self.targeting_native_wasm() && build_type == BuildType::Debug {
@@ -212,7 +216,8 @@ impl< 'a > BuildArgsMatcher< 'a > {
             extra_paths,
             extra_rustflags,
             extra_environment,
-            message_format: self.message_format()
+            message_format: self.message_format(),
+            is_verbose: self.is_verbose()
         })
     }
 }
