@@ -1,5 +1,6 @@
 use std::process::exit;
 use std::path::Path;
+use std::env;
 
 use clap;
 use cargo_shim::{
@@ -203,6 +204,14 @@ impl< 'a > BuildArgsMatcher< 'a > {
         if self.targeting_native_wasm() && self.requested_build_type() == BuildType::Debug {
             extra_rustflags.push( "-C".to_owned() );
             extra_rustflags.push( "debuginfo=2".to_owned() );
+        }
+
+        if self.targeting_native_wasm() {
+            // Incremental compilation currently doesn't work very well with
+            // this target, so disable it.
+            if env::var_os( "CARGO_INCREMENTAL" ).is_some() {
+                extra_environment.push( ("CARGO_INCREMENTAL".to_owned(), "0".to_owned()) );
+            }
         }
 
         Builder::new( BuildConfig {
