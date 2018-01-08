@@ -40,7 +40,7 @@ regex = "0.2"
 parity-wasm = "0.19"
 log = "0.4"
 rustc-demangle = "0.1.5"
-env_logger = "0.5.0-rc.1"
+env_logger = "0.5.0-rc.2"
 
 [dependencies.semver]
 features = ["serde"]
