@@ -1,75 +1,9 @@
-use std::fmt::Write;
 use serde_json::{self, Value};
-use semver;
-use serde::{ser, de, Serializer};
+use serde::ser;
 
 pub use cargo_shim::rustc_diagnostic::Diagnostic;
-
-// TODO: Upstream `Serializable` for these to `cargo-metadata`.
-
-#[derive(Clone, Serialize, Deserialize, Debug)]
-/// A single target (lib, bin, example, ...) provided by a crate
-pub struct Target {
-    /// Name as given in the `Cargo.toml` or generated from the file name
-    pub name: String,
-    /// Kind of target ("bin", "example", "test", "bench", "lib")
-    pub kind: Vec<String>,
-    /// Almost the same as `kind`, except when an example is a library instad of an executable.
-    /// In that case `crate_types` contains things like `rlib` and `dylib` while `kind` is `example`
-    #[serde(default)]
-    pub crate_types: Vec<String>,
-    /// Path to the main source file of the target
-    pub src_path: String,
-    #[doc(hidden)]
-    #[serde(skip)]
-    __do_not_match_exhaustively: (),
-}
-
-#[derive(Clone, Debug)]
-/// A workspace member. This is basically identical to `cargo::core::package_id::PackageId`, expect
-/// that this does not use `Arc` internally.
-pub struct PackageId {
-    /// A name of workspace member.
-    pub name: String,
-    /// A version of workspace member.
-    pub version: semver::Version,
-    /// A source id of workspace member.
-    pub url: String,
-    #[doc(hidden)]
-    __do_not_match_exhaustively: (),
-}
-
-impl<'de> de::Deserialize<'de> for PackageId {
-    fn deserialize<D>(d: D) -> Result<PackageId, D::Error>
-    where
-        D: de::Deserializer<'de>,
-    {
-        let string = String::deserialize(d)?;
-        let mut s = string.splitn(3, ' ');
-        let name = s.next().unwrap();
-        let version = s.next().unwrap();
-        let version = semver::Version::parse(&version).map_err(de::Error::custom)?;
-        let url = &s.next().unwrap();
-        let url = &url[1..url.len() - 1];
-        Ok(PackageId {
-            name: name.to_owned(),
-            version: version,
-            url: url.to_owned(),
-            __do_not_match_exhaustively: (),
-        })
-    }
-}
-
-impl ser::Serialize for PackageId {
-    fn serialize< S >( &self, serializer: S ) -> Result< S::Ok, S::Error >
-    where
-        S: Serializer
-    {
-        let mut output = String::new();
-        write!( output, "{} {} ({})", self.name, self.version, self.url ).unwrap();
-        serializer.serialize_str( &output )
-    }
-}
+pub use cargo_metadata::Target;
+pub use cargo_metadata::WorkspaceMember as PackageId;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Profile {
