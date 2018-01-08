@@ -268,18 +268,25 @@ fn main() {
                     .help( "Build only the specified benchmark target" )
                     .value_name( "NAME" )
                     .takes_value( true )
-            ).arg(
+            )
+            .arg(
                 Arg::with_name( "host" )
                     .long( "host" )
                     .help( "Bind the server to this address, default `localhost`")
                     .value_name( "HOST" )
                     .takes_value( true )
-            ).arg(
+            )
+            .arg(
                 Arg::with_name( "port" )
                     .long( "port" )
                     .help( "Bind the server to this port, default 8000" )
                     .value_name( "PORT" )
                     .takes_value( true )
+            )
+            .arg(
+                Arg::with_name( "auto-reload" )
+                    .long( "auto-reload" )
+                    .help( "Will try to automatically reload the page on rebuild" )
             );
 
     build_subcommand = add_shared_build_params( build_subcommand );
