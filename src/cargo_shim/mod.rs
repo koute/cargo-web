@@ -101,6 +101,15 @@ pub enum BuildTarget {
     IntegrationBench( String )
 }
 
+impl BuildTarget {
+    fn is_lib( &self ) -> bool {
+        match *self {
+            BuildTarget::Lib( .. ) => true,
+            _ => false
+        }
+    }
+}
+
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum MessageFormat {
     Human,
@@ -221,7 +230,7 @@ impl BuildConfig {
             triplet == "wasm32-unknown-emscripten" || triplet == "asmjs-unknown-emscripten"
         }).unwrap_or( false );
 
-        if is_emscripten {
+        if is_emscripten && !self.build_target.is_lib() {
             let no_js_generated = result
                 .artifacts()
                 .iter()
