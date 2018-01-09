@@ -77,6 +77,7 @@ impl CargoProject {
                                 "test" => TargetKind::Test,
                                 "bench" => TargetKind::Bench,
                                 "custom-build" => return None,
+                                "proc-macro" => return None,
                                 _ => panic!( "Unknown target kind: '{}'", target.kind[ 0 ] )
                             },
                             source_directory: Into::< PathBuf >::into( target.src_path ).parent().unwrap().into()
