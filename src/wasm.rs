@@ -31,7 +31,7 @@ pub fn process_wasm_file< P: AsRef< Path > + ?Sized >( build: &BuildConfig, arti
         let wasm_mtime = fs::metadata( path ).unwrap().modified().unwrap();
         if js_mtime >= wasm_mtime {
             // We've already ran; nothing to do here.
-            return None;
+            return Some( js_path );
         }
     }
 
