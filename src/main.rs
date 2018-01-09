@@ -41,7 +41,7 @@ extern crate ansi_term;
 
 extern crate semver;
 
-use std::process::exit;
+use std::process::{Command, Stdio, exit};
 use std::env;
 
 use clap::{
@@ -302,7 +302,35 @@ fn main() {
         .subcommand( start_subcommand )
         .get_matches_from( args );
 
-    let project = CargoProject::new( None );
+    let project = match CargoProject::new( None ) {
+        Ok( project ) => project,
+        Err( error ) => {
+            // Since `cargo_metadata` doesn't currently print out
+            // the errors `cargo metadata` generates we run it ourselves.
+            let mut command = Command::new( "cargo" );
+            command.arg( "metadata" );
+            command.arg( "--format-version" );
+            command.arg( "1" );
+            command.stdout( Stdio::null() );
+            command.stderr( Stdio::inherit() );
+
+            let mut print_our_own_error = true;
+            if let Ok( mut child ) = command.spawn() {
+                if let Ok( status ) = child.wait() {
+                    if !status.success() {
+                        print_our_own_error = false;
+                    }
+                }
+            }
+
+            if print_our_own_error {
+                eprintln!( "error: cannot load your project: {}", error );
+            }
+
+            exit( 101 );
+        }
+    };
+
     let result = if let Some( matches ) = matches.subcommand_matches( "build" ) {
         cmd_build::command_build( matches, &project )
     } else if let Some( matches ) = matches.subcommand_matches( "test" ) {

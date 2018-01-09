@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::process::{Command, Stdio};
 use std::path::{Path, PathBuf};
 use std::io::{BufRead, BufReader};
@@ -46,7 +47,9 @@ pub struct CargoPackage {
     pub name: String,
     pub manifest_path: PathBuf,
     pub crate_root: PathBuf,
-    pub targets: Vec< CargoTarget >
+    pub targets: Vec< CargoTarget >,
+    pub is_workspace_member: bool,
+    pub is_default: bool
 }
 
 #[derive(Clone, Debug)]
@@ -57,15 +60,26 @@ pub struct CargoTarget {
 }
 
 impl CargoProject {
-    pub fn new( manifest_path: Option< &str > ) -> CargoProject {
-        let metadata = cargo_metadata::metadata( manifest_path.map( |path| Path::new( path ) ) ).unwrap();
-        CargoProject {
+    pub fn new( manifest_path: Option< &str > ) -> Result< CargoProject, cargo_metadata::Error > {
+        let cwd = env::current_dir().expect( "cannot get current working directory" );
+
+        let metadata = cargo_metadata::metadata_deps( manifest_path.map( |path| Path::new( path ) ), true )?;
+
+        let mut workspace_members = HashSet::new();
+        for member in metadata.workspace_members {
+            workspace_members.insert( member.name );
+        }
+
+        let mut project = CargoProject {
             packages: metadata.packages.into_iter().map( |package| {
                 let manifest_path: PathBuf = package.manifest_path.into();
+                let is_workspace_member = workspace_members.contains( &package.name );
                 CargoPackage {
                     name: package.name,
                     crate_root: manifest_path.parent().unwrap().into(),
                     manifest_path: manifest_path,
+                    is_workspace_member,
+                    is_default: false,
                     targets: package.targets.into_iter().filter_map( |target| {
                         Some( CargoTarget {
                             name: target.name,
@@ -85,11 +99,35 @@ impl CargoProject {
                     }).collect()
                 }
             }).collect()
+        };
+
+        let mut default_package: Option< (usize, usize) > = None;
+        for (package_index, package) in project.packages.iter().enumerate() {
+            if !package.is_workspace_member {
+                continue;
+            }
+
+            let package_directory = package.manifest_path.parent().unwrap();
+            if !cwd.starts_with( package_directory ) {
+                continue;
+            }
+
+            let common_length = cwd.components().zip( package_directory.components() ).take_while( |&(a, b)| a == b ).count();
+            if default_package == None || default_package.unwrap().1 < common_length {
+                default_package = Some( (package_index, common_length) );
+            }
         }
+
+        let default_package_index = default_package
+            .expect( "internal error: cannot figure out which package is the default; please report this!" )
+            .0;
+
+        project.packages[ default_package_index ].is_default = true;
+        Ok( project )
     }
 
     pub fn default_package( &self ) -> &CargoPackage {
-        &self.packages[ 0 ]
+        self.packages.iter().find( |package| package.is_default ).unwrap()
     }
 }
 
