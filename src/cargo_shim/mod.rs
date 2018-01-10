@@ -141,10 +141,10 @@ pub enum BuildTarget {
 }
 
 impl BuildTarget {
-    fn is_lib( &self ) -> bool {
+    fn is_executable( &self ) -> bool {
         match *self {
-            BuildTarget::Lib( .. ) => true,
-            _ => false
+            BuildTarget::Lib( _, Profile::Main ) => false,
+            _ => true
         }
     }
 }
@@ -269,7 +269,7 @@ impl BuildConfig {
             triplet == "wasm32-unknown-emscripten" || triplet == "asmjs-unknown-emscripten"
         }).unwrap_or( false );
 
-        if is_emscripten && !self.build_target.is_lib() {
+        if is_emscripten && self.build_target.is_executable() {
             let no_js_generated = result
                 .artifacts()
                 .iter()
