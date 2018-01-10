@@ -185,6 +185,21 @@ impl< 'a > BuildArgsMatcher< 'a > {
             extra_rustflags.push( "link-arg=-s".to_owned() );
             extra_rustflags.push( "-C".to_owned() );
             extra_rustflags.push( format!( "link-arg=NO_EXIT_RUNTIME={}", exit_runtime as u32 ) );
+
+            // This will allow the initially preallocated chunk
+            // of memory to grow. On asm.js this has a performance
+            // impact which is why we don't turn it on by default there,
+            // however according to the Emscripten documentation the WASM
+            // backend doesn't have that problem, so we enable it there.
+            //
+            // See more here:
+            //   https://kripken.github.io/emscripten-site/docs/optimizing/Optimizing-Code.html#memory-growth
+            let allow_memory_growth = self.targeting_emscripten_wasm();
+
+            extra_rustflags.push( "-C".to_owned() );
+            extra_rustflags.push( "link-arg=-s".to_owned() );
+            extra_rustflags.push( "-C".to_owned() );
+            extra_rustflags.push( format!( "link-arg=ALLOW_MEMORY_GROWTH={}", allow_memory_growth as u32 ) );
         }
 
         if let Some( ref link_args ) = config.link_args {
