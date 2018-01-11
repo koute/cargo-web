@@ -193,7 +193,7 @@ impl Connection {
         let output_tx_clone = output_tx.clone();
         thread::spawn( move || {
             for message in receiver.incoming_messages() {
-                debug!( "Received: {:?}", message );
+                trace!( "Received: {:?}", message );
                 let message = match message {
                     Ok( message ) => message,
                     Err( error ) => {
