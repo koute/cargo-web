@@ -92,7 +92,7 @@ pub fn run<I: AsRef<Path>, O: AsRef<Path>>(input: I, output: O) {
         }
         if let Some(section) = module.import_section() {
             for (i, entry) in section.entries().iter().enumerate() {
-                debug!("import {:?}", entry);
+                // debug!("import {:?}", entry);
                 if let External::Memory(_) = *entry.external() {
                     cx.add_import_entry(entry, i as u32);
                 }
@@ -123,15 +123,15 @@ pub fn run<I: AsRef<Path>, O: AsRef<Path>>(input: I, output: O) {
     for i in (0..module.sections().len()).rev() {
         let retain = match module.sections_mut()[i] {
             Section::Unparsed { .. } => {
-                info!("unparsed section");
+                // info!("unparsed section");
                 continue
             }
             Section::Custom(ref mut s) if s.name() == "name" => {
                 cx.remap_name_section(s);
                 continue
             }
-            Section::Custom(ref s) => {
-                info!("skipping custom section: {}", s.name());
+            Section::Custom(_) => {
+                // info!("skipping custom section: {}", s.name());
                 continue
             }
             Section::Type(ref mut s) => cx.remap_type_section(s),
@@ -147,7 +147,7 @@ pub fn run<I: AsRef<Path>, O: AsRef<Path>>(input: I, output: O) {
             Section::Data(ref mut s) => cx.remap_data_section(s),
         };
         if !retain {
-            debug!("remove empty section");
+            // debug!("remove empty section");
             module.sections_mut().remove(i);
         }
     }
@@ -226,7 +226,7 @@ impl<'a> LiveContext<'a> {
         }
         if let Some(imports) = self.import_section {
             if idx < imports.functions() as u32 {
-                debug!("adding import: {}", idx);
+                // debug!("adding import: {}", idx);
                 let import = imports.entries().get(idx as usize).expect("expected an imported function with this index");
                 self.analysis.imports.insert(idx);
                 return self.add_import_entry(import, idx);
@@ -234,7 +234,7 @@ impl<'a> LiveContext<'a> {
             idx -= imports.functions() as u32;
         }
 
-        debug!("adding function: {}", idx);
+        // debug!("adding function: {}", idx);
         self.analysis.codes.insert(idx);
         let functions = self.function_section.expect("no functions section");
         self.add_type(functions.entries()[idx as usize].type_ref());
@@ -459,10 +459,10 @@ impl<'a> RemapContext<'a> {
                         set: &BTreeSet<u32>,
                         list: &mut Vec<T>,
                         offset: u32,
-                        name: &str) {
+                        _name: &str) {
         for i in (0..list.len()).rev().map(|x| x as u32) {
             if !set.contains(&(i + offset)) {
-                debug!("removing {} {}", name, i + offset);
+                // debug!("removing {} {}", name, i + offset);
                 list.remove(i as usize);
             }
         }
@@ -504,7 +504,7 @@ impl<'a> RemapContext<'a> {
     }
 
     fn remap_import_entry(&self, s: &mut ImportEntry) {
-        debug!("remap import entry {:?}", s);
+        // debug!("remap import entry {:?}", s);
         match *s.external_mut() {
             External::Function(ref mut f) => self.remap_type_idx(f),
             External::Table(_) => {}
