@@ -3,13 +3,11 @@
 set -euo pipefail
 IFS=$'\n\t'
 
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+CARGO_WEB=$SCRIPT_DIR/target/debug/cargo-web
+
 export RUST_BACKTRACE=1
 export CARGO_WEB_LOG=cargo_web=debug
-
-if [ "$TARGET" = "none" ]; then
-    cargo test --verbose
-    exit 0
-fi
 
 set +e
 echo "$(rustc --version)" | grep -q "nightly"
@@ -20,38 +18,37 @@ else
 fi
 set -e
 
+cd $SCRIPT_DIR
+
 echo "Is Rust from nightly: $IS_NIGHTLY"
 
-if [ "$IS_NIGHTLY" = "0" ]; then
-    if [ "$TARGET" = "wasm32-unknown-unknown" ]; then
-        echo "Skipping tests; wasm32-unknown-unknown is only supported on nightly"
-        exit 0
-    fi
+cargo test
+cargo build
+
+if [ -d "../stdweb" ]; then
+    cd ../stdweb
+else
+    git clone --depth 1 https://github.com/koute/stdweb.git
+    cd stdweb
 fi
 
-cargo install -f
-git clone https://github.com/koute/stdweb.git
-cd stdweb
+rustup target add asmjs-unknown-emscripten
+$CARGO_WEB test --nodejs --target-asmjs-emscripten
+$CARGO_WEB test --target-asmjs-emscripten
 
-if [ "$TARGET" = "asmjs-unknown-emscripten" ]; then
-    rustup target add asmjs-unknown-emscripten
-    cargo web test --nodejs --target-asmjs-emscripten
-fi
+rustup target add wasm32-unknown-emscripten
+$CARGO_WEB test --nodejs --target-webasm-emscripten
+$CARGO_WEB test --target-asmjs-emscripten
 
-if [ "$TARGET" = "wasm32-unknown-emscripten" ]; then
-    rustup target add wasm32-unknown-emscripten
-    cargo web test --nodejs --target-webasm-emscripten
-fi
-
-if [ "$TARGET" = "wasm32-unknown-unknown" ]; then
+if [ "$IS_NIGHTLY" = "1" ]; then
     rustup target add wasm32-unknown-unknown
-    cargo web test --nodejs --target-webasm
+    $CARGO_WEB test --nodejs --target-webasm
 
     cd examples/hasher
-    cargo web build --target-webasm
+    $CARGO_WEB build --target-webasm
     node example.js
 
-    cd ../../../test-crates/native-webasm
-    cargo-web build --target-webasm
+    cd $SCRIPT_DIR/test-crates/native-webasm
+    $CARGO_WEB build --target-webasm
     node run.js
 fi
