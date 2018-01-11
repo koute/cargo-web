@@ -195,8 +195,11 @@ impl BuildConfig {
         command.arg( "rustc" );
         command.arg( "--message-format" );
         command.arg( "json" );
-        command.arg( "--color" );
-        command.arg( "always" );
+
+        if cfg!( unix ) {
+            command.arg( "--color" );
+            command.arg( "always" );
+        }
 
         if let Some( ref triplet ) = self.triplet {
             command.arg( "--target" ).arg( triplet.as_str() );

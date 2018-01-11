@@ -240,8 +240,9 @@ pub fn print( message: &Message ) {
     // but as far as I know there is no other way to get
     // colorized messages out of rustc when using the JSON
     // message format.
+    let use_color = cfg!( unix );
     let mut output = String::new();
-    print_diagnostic( true, diag, &mut output ).unwrap();
+    print_diagnostic( use_color, diag, &mut output ).unwrap();
     eprint!( "{}", output );
 }
 
