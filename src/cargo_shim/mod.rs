@@ -305,13 +305,21 @@ impl BuildConfig {
         debug!( "Will launch cargo with PATH: {:?}", new_paths );
         command.env( "PATH", new_paths );
 
-        let mut rustflags = env::var_os( "RUSTFLAGS" ).unwrap_or( OsString::new() );
+        let mut rustflags = OsString::new();
         for flag in &self.extra_rustflags {
             if !rustflags.is_empty() {
                 rustflags.push( " " );
             }
             rustflags.push( flag );
         }
+
+        if let Some( env_rustflags ) = env::var_os( "RUSTFLAGS" ) {
+            if !rustflags.is_empty() {
+                rustflags.push( " " );
+            }
+            rustflags.push( env_rustflags );
+        }
+
         debug!( "Will launch cargo with RUSTFLAGS: {:?}", rustflags );
         command.env( "RUSTFLAGS", rustflags );
 
