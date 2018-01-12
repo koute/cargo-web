@@ -28,10 +28,11 @@ Currently it supports the following features:
     * Under a headless instance of Google Chrome (default)
     * Under [Node.js] (when you pass `--nodejs`)
   * `cargo web start` - will build your project, start an embedded webserver and will continously
-    rebuild it if necessary.
+    rebuild it if necessary; supports automatic reloading with `--auto-reload`.
   * Will automatically download and install Emscripten for you (if necessary) on the following platforms:
     * Linux x86-64
     * Linux x86
+  * Will automatically garbage-collect your WebAssembly artifacts.
 
 [asm.js]: https://en.wikipedia.org/wiki/Asm.js
 [WebAssembly]: https://en.wikipedia.org/wiki/WebAssembly
