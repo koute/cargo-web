@@ -79,7 +79,7 @@ impl< 'a > BuildArgsMatcher< 'a > {
         let build_type = self.requested_build_type();
         if self.targeting_native_wasm() && build_type == BuildType::Debug {
             // TODO: Remove this in the future.
-            println_err!( "warning: debug builds on the wasm-unknown-unknown are currently totally broken" );
+            println_err!( "warning: debug builds on the wasm32-unknown-unknown are currently totally broken" );
             println_err!( "         forcing a release build" );
             return BuildType::Release;
         }
