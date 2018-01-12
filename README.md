@@ -27,7 +27,7 @@ Currently it supports the following features:
   * `cargo web test` - will run your tests either under:
     * Under a headless instance of Google Chrome (default)
     * Under [Node.js] (when you pass `--nodejs`)
-  * `cargo web start` - will build your project, start an embedded webserver and will continously
+  * `cargo web start` - will build your project, start an embedded webserver and will continuously
     rebuild it if necessary; supports automatic reloading with `--auto-reload`.
   * Will automatically download and install Emscripten for you (if necessary) on the following platforms:
     * Linux x86-64
