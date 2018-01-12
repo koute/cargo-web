@@ -149,6 +149,7 @@ pub fn test_in_chromium(
                 Err( _ ) => break
             };
 
+            debug!( "Chromium stderr: {:?}", line );
             if let Some( captures ) = devtools_regex.captures( &line ) {
                 let url = captures.get( 1 ).unwrap().as_str().to_owned();
                 let _ = url_tx.send( url );
