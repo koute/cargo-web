@@ -121,6 +121,7 @@ pub fn test_in_chromium(
     command
         .arg( "--disable-gpu" )
         .arg( "--no-first-run" )
+        .arg( "--no-sandbox" )
         .arg( "--disable-restore-session-state" )
         .arg( "--no-default-browser-check" )
         .arg( "--disable-java" )
