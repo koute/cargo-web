@@ -4,6 +4,7 @@ use std::env;
 
 use clap;
 use cargo_shim::{
+    self,
     Profile,
     CargoPackage,
     CargoProject,
@@ -15,6 +16,7 @@ use cargo_shim::{
     MessageFormat,
     target_to_build_target
 };
+use semver::Version;
 
 use config::Config;
 use emscripten::initialize_emscripten;
@@ -22,11 +24,51 @@ use error::Error;
 use wasm;
 
 pub struct BuildArgsMatcher< 'a > {
-    pub matches: &'a clap::ArgMatches< 'a >,
-    pub project: &'a CargoProject
+    matches: &'a clap::ArgMatches< 'a >,
+    features: Vec< String >,
+    no_default_features: bool,
+    enable_all_features: bool,
+    project: CargoProject
+}
+
+
+pub struct AggregatedConfig {
+    pub link_args: Vec< String >
 }
 
 impl< 'a > BuildArgsMatcher< 'a > {
+    pub fn new( matches: &'a clap::ArgMatches< 'a > ) -> Self {
+        let features = if let Some( features ) = matches.value_of( "features" ) {
+            features.split_whitespace().map( |feature| feature.to_owned() ).collect()
+        } else {
+            Vec::new()
+        };
+
+        let no_default_features = matches.is_present( "no-default-features" );
+        let enable_all_features = matches.is_present( "all-features" );
+
+        let project = match CargoProject::new( None, no_default_features, enable_all_features, &features ) {
+            Ok( project ) => project,
+            Err( error ) => {
+                match error {
+                    cargo_shim::Error::CargoFailed( message ) => {
+                        eprintln!( "{}", message );
+                    },
+                    error => eprintln!( "{}", error )
+                }
+                exit( 101 );
+            }
+        };
+
+        BuildArgsMatcher {
+            matches,
+            features,
+            no_default_features,
+            enable_all_features,
+            project
+        }
+    }
+
     fn requested_build_type( &self ) -> BuildType {
         if self.matches.is_present( "release" ) {
             BuildType::Release
@@ -147,15 +189,72 @@ impl< 'a > BuildArgsMatcher< 'a > {
         }
     }
 
-    fn features( &self ) -> Vec< &str > {
-        if let Some( features ) = self.matches.value_of( "features" ) {
-            features.split_whitespace().collect()
-        } else {
-            Vec::new()
+    pub fn aggregate_configuration( &self, main_package: &CargoPackage, profile: Profile ) -> Result< AggregatedConfig, Error > {
+        let mut aggregated_config = AggregatedConfig {
+            link_args: Vec::new()
+        };
+
+        let mut packages = self.project.used_packages(
+            self.triplet_or_default(),
+            main_package,
+            profile
+        );
+
+        packages.sort_by( |a, b| {
+            (
+                !(*a == main_package),
+                !a.is_workspace_member,
+                &a.name
+            ).cmp( &(
+                !(*b == main_package),
+                !b.is_workspace_member,
+                &b.name
+            ))
+        });
+
+        assert_eq!( *packages[ 0 ], *main_package );
+
+        let mut maximum_minimum_version = None;
+        let mut configs = Vec::new();
+        for package in &packages {
+            let config = Config::load_for_package_printing_warnings( package )?;
+            if let Some( ref config ) = config {
+                if let Some( ref new_requirement ) = config.minimum_cargo_web_version {
+                    debug!( "{} requires cargo-web {}", config.source(), new_requirement );
+
+                    match maximum_minimum_version.take() {
+                        Some( (_, ref previous_requirement) ) if *new_requirement > *previous_requirement => {
+                            maximum_minimum_version = Some( (config.source(), new_requirement.clone()) );
+                        },
+                        Some( previous ) => maximum_minimum_version = Some( previous ),
+                        None => maximum_minimum_version = Some( (config.source(), new_requirement.clone()) )
+                    }
+                }
+            }
+
+            configs.push( config );
         }
+
+        let current_version = Version::parse( env!( "CARGO_PKG_VERSION" ) ).unwrap();
+        if let Some( (ref requirement_source, ref minimum_version) ) = maximum_minimum_version {
+            if current_version < *minimum_version {
+                return Err( format!( "{} requires at least `cargo-web` {}; please update", requirement_source, minimum_version ).into() )
+            }
+        }
+
+        for config in configs.iter().rev() {
+            if let Some( ref config ) = *config {
+                if let Some( ref link_args ) = config.link_args {
+                    debug!( "{} defines the following link-args: {:?}", config.source(), link_args );
+                    aggregated_config.link_args.extend( link_args.iter().cloned() );
+                }
+            }
+        }
+
+        Ok( aggregated_config )
     }
 
-    pub fn prepare_builder( &self, config: &Config, package: &CargoPackage, target: &CargoTarget, profile: Profile ) -> Builder {
+    pub fn prepare_builder( &self, config: &AggregatedConfig, package: &CargoPackage, target: &CargoTarget, profile: Profile ) -> Builder {
         let mut extra_paths = Vec::new();
         let mut extra_rustflags = Vec::new();
         let mut extra_environment = Vec::new();
@@ -202,18 +301,16 @@ impl< 'a > BuildArgsMatcher< 'a > {
             extra_rustflags.push( format!( "link-arg=ALLOW_MEMORY_GROWTH={}", allow_memory_growth as u32 ) );
         }
 
-        if let Some( ref link_args ) = config.link_args {
-            for arg in link_args {
-                if arg.contains( " " ) {
-                    // Not sure how to handle spaces, as `-C link-arg="{}"` doesn't work.
-                    println_err!( "error: you have a space in one of the entries in `link-args` in your `Web.toml`;" );
-                    println_err!( "       this is currently unsupported - aborting!" );
-                    exit( 101 );
-                }
-
-                extra_rustflags.push( "-C".to_owned() );
-                extra_rustflags.push( format!( "link-arg={}", arg ) );
+        for arg in &config.link_args {
+            if arg.contains( " " ) {
+                // Not sure how to handle spaces, as `-C link-arg="{}"` doesn't work.
+                println_err!( "error: you have a space in one of the entries in `link-args` in your `Web.toml`;" );
+                println_err!( "       this is currently unsupported - aborting!" );
+                exit( 101 );
             }
+
+            extra_rustflags.push( "-C".to_owned() );
+            extra_rustflags.push( format!( "link-arg={}", arg ) );
         }
 
         if self.targeting_native_wasm() && self.requested_build_type() == BuildType::Debug {
@@ -234,9 +331,9 @@ impl< 'a > BuildArgsMatcher< 'a > {
             build_type: self.build_type(),
             triplet: Some( self.triplet_or_default().into() ),
             package: Some( package.name.clone() ),
-            features: self.features().into_iter().map( |feature| feature.to_owned() ).collect(),
-            no_default_features: self.matches.is_present( "no-default-features" ),
-            enable_all_features: self.matches.is_present( "all-features" ),
+            features: self.features.clone(),
+            no_default_features: self.no_default_features,
+            enable_all_features: self.enable_all_features,
             extra_paths,
             extra_rustflags,
             extra_environment,

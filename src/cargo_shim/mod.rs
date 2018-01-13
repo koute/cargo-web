@@ -1,10 +1,16 @@
-use std::collections::HashSet;
+use std::collections::{HashSet, HashMap};
 use std::process::{Command, Stdio};
 use std::path::{Path, PathBuf};
-use std::io::{BufRead, BufReader};
+use std::io::{self, BufRead, BufReader};
 use std::ffi::OsString;
+use std::hash::{Hash, Hasher};
+use std::ops::Deref;
+use std::cell::Cell;
 use std::env;
 use std::thread;
+use std::str;
+use std::error;
+use std::fmt;
 
 use cargo_metadata;
 use serde_json;
@@ -13,7 +19,7 @@ mod cargo_output;
 mod rustc_diagnostic;
 mod diagnostic_formatter;
 
-use self::cargo_output::CargoOutput;
+use self::cargo_output::{CargoOutput, PackageId};
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum BuildType {
@@ -43,27 +49,160 @@ pub struct CargoProject {
 }
 
 #[derive(Clone, Debug)]
+pub struct CargoPackageId( PackageId );
+
+// TODO: Fix this upstream.
+impl PartialEq for CargoPackageId {
+    fn eq( &self, rhs: &CargoPackageId ) -> bool {
+        self.0.name == rhs.0.name &&
+        self.0.version == rhs.0.version &&
+        self.0.url == rhs.0.url
+    }
+}
+
+impl Eq for CargoPackageId {}
+
+impl Hash for CargoPackageId {
+    fn hash< H: Hasher >( &self, state: &mut H ) {
+        self.0.name.hash( state );
+        self.0.version.hash( state );
+        self.0.url.hash( state );
+    }
+}
+
+impl CargoPackageId {
+    fn new( id: &str ) -> Option< Self > {
+        let value = serde_json::Value::String( id.to_owned() );
+        match serde_json::from_value( value ).ok() {
+            Some( package_id ) => Some( CargoPackageId( package_id ) ),
+            None => None
+        }
+    }
+}
+
+impl Deref for CargoPackageId {
+    type Target = PackageId;
+    fn deref( &self ) -> &Self::Target {
+        &self.0
+    }
+}
+
+#[derive(Clone, PartialEq, Debug)]
 pub struct CargoPackage {
+    pub id: CargoPackageId,
     pub name: String,
     pub manifest_path: PathBuf,
     pub crate_root: PathBuf,
     pub targets: Vec< CargoTarget >,
+    pub dependencies: Vec< CargoDependency >,
     pub is_workspace_member: bool,
     pub is_default: bool
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct CargoTarget {
     pub name: String,
     pub kind: TargetKind,
     pub source_directory: PathBuf
 }
 
-impl CargoProject {
-    pub fn new( manifest_path: Option< &str > ) -> Result< CargoProject, cargo_metadata::Error > {
-        let cwd = env::current_dir().expect( "cannot get current working directory" );
+#[derive(Clone, PartialEq, Debug)]
+pub enum CargoDependencyKind {
+    Normal,
+    Development,
+    Build
+}
 
-        let metadata = cargo_metadata::metadata_deps( manifest_path.map( |path| Path::new( path ) ), true )?;
+#[derive(Clone, PartialEq, Debug)]
+pub struct CargoDependency {
+    pub name: String,
+    pub kind: CargoDependencyKind,
+    pub target: Option< String >,
+    pub resolved_to: Option< CargoPackageId >
+}
+
+#[derive(Debug)]
+pub enum Error {
+    CannotLaunchCargo( io::Error ),
+    CargoFailed( String ),
+    CannotParseCargoOutput( serde_json::Error )
+}
+
+
+impl error::Error for Error {
+    fn description( &self ) -> &str {
+        match *self {
+            Error::CannotLaunchCargo( _ ) => "cannot launch cargo",
+            Error::CargoFailed( _ ) => "cargo failed",
+            Error::CannotParseCargoOutput( _ ) => "cannot parse cargo output"
+        }
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt( &self, formatter: &mut fmt::Formatter ) -> fmt::Result {
+        use std::error::Error as StdError;
+        match *self {
+            Error::CannotLaunchCargo( ref err ) => write!( formatter, "{}: {}", self.description(), err ),
+            Error::CargoFailed( ref err ) => write!( formatter, "{}: {}", self.description(), err ),
+            Error::CannotParseCargoOutput( ref err ) => write!( formatter, "{}: {}", self.description(), err )
+        }
+    }
+}
+
+impl CargoProject {
+    pub fn new(
+        manifest_path: Option< &str >,
+        no_default_features: bool,
+        enable_all_features: bool,
+        features: &[String]
+    ) -> Result< CargoProject, Error >
+    {
+        let cwd = env::current_dir().expect( "cannot get current working directory" );
+        let cargo = env::var( "CARGO" ).unwrap_or_else( |_|
+            if cfg!( windows ) {
+                "cargo.exe"
+            } else {
+                "cargo"
+            }.to_owned()
+        );
+
+        let mut command = Command::new( cargo );
+        command.arg( "metadata" );
+
+        if no_default_features {
+            command.arg( "--no-default-features" );
+        }
+
+        if enable_all_features {
+            command.arg( "--all-features" );
+        }
+
+        if !features.is_empty() {
+            command.arg( "--features" );
+            command.arg( &features.join( " " ) );
+        }
+
+        command.arg( "--format-version" );
+        command.arg( "1" );
+
+        if let Some( manifest_path ) = manifest_path {
+            command.arg( "--manifest-path" );
+            command.arg( manifest_path );
+        }
+
+        if cfg!( unix ) {
+            command.arg( "--color" );
+            command.arg( "always" );
+        }
+
+        let output = command.output().map_err( |err| Error::CannotLaunchCargo( err ) )?;
+        if !output.status.success() {
+            return Err( Error::CargoFailed( String::from_utf8_lossy( &output.stderr ).into_owned() ) );
+        }
+        let metadata = str::from_utf8( &output.stdout ).expect( "cargo output is not valid UTF-8" );
+        let metadata: cargo_metadata::Metadata =
+            serde_json::from_str( metadata ).map_err( |err| Error::CannotParseCargoOutput( err ) )?;
 
         let mut workspace_members = HashSet::new();
         for member in metadata.workspace_members {
@@ -75,6 +214,7 @@ impl CargoProject {
                 let manifest_path: PathBuf = package.manifest_path.into();
                 let is_workspace_member = workspace_members.contains( &package.name );
                 CargoPackage {
+                    id: CargoPackageId::new( &package.id ).expect( "unparsable package id" ),
                     name: package.name,
                     crate_root: manifest_path.parent().unwrap().into(),
                     manifest_path: manifest_path,
@@ -96,10 +236,52 @@ impl CargoProject {
                             },
                             source_directory: Into::< PathBuf >::into( target.src_path ).parent().unwrap().into()
                         })
+                    }).collect(),
+                    dependencies: package.dependencies.into_iter().map( |dependency| {
+                        // TODO: Make the `target` field public in `cargo_metadata`.
+                        let json: serde_json::Value = serde_json::from_str( &serde_json::to_string( &dependency ).unwrap() ).unwrap();
+                        let target = match json.get( "target" ).unwrap() {
+                            &serde_json::Value::Null => None,
+                            &serde_json::Value::String( ref target ) => Some( target.clone() ),
+                            _ => unreachable!()
+                        };
+
+                        CargoDependency {
+                            name: dependency.name,
+                            kind: match dependency.kind {
+                                cargo_metadata::DependencyKind::Normal => CargoDependencyKind::Normal,
+                                cargo_metadata::DependencyKind::Development => CargoDependencyKind::Development,
+                                cargo_metadata::DependencyKind::Build => CargoDependencyKind::Build,
+                                other => panic!( "Unknown dependency kind: {:?}", other )
+                            },
+                            target,
+                            resolved_to: None
+                        }
                     }).collect()
                 }
             }).collect()
         };
+
+        let mut package_map = HashMap::new();
+        for (index, package) in project.packages.iter().enumerate() {
+            package_map.insert( package.id.clone(), index );
+        }
+
+        for node in metadata.resolve.expect( "missing `resolve` metadata section" ).nodes {
+            let id = CargoPackageId::new( &node.id ).expect( "unparsable package id in the `resolve` metadata section" );
+            let package_index = *package_map.get( &id ).expect( "extra entry in the `resolve` metadata section" );
+            let package = &mut project.packages[ package_index ];
+            for dependency_id in node.dependencies {
+                let dependency_id = CargoPackageId::new( &dependency_id ).expect( "unparsable dependency package id" );
+                let dependency =
+                    package.dependencies.iter_mut()
+                        .find( |dep| dep.name == dependency_id.name )
+                        .expect( "dependency missing from packages" );
+
+                assert!( dependency.resolved_to.is_none(), "duplicate dependency" );
+                dependency.resolved_to = Some( dependency_id );
+            }
+        }
 
         let mut default_package: Option< (usize, usize) > = None;
         for (package_index, package) in project.packages.iter().enumerate() {
@@ -119,8 +301,7 @@ impl CargoProject {
         }
 
         let default_package_index = default_package
-            .expect( "internal error: cannot figure out which package is the default; please report this!" )
-            .0;
+            .expect( "cannot figure out which package is the default" ).0;
 
         project.packages[ default_package_index ].is_default = true;
         Ok( project )
@@ -128,6 +309,74 @@ impl CargoProject {
 
     pub fn default_package( &self ) -> &CargoPackage {
         self.packages.iter().find( |package| package.is_default ).unwrap()
+    }
+
+    pub fn used_packages( &self, triplet: &str, main_package: &CargoPackage, profile: Profile ) -> Vec< &CargoPackage > {
+        let mut package_map = HashMap::new();
+        for (index, package) in self.packages.iter().enumerate() {
+            package_map.insert( package.id.clone(), index );
+        }
+
+        struct Entry< 'a > {
+            package: &'a CargoPackage,
+            is_used: Cell< bool >
+        }
+
+        let mut queue = Vec::new();
+        let entries: Vec< Entry > = self.packages.iter().enumerate().map( |(index, package)| {
+            let is_main_package = package == main_package;
+            if is_main_package {
+                queue.push( index );
+            }
+
+            Entry {
+                package,
+                is_used: Cell::new( is_main_package )
+            }
+        }).collect();
+
+        while let Some( index ) = queue.pop() {
+            for dependency in &entries[ index ].package.dependencies {
+                if let Some( ref required_triplet ) = dependency.target {
+                    if required_triplet != triplet {
+                        continue;
+                    }
+                }
+
+                match profile {
+                    Profile::Main => {
+                        match dependency.kind {
+                            CargoDependencyKind::Normal => {},
+                            CargoDependencyKind::Development |
+                            CargoDependencyKind::Build => continue
+                        }
+                    },
+                    Profile::Test |
+                    Profile::Bench => {
+                        match dependency.kind {
+                            CargoDependencyKind::Normal |
+                            CargoDependencyKind::Development => {},
+                            CargoDependencyKind::Build => continue
+                        }
+                    }
+                }
+
+                let dependency_id = match dependency.resolved_to {
+                    Some( ref dependency_id ) => dependency_id,
+                    None => continue
+                };
+
+                let dependency_index = *package_map.get( dependency_id ).unwrap();
+                if entries[ dependency_index ].is_used.get() {
+                    continue;
+                }
+
+                entries[ dependency_index ].is_used.set( true );
+                queue.push( dependency_index );
+            }
+        }
+
+        entries.into_iter().filter( |entry| entry.is_used.get() ).map( |entry| entry.package ).collect()
     }
 }
 

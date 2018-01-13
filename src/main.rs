@@ -41,7 +41,7 @@ extern crate ansi_term;
 
 extern crate semver;
 
-use std::process::{Command, Stdio, exit};
+use std::process::exit;
 use std::env;
 
 use clap::{
@@ -52,7 +52,6 @@ use clap::{
 };
 
 mod cargo_shim;
-use cargo_shim::*;
 
 #[macro_use]
 mod utils;
@@ -302,41 +301,12 @@ fn main() {
         .subcommand( start_subcommand )
         .get_matches_from( args );
 
-    let project = match CargoProject::new( None ) {
-        Ok( project ) => project,
-        Err( error ) => {
-            // Since `cargo_metadata` doesn't currently print out
-            // the errors `cargo metadata` generates we run it ourselves.
-            let mut command = Command::new( "cargo" );
-            command.arg( "metadata" );
-            command.arg( "--format-version" );
-            command.arg( "1" );
-            command.stdout( Stdio::null() );
-            command.stderr( Stdio::inherit() );
-
-            let mut print_our_own_error = true;
-            if let Ok( mut child ) = command.spawn() {
-                if let Ok( status ) = child.wait() {
-                    if !status.success() {
-                        print_our_own_error = false;
-                    }
-                }
-            }
-
-            if print_our_own_error {
-                eprintln!( "error: cannot load your project: {}", error );
-            }
-
-            exit( 101 );
-        }
-    };
-
     let result = if let Some( matches ) = matches.subcommand_matches( "build" ) {
-        cmd_build::command_build( matches, &project )
+        cmd_build::command_build( matches )
     } else if let Some( matches ) = matches.subcommand_matches( "test" ) {
-        cmd_test::command_test( matches, &project )
+        cmd_test::command_test( matches )
     } else if let Some( matches ) = matches.subcommand_matches( "start" ) {
-        cmd_start::command_start( matches, &project )
+        cmd_start::command_start( matches )
     } else {
         return;
     };
