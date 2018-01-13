@@ -1,0 +1,10 @@
+[package]
+name = "requires-future-cargo-web-through-disabled-dep"
+version = "0.1.0"
+authors = ["Jan Bujak <j@exia.io>"]
+
+[dependencies]
+requires-future-cargo-web = { path = "../requires-future-cargo-web", optional = true }
+
+[features]
+default = []

@@ -1,0 +1,8 @@
+[package]
+name = "conflicting-versions"
+version = "0.1.0"
+authors = ["Jan Bujak <j@exia.io>"]
+
+[dependencies]
+depends-on-dummy-v1 = { path = "../depends-on-dummy-v1" }
+depends-on-dummy-v2 = { path = "../depends-on-dummy-v2" }

@@ -1,0 +1,7 @@
+[package]
+name = "requires-future-cargo-web-through-dev-dep"
+version = "0.1.0"
+authors = ["Jan Bujak <j@exia.io>"]
+
+[dev-dependencies]
+requires-future-cargo-web = { path = "../requires-future-cargo-web" }

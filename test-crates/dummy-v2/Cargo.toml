@@ -1,0 +1,6 @@
+[package]
+name = "dummy"
+version = "2.0.0"
+authors = ["Jan Bujak <j@exia.io>"]
+
+[dependencies]

@@ -1,3 +1,3 @@
 target
-test-crates/native-webasm/target
-test-crates/native-webasm/Cargo.lock
+test-crates/*/target
+test-crates/*/Cargo.lock

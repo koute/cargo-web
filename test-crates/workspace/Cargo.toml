@@ -1,0 +1,10 @@
+[package]
+name = "workspace"
+version = "0.1.0"
+authors = ["Jan Bujak <j@exia.io>"]
+
+[workspace]
+members = ["./child"]
+
+[dependencies]
+child = { path = "child" }
