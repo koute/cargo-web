@@ -507,10 +507,10 @@ impl BuildConfig {
         command
     }
 
-    pub fn build< F >( &self, mut extra_artifact_generator: Option< F > ) -> CargoResult
-        where F: for <'a> FnMut( &'a Path ) -> Vec< PathBuf >
+    pub fn build< F >( &self, mut postprocess: Option< F > ) -> CargoResult
+        where F: for <'a> FnMut( Vec< PathBuf > ) -> Vec< PathBuf >
     {
-        let mut result = self.build_internal( &mut extra_artifact_generator );
+        let mut result = self.build_internal( &mut postprocess );
         if result.is_ok() == false {
             return result;
         }
@@ -530,15 +530,15 @@ impl BuildConfig {
 
             if no_js_generated {
                 debug!( "No artifacts were generated yet build succeeded; retrying..." );
-                result = self.build_internal( &mut extra_artifact_generator );
+                result = self.build_internal( &mut postprocess );
             }
         }
 
         return result;
     }
 
-    fn build_internal< F >( &self, extra_artifact_generator: &mut Option< F > ) -> CargoResult
-        where F: for <'a> FnMut( &'a Path ) -> Vec< PathBuf >
+    fn build_internal< F >( &self, postprocess: &mut Option< F > ) -> CargoResult
+        where F: for <'a> FnMut( Vec< PathBuf > ) -> Vec< PathBuf >
     {
         let mut command = self.as_command();
 
@@ -702,15 +702,17 @@ impl BuildConfig {
         }
 
         let mut artifact_paths = Vec::new();
+        for mut artifact in &mut artifacts {
+            if let Some( ref mut callback ) = postprocess.as_mut() {
+                let filenames = artifact.filenames.iter().map( |filename| Path::new( &filename ).to_owned() ).collect();
+                let filenames = callback( filenames );
+                artifact.filenames = filenames.into_iter().map( |filename| filename.to_str().unwrap().to_owned() ).collect();
+            }
+        }
+
         for mut artifact in artifacts {
-            if let Some( ref mut callback ) = extra_artifact_generator.as_mut() {
-                let mut extra_filenames = Vec::new();
-                for filename in &artifact.filenames {
-                    extra_filenames.extend(
-                        callback( Path::new( &filename ) ).into_iter().map( |artifact| artifact.to_str().unwrap().to_owned() )
-                    );
-                }
-                artifact.filenames.extend( extra_filenames );
+            if artifact.filenames.is_empty() {
+                continue;
             }
 
             match self.message_format {

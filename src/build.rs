@@ -1,5 +1,5 @@
 use std::process::exit;
-use std::path::Path;
+use std::path::PathBuf;
 use std::env;
 
 use clap;
@@ -351,12 +351,18 @@ impl Builder {
     }
 
     pub fn run( &self ) -> Result< CargoResult, Error > {
-        let result = self.0.build( Some( |path: &Path| {
-            if let Some( artifact ) = wasm::process_wasm_file( &self.0, path ) {
-                vec![ artifact ]
-            } else {
-                Vec::new()
+        let result = self.0.build( Some( |artifacts: Vec< PathBuf >| {
+            let mut out = Vec::new();
+            for path in artifacts {
+                out.push( path.clone() );
+
+                if let Some( artifact ) = wasm::process_wasm_file( &self.0, &path ) {
+                    debug!( "Generated artifact: {:?}", artifact );
+                    out.push( artifact );
+                }
             }
+
+            out
         }));
 
         if result.is_ok() == false {
