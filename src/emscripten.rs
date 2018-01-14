@@ -5,7 +5,7 @@ use package::{
     PrebuiltPackage,
     download_package
 };
-use utils::check_if_command_exists;
+use utils::find_cmd;
 
 fn emscripten_package() -> Option< PrebuiltPackage > {
     let package =
@@ -62,13 +62,14 @@ fn binaryen_package() -> Option< PrebuiltPackage > {
 }
 
 fn check_emscripten() {
-    let binary = if cfg!( windows ) {
-        "emcc.bat"
-    } else {
-        "emcc"
-    };
+    let possible_commands =
+        if cfg!( windows ) {
+            &[ "emcc.bat" ]
+        } else {
+            &[ "emcc" ]
+        };
 
-    if check_if_command_exists( binary, None ) {
+    if find_cmd( possible_commands ).is_some() {
         return;
     }
 

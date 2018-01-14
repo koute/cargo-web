@@ -1,8 +1,9 @@
-use std::process::{Command, Stdio};
+use std::process::Command;
 use std::path::Path;
 use std::fs::{self, File};
 use std::io::{self, Read, Write};
 use std::env;
+use std::ffi::OsString;
 
 use libflate::gzip;
 use tar;
@@ -76,19 +77,17 @@ pub fn write< P: AsRef< Path > >( path: P, string: &str ) -> Result< (), io::Err
     Ok( () )
 }
 
-pub fn check_if_command_exists( command: &str, extra_path: Option< &str > ) -> bool {
-    let mut command = Command::new( command );
-    command.arg( "--version" );
-    if let Some( extra_path ) = extra_path {
-        command.append_to_path( extra_path );
-    }
+pub fn has_cmd( cmd: &str ) -> bool {
+    let path = env::var_os( "PATH" ).unwrap_or( OsString::new() );
+    env::split_paths( &path ).map( |p| {
+        p.join( &cmd )
+    }).any( |p| {
+        p.exists()
+    })
+}
 
-    command
-        .stdout( Stdio::null() )
-        .stderr( Stdio::null() )
-        .stdin( Stdio::null() );
-
-    return command.spawn().is_ok()
+pub fn find_cmd< 'a >( cmds: &[ &'a str ] ) -> Option< &'a str > {
+    cmds.into_iter().map( |&s| s ).filter( |&s| has_cmd( s ) ).next()
 }
 
 pub fn unpack< I: AsRef< Path >, O: AsRef< Path > >( input_path: I, output_path: O ) -> Result< (), Box< io::Error > > {

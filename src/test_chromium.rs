@@ -21,7 +21,7 @@ use error::Error;
 use utils::{
     read,
     read_bytes,
-    check_if_command_exists
+    find_cmd
 };
 use chrome_devtools::{Connection, Reply, ReplyError, ConsoleApiCalledBody, ExceptionThrownBody};
 
@@ -50,17 +50,16 @@ pub fn test_in_chromium(
     arg_passthrough: &Vec< &OsStr >,
     any_failure: &mut bool
 ) -> Result< (), Error > {
-    let chromium_executable = if cfg!( windows ) && check_if_command_exists( "chrome.exe", None ) {
-        "chrome.exe"
-    } else if check_if_command_exists( "chromium", None ) {
-        "chromium"
-    } else if check_if_command_exists( "google-chrome", None ) {
-        "google-chrome"
-    } else if check_if_command_exists( "google-chrome-stable", None ) {
-        "google-chrome-stable"
-    } else {
-        return Err( Error::EnvironmentError( "you need to have either Chromium or Chrome installed and in your PATH to run the tests!".into() ) );
-    };
+    let possible_commands =
+        if cfg!( windows ) {
+            &[ "chrome.exe" ][..]
+        } else {
+            &[ "chromium", "google-chrome", "google-chrome-stable" ][..]
+        };
+
+    let chromium_executable = find_cmd( possible_commands ).ok_or_else( || {
+        Error::EnvironmentError( "you need to have either Chromium or Chrome installed and in your PATH to run the tests!".into() )
+    })?;
 
     let app_js = Arc::new( Mutex::new( String::new() ) );
     let server_app_js = app_js.clone();

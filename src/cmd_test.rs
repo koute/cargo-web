@@ -15,7 +15,7 @@ use build::BuildArgsMatcher;
 use error::Error;
 use utils::{
     CommandExt,
-    check_if_command_exists
+    find_cmd
 };
 use test_chromium::test_in_chromium;
 
@@ -26,16 +26,16 @@ fn test_in_nodejs(
     any_failure: &mut bool
 ) -> Result< (), Error > {
 
-    let nodejs_name =
-        if cfg!( windows ) && check_if_command_exists( "node.exe", None ) {
-            "node.exe"
-        } else if check_if_command_exists( "nodejs", None ) {
-            "nodejs"
-        } else if check_if_command_exists( "node", None ) {
-            "node"
+    let possible_commands =
+        if cfg!( windows ) {
+            &[ "node.exe" ][..]
         } else {
-            return Err( Error::EnvironmentError( "node.js not found; please install it!".into() ) );
+            &[ "nodejs", "node" ][..]
         };
+
+    let nodejs_name = find_cmd( possible_commands ).ok_or_else( || {
+        Error::EnvironmentError( "node.js not found; please install it!".into() )
+    })?;
 
     let artifact = build.artifacts().iter()
         .find( |artifact| artifact.extension().map( |ext| ext == "js" ).unwrap_or( false ) )
