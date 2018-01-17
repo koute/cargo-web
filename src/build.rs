@@ -4,7 +4,6 @@ use std::env;
 
 use clap;
 use cargo_shim::{
-    self,
     Profile,
     CargoPackage,
     CargoProject,
@@ -23,21 +22,68 @@ use emscripten::initialize_emscripten;
 use error::Error;
 use wasm;
 
-pub struct BuildArgsMatcher< 'a > {
-    matches: &'a clap::ArgMatches< 'a >,
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub enum Backend {
+    EmscriptenWebAssembly,
+    EmscriptenAsmJs,
+    WebAssembly
+}
+
+impl Backend {
+    pub fn is_emscripten_asmjs( self ) -> bool {
+        self == Backend::EmscriptenAsmJs
+    }
+
+    pub fn is_emscripten_wasm( self ) -> bool {
+        self == Backend::EmscriptenWebAssembly
+    }
+
+    pub fn is_native_wasm( self ) -> bool {
+        self == Backend::WebAssembly
+    }
+
+    pub fn is_any_wasm( self ) -> bool {
+        self.is_emscripten_wasm() || self.is_native_wasm()
+    }
+
+    pub fn is_emscripten( self ) -> bool {
+        self.is_emscripten_wasm() || self.is_emscripten_asmjs()
+    }
+}
+
+#[derive(Clone)]
+enum TargetName {
+    Lib,
+    Bin( String ),
+    Example( String ),
+    Bench( String )
+}
+
+#[derive(Clone)]
+pub struct BuildArgs {
     features: Vec< String >,
     no_default_features: bool,
     enable_all_features: bool,
-    project: CargoProject
+
+    build_type: BuildType,
+    use_system_emscripten: bool,
+
+    is_verbose: bool,
+    message_format: MessageFormat,
+
+    backend: Backend,
+
+    package_name: Option< String >,
+    target_name: Option< TargetName >
 }
 
-
 pub struct AggregatedConfig {
+    profile: Profile,
     pub link_args: Vec< String >
 }
 
-impl< 'a > BuildArgsMatcher< 'a > {
-    pub fn new( matches: &'a clap::ArgMatches< 'a > ) -> Self {
+impl BuildArgs {
+    pub fn new( matches: &clap::ArgMatches ) -> Result< Self, Error > {
         let features = if let Some( features ) = matches.value_of( "features" ) {
             features.split_whitespace().map( |feature| feature.to_owned() ).collect()
         } else {
@@ -47,62 +93,15 @@ impl< 'a > BuildArgsMatcher< 'a > {
         let no_default_features = matches.is_present( "no-default-features" );
         let enable_all_features = matches.is_present( "all-features" );
 
-        let project = match CargoProject::new( None, no_default_features, enable_all_features, &features ) {
-            Ok( project ) => project,
-            Err( error ) => {
-                match error {
-                    cargo_shim::Error::CargoFailed( message ) => {
-                        eprintln!( "{}", message );
-                    },
-                    error => eprintln!( "{}", error )
-                }
-                exit( 101 );
-            }
-        };
-
-        BuildArgsMatcher {
-            matches,
-            features,
-            no_default_features,
-            enable_all_features,
-            project
-        }
-    }
-
-    fn requested_build_type( &self ) -> BuildType {
-        if self.matches.is_present( "release" ) {
+        let build_type = if matches.is_present( "release" ) {
             BuildType::Release
         } else {
             BuildType::Debug
-        }
-    }
+        };
 
-    pub fn targeting_emscripten_asmjs( &self ) -> bool {
-        !self.targeting_emscripten_wasm() && !self.targeting_native_wasm()
-    }
-
-    pub fn targeting_emscripten_wasm( &self ) -> bool {
-        self.matches.is_present( "target-webasm-emscripten" )
-    }
-
-    pub fn targeting_native_wasm( &self ) -> bool {
-        self.matches.is_present( "target-webasm" )
-    }
-
-    pub fn targeting_wasm( &self ) -> bool {
-        self.targeting_emscripten_wasm() || self.targeting_native_wasm()
-    }
-
-    pub fn targeting_emscripten( &self ) -> bool {
-        self.targeting_emscripten_wasm() || self.targeting_emscripten_asmjs()
-    }
-
-    fn use_system_emscripten( &self ) -> bool {
-        self.matches.is_present( "use-system-emscripten" )
-    }
-
-    fn message_format( &self ) -> MessageFormat {
-        if let Some( name ) = self.matches.value_of( "message-format" ) {
+        let use_system_emscripten = matches.is_present( "use-system-emscripten" );
+        let is_verbose = matches.is_present( "verbose" );
+        let message_format = if let Some( name ) = matches.value_of( "message-format" ) {
             match name {
                 "human" => MessageFormat::Human,
                 "json" => MessageFormat::Json,
@@ -110,92 +109,160 @@ impl< 'a > BuildArgsMatcher< 'a > {
             }
         } else {
             MessageFormat::Human
-        }
-    }
+        };
 
-    fn is_verbose( &self ) -> bool {
-        self.matches.is_present( "verbose" )
-    }
-
-    fn build_type( &self ) -> BuildType {
-        let build_type = self.requested_build_type();
-        if self.targeting_native_wasm() && build_type == BuildType::Debug {
-            // TODO: Remove this in the future.
-            println_err!( "warning: debug builds on the wasm32-unknown-unknown are currently totally broken" );
-            println_err!( "         forcing a release build" );
-            return BuildType::Release;
-        }
-
-        build_type
-    }
-
-    fn package( &self ) -> Result< Option< &CargoPackage >, Error > {
-        if let Some( name ) = self.matches.value_of( "package" ) {
-            match self.project.packages.iter().find( |package| package.name == name ) {
-                None => Err( Error::ConfigurationError( format!( "package `{}` not found", name ) ) ),
-                package => Ok( package )
-            }
+        let backend = if matches.is_present( "target-webasm-emscripten" ) {
+            Backend::EmscriptenWebAssembly
+        } else if matches.is_present( "target-webasm" ) {
+            Backend::WebAssembly
         } else {
-            Ok( None )
+            Backend::EmscriptenAsmJs
+        };
+
+        let package_name = matches.value_of( "package" ).map( |name| name.to_owned() );
+        let target_name = if matches.is_present( "lib" ) {
+            Some( TargetName::Lib )
+        } else if let Some( name ) = matches.value_of( "bin" ) {
+            Some( TargetName::Bin( name.to_owned() ) )
+        } else if let Some( name ) = matches.value_of( "example" ) {
+            Some( TargetName::Example( name.to_owned() ) )
+        } else if let Some( name ) = matches.value_of( "bench" ) {
+            Some( TargetName::Bench( name.to_owned() ) )
+        } else {
+            None
+        };
+
+        Ok( BuildArgs {
+            features,
+            no_default_features,
+            enable_all_features,
+            build_type,
+            use_system_emscripten,
+            is_verbose,
+            message_format,
+            backend,
+            package_name,
+            target_name
+        })
+    }
+
+    pub fn backend( &self ) -> Backend {
+        self.backend
+    }
+
+    fn triplet( &self ) -> &str {
+        match self.backend {
+            Backend::EmscriptenAsmJs => "asmjs-unknown-emscripten",
+            Backend::EmscriptenWebAssembly => "wasm32-unknown-emscripten",
+            Backend::WebAssembly => "wasm32-unknown-unknown"
         }
     }
 
-    pub fn package_or_default( &self ) -> Result< &CargoPackage, Error > {
-        Ok( self.package()?.unwrap_or_else( || self.project.default_package() ) )
+    pub fn load_project( &self ) -> Result< Project, Error > {
+        Project::new( self.clone() )
     }
+}
 
-    fn target( &'a self, package: &'a CargoPackage ) -> Result< Option< &'a CargoTarget >, Error > {
-        let targets = &package.targets;
-        if self.matches.is_present( "lib" ) {
-            match targets.iter().find( |target| target.kind == TargetKind::Lib ) {
+#[derive(Clone)]
+pub struct Project {
+    build_args: BuildArgs,
+    project: CargoProject,
+    default_package: usize,
+    default_target: Option< usize >
+}
+
+fn get_package< 'a >( name: Option< &str >, project: &'a CargoProject ) -> Result< usize, Error > {
+    if let Some( name ) = name {
+        match project.packages.iter().position( |package| package.name == name ) {
+            None => Err( Error::ConfigurationError( format!( "package `{}` not found", name ) ) ),
+            Some( index ) => Ok( index )
+        }
+    } else {
+        let index = project.packages.iter().position( |package| package.is_default ).unwrap();
+        Ok( index )
+    }
+}
+
+fn get_target< 'a >( kind: &Option< TargetName >, package: &'a CargoPackage ) -> Result< Option< usize >, Error > {
+    let kind = match *kind {
+        Some( ref kind ) => kind,
+        None => return Ok( None )
+    };
+
+    let targets = &package.targets;
+    match *kind {
+        TargetName::Lib => {
+            match targets.iter().position( |target| target.kind == TargetKind::Lib ) {
                 None => return Err( Error::ConfigurationError( format!( "no library targets found" ) ) ),
-                target => Ok( target )
+                index => Ok( index )
             }
-        } else if let Some( name ) = self.matches.value_of( "bin" ) {
-            match targets.iter().find( |target| target.kind == TargetKind::Bin && target.name == name ) {
+        },
+        TargetName::Bin( ref name ) => {
+            match targets.iter().position( |target| target.kind == TargetKind::Bin && target.name == *name ) {
                 None => return Err( Error::ConfigurationError( format!( "no bin target named `{}`", name ) ) ),
-                target => Ok( target )
+                index => Ok( index )
             }
-        } else if let Some( name ) = self.matches.value_of( "example" ) {
-            match targets.iter().find( |target| target.kind == TargetKind::Example && target.name == name ) {
+        },
+        TargetName::Example( ref name ) => {
+            match targets.iter().position( |target| target.kind == TargetKind::Example && target.name == *name ) {
                 None => return Err( Error::ConfigurationError( format!( "no example target named `{}`", name ) ) ),
-                target => Ok( target )
+                index => Ok( index )
             }
-        } else if let Some( name ) = self.matches.value_of( "bench" ) {
-            match targets.iter().find( |target| target.kind == TargetKind::Bench && target.name == name ) {
+        },
+        TargetName::Bench( ref name ) => {
+            match targets.iter().position( |target| target.kind == TargetKind::Bench && target.name == *name ) {
                 None => return Err( Error::ConfigurationError( format!( "no bench target named `{}`", name ) ) ),
-                target => Ok( target )
+                index => Ok( index )
             }
-        } else {
-            Ok( None )
         }
     }
+}
 
-    pub fn target_or_select< F >( &'a self, package: &'a CargoPackage, filter: F ) -> Result< Vec< &'a CargoTarget >, Error >
+impl Project {
+    pub fn new( args: BuildArgs ) -> Result< Self, Error > {
+        let project = CargoProject::new( None, args.no_default_features, args.enable_all_features, &args.features )?;
+
+        let default_package = get_package( args.package_name.as_ref().map( |name| name.as_str() ), &project )?;
+        let default_target = get_target( &args.target_name, &project.packages[ default_package ] )?;
+
+        Ok( Project {
+            build_args: args,
+            project,
+            default_package,
+            default_target
+        })
+    }
+
+    pub fn build_args( &self ) -> &BuildArgs {
+        &self.build_args
+    }
+
+    pub fn package( &self ) -> &CargoPackage {
+        &self.project.packages[ self.default_package ]
+    }
+
+    pub fn target_or_select< 'a, F >( &'a self, package: Option< &'a CargoPackage >, filter: F ) -> Result< Vec< &'a CargoTarget >, Error >
         where for< 'r > F: Fn( &'r CargoTarget ) -> bool
     {
-        Ok( self.target( package )?.map( |target| vec![ target ] ).unwrap_or_else( || {
+        let (package, index) = if let Some( package ) = package {
+            (package, get_target( &self.build_args.target_name, &package )?)
+        } else {
+            (self.package(), self.default_target)
+        };
+
+        Ok( index.map( |target| vec![ &package.targets[ target ] ] ).unwrap_or_else( || {
             package.targets.iter().filter( |target| filter( target ) ).collect()
         }))
     }
 
-    fn triplet_or_default( &self ) -> &str {
-        if self.matches.is_present( "target-webasm") {
-            "wasm32-unknown-unknown"
-        } else if self.matches.is_present( "target-webasm-emscripten" ) {
-            "wasm32-unknown-emscripten"
-        } else {
-            "asmjs-unknown-emscripten"
-        }
-    }
-
     pub fn aggregate_configuration( &self, main_package: &CargoPackage, profile: Profile ) -> Result< AggregatedConfig, Error > {
         let mut aggregated_config = AggregatedConfig {
+            profile,
             link_args: Vec::new()
         };
 
         let mut packages = self.project.used_packages(
-            self.triplet_or_default(),
+            self.build_args.triplet(),
             main_package,
             profile
         );
@@ -254,13 +321,13 @@ impl< 'a > BuildArgsMatcher< 'a > {
         Ok( aggregated_config )
     }
 
-    pub fn prepare_builder( &self, config: &AggregatedConfig, package: &CargoPackage, target: &CargoTarget, profile: Profile ) -> Builder {
+    fn prepare_build_config( &self, config: &AggregatedConfig, package: &CargoPackage, target: &CargoTarget ) -> BuildConfig {
         let mut extra_paths = Vec::new();
         let mut extra_rustflags = Vec::new();
         let mut extra_environment = Vec::new();
 
-        if self.targeting_emscripten() {
-            if let Some( emscripten ) = initialize_emscripten( self.use_system_emscripten(), self.targeting_wasm() ) {
+        if self.build_args.backend.is_emscripten() {
+            if let Some( emscripten ) = initialize_emscripten( self.build_args.use_system_emscripten, self.build_args.backend.is_emscripten_wasm() ) {
                 extra_paths.push( emscripten.emscripten_path.clone() );
 
                 let emscripten_path = emscripten.emscripten_path.to_string_lossy().into_owned();
@@ -278,7 +345,7 @@ impl< 'a > BuildArgsMatcher< 'a > {
             // When compiling tests we want the exit runtime,
             // when compiling for the Web we don't want it
             // since that's more efficient.
-            let exit_runtime = profile == Profile::Main;
+            let exit_runtime = config.profile == Profile::Main;
 
             extra_rustflags.push( "-C".to_owned() );
             extra_rustflags.push( "link-arg=-s".to_owned() );
@@ -293,7 +360,7 @@ impl< 'a > BuildArgsMatcher< 'a > {
             //
             // See more here:
             //   https://kripken.github.io/emscripten-site/docs/optimizing/Optimizing-Code.html#memory-growth
-            let allow_memory_growth = self.targeting_emscripten_wasm();
+            let allow_memory_growth = self.build_args.backend.is_emscripten_wasm();
 
             extra_rustflags.push( "-C".to_owned() );
             extra_rustflags.push( "link-arg=-s".to_owned() );
@@ -313,12 +380,12 @@ impl< 'a > BuildArgsMatcher< 'a > {
             extra_rustflags.push( format!( "link-arg={}", arg ) );
         }
 
-        if self.targeting_native_wasm() && self.requested_build_type() == BuildType::Debug {
+        if self.build_args.backend.is_native_wasm() && self.build_args.build_type == BuildType::Debug {
             extra_rustflags.push( "-C".to_owned() );
             extra_rustflags.push( "debuginfo=2".to_owned() );
         }
 
-        if self.targeting_native_wasm() {
+        if self.build_args.backend.is_native_wasm() {
             // Incremental compilation currently doesn't work very well with
             // this target, so disable it.
             if env::var_os( "CARGO_INCREMENTAL" ).is_some() {
@@ -326,40 +393,43 @@ impl< 'a > BuildArgsMatcher< 'a > {
             }
         }
 
-        Builder::new( BuildConfig {
-            build_target: target_to_build_target( target, profile ),
-            build_type: self.build_type(),
-            triplet: Some( self.triplet_or_default().into() ),
+        let build_type = self.build_args.build_type;
+        let build_type = if self.build_args.backend.is_native_wasm() && build_type == BuildType::Debug {
+            // TODO: Remove this in the future.
+            println_err!( "warning: debug builds on the wasm32-unknown-unknown are currently totally broken" );
+            println_err!( "         forcing a release build" );
+            BuildType::Release
+        } else {
+            build_type
+        };
+
+        BuildConfig {
+            build_target: target_to_build_target( target, config.profile ),
+            build_type,
+            triplet: Some( self.build_args.triplet().into() ),
             package: Some( package.name.clone() ),
-            features: self.features.clone(),
-            no_default_features: self.no_default_features,
-            enable_all_features: self.enable_all_features,
+            features: self.build_args.features.clone(),
+            no_default_features: self.build_args.no_default_features,
+            enable_all_features: self.build_args.enable_all_features,
             extra_paths,
             extra_rustflags,
             extra_environment,
-            message_format: self.message_format(),
-            is_verbose: self.is_verbose()
-        })
-    }
-}
-
-pub struct Builder( BuildConfig );
-
-impl Builder {
-    pub fn new( build_config: BuildConfig ) -> Self {
-        Builder( build_config )
+            message_format: self.build_args.message_format,
+            is_verbose: self.build_args.is_verbose
+        }
     }
 
-    pub fn run( &self ) -> Result< CargoResult, Error > {
-        let result = self.0.build( Some( |artifacts: Vec< PathBuf >| {
+    pub fn build( &self, config: &AggregatedConfig, package: &CargoPackage, target: &CargoTarget ) -> Result< CargoResult, Error > {
+        let build_config = self.prepare_build_config( config, package, target );
+        let result = build_config.build( Some( |artifacts: Vec< PathBuf >| {
             let mut out = Vec::new();
             for path in artifacts {
-                out.push( path.clone() );
-
-                if let Some( artifact ) = wasm::process_wasm_file( &self.0, &path ) {
+                if let Some( artifact ) = wasm::process_wasm_file( &build_config, &path ) {
                     debug!( "Generated artifact: {:?}", artifact );
                     out.push( artifact );
                 }
+
+                out.push( path );
             }
 
             out

@@ -16,7 +16,7 @@ use regex::Regex;
 
 use cargo_shim::CargoResult;
 
-use build::BuildArgsMatcher;
+use build::Backend;
 use error::Error;
 use utils::{
     read,
@@ -45,7 +45,7 @@ const DEFAULT_TEST_INDEX_HTML: &'static str = r#"
 "#;
 
 pub fn test_in_chromium(
-    build_matcher: &BuildArgsMatcher,
+    backend: Backend,
     build: CargoResult,
     arg_passthrough: &Vec< &OsStr >,
     any_failure: &mut bool
@@ -103,7 +103,7 @@ pub fn test_in_chromium(
         .find( |artifact| artifact.extension().map( |ext| ext == "js" ).unwrap_or( false ) )
         .expect( "internal error: no .js file found" );
 
-    if build_matcher.targeting_wasm() {
+    if backend.is_any_wasm() {
         let wasm_artifact = build.artifacts().iter()
             .find( |artifact| artifact.extension().map( |ext| ext == "wasm" ).unwrap_or( false ) )
             .expect( "internal error: no .wasm file found" );
@@ -261,7 +261,7 @@ pub fn test_in_chromium(
                             }
                         }
 
-                        if build_matcher.targeting_emscripten() {
+                        if backend.is_emscripten() {
                             if print_counter == 0 && output.starts_with( "pre-main" ) {
                                 continue;
                             } else if print_counter == 1 && output.trim().is_empty() {

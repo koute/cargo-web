@@ -58,6 +58,7 @@ mod utils;
 mod config;
 mod package;
 mod build;
+mod deployment;
 mod error;
 mod wasm;
 mod wasm_gc;
