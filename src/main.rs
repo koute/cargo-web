@@ -8,6 +8,7 @@
 
 extern crate clap;
 extern crate notify;
+#[macro_use]
 extern crate rouille;
 extern crate tempdir;
 extern crate reqwest;
