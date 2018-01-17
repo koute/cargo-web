@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::channel;
-use std::sync::{Mutex, Arc};
+use std::sync::{Mutex, Arc, Condvar};
 use std::time::Duration;
 use std::thread;
 use std::mem;
@@ -69,25 +69,21 @@ const DEFAULT_INDEX_HTML: &'static str = r#"
 "#;
 
 fn auto_reload_code( hash: u32 ) -> String {
-    // TODO: We probably should do this with with Websockets,
-    // but it isn't possible when using rouille as a web server. ):
     const TEMPLATE: &'static str = r##"
         window.addEventListener( "load", function() {
+            var socket = new WebSocket( 'ws://' + window.location.host + '/__cargo_web__/ws', 'build_hash' );
             var current_build_hash = {{{current_build_hash}}};
-            function try_reload() {
-                var req = new XMLHttpRequest();
-                req.addEventListener( "load" , function() {
-                    if( req.responseText != current_build_hash ) {
-                        window.location.reload( true );
-                    }
-                });
-                req.addEventListener( "loadend", function() {
-                    setTimeout( try_reload, 500 );
-                });
-                req.open( "GET", "/__cargo-web__/build_hash" );
-                req.send();
-            }
-            try_reload();
+
+            socket.addEventListener( 'open', function( event ) {
+                console.log( '[ cargo-web ] watching for changes...' );
+            });
+
+            socket.addEventListener( 'message', function( event ) {
+                if( Number(event.data) !== current_build_hash ) {
+                    console.log( '[ cargo-web ] build finished, reloading...' );
+                    window.location.reload( true );
+                }
+            });
         });
     "##;
 
@@ -159,7 +155,7 @@ fn monitor_for_changes_and_rebuild(
     package: &CargoPackage,
     target: &CargoTarget,
     builder: Builder,
-    last_build: Arc< Mutex< LastBuild > >
+    last_build_and_cvar: Arc< ( Mutex< LastBuild >, Condvar ) >
 ) -> RecommendedWatcher {
     let (tx, rx) = channel();
     let mut watcher: RecommendedWatcher = Watcher::new( tx, Duration::from_millis( 500 ) ).unwrap();
@@ -183,10 +179,11 @@ fn monitor_for_changes_and_rebuild(
             let new_result = builder.run();
             if let Ok( new_result ) = new_result {
                 let mut new_outputs = result_to_outputs( new_result );
-                let mut last_build = last_build.lock().unwrap();
+                let mut last_build = last_build_and_cvar.0.lock().unwrap();
 
                 mem::swap( &mut last_build.outputs, &mut new_outputs );
                 last_build.counter += 1;
+                last_build_and_cvar.1.notify_all();
             }
         }
     });
@@ -227,10 +224,10 @@ pub fn command_start< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Er
         counter: 0,
         outputs
     };
-    let last_build = Arc::new( Mutex::new( last_build ) );
+    let last_build_and_cvar = Arc::new( ( Mutex::new( last_build ), Condvar::new() ) );
 
     #[allow(unused_variables)]
-    let watcher = monitor_for_changes_and_rebuild( &package, &target, builder, last_build.clone() );
+    let watcher = monitor_for_changes_and_rebuild( &package, &target, builder, last_build_and_cvar.clone() );
 
     let crate_static_path = package.crate_root.join( "static" );
     let target_static_path = match target.kind {
@@ -255,7 +252,7 @@ pub fn command_start< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Er
             return response.with_no_cache();
         }
 
-        let last_build = last_build.lock().unwrap();
+        let last_build = last_build_and_cvar.0.lock().unwrap();
         let url = request.url();
         if url == "/" || url == "index.html" {
             let mut data = target_static_path.as_ref().and_then( |path| {
@@ -277,10 +274,25 @@ pub fn command_start< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Er
             return rouille::Response::from_data( "application/javascript", data ).with_no_cache();
         }
 
-         if url == "/__cargo-web__/build_hash" {
-             let data = format!( "{}", last_build.get_build_hash() );
-             return rouille::Response::from_data( "application/text", data ).with_no_cache();
-         }
+        if url == "/__cargo_web__/ws" {
+            let (response, websocket) = try_or_400!( rouille::websocket::start( &request, Some( "build_hash" ) ) );
+
+            let last_build_and_cvar = last_build_and_cvar.clone();
+
+            thread::spawn(move || {
+                let mut ws = websocket.recv().unwrap();
+
+                let mut last_build = last_build_and_cvar.0.lock().unwrap();
+                loop {
+                    last_build = last_build_and_cvar.1.wait( last_build ).unwrap();
+                    if ws.is_closed() || ws.send_text( &last_build.get_build_hash().to_string() ).is_err() {
+                        break;
+                    }
+                }
+            });
+
+            return response;
+        }
 
         let requested_file = if url.starts_with( '/' ) {
             &url[ 1.. ]
