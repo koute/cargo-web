@@ -13,6 +13,10 @@ pub enum Error {
     BuildError,
     CargoShimError( cargo_shim::Error ),
     CannotLoadFile( PathBuf, io::Error ),
+    CannotRemoveDirectory( PathBuf, io::Error ),
+    CannotCreateFile( PathBuf, io::Error ),
+    CannotWriteToFile( PathBuf, io::Error ),
+    CannotCopyFile( PathBuf, PathBuf, io::Error ),
     Other( Box< error::Error > )
 }
 
@@ -25,6 +29,10 @@ impl error::Error for Error {
             Error::BuildError => "build failed",
             Error::CargoShimError( ref error ) => error.description(),
             Error::CannotLoadFile( .. ) => "cannot load file",
+            Error::CannotRemoveDirectory( .. ) => "cannot remove directory",
+            Error::CannotCreateFile( .. ) => "cannot create file",
+            Error::CannotWriteToFile( .. ) => "cannot write to file",
+            Error::CannotCopyFile( .. ) => "cannot copy file",
             Error::Other( ref error ) => error.description()
         }
     }
@@ -62,6 +70,10 @@ impl fmt::Display for Error {
             &Error::CargoShimError( cargo_shim::Error::CargoFailed( ref message ) ) => write!( formatter, "{}", message ),
             &Error::CargoShimError( ref inner ) => write!( formatter, "{}", inner ),
             &Error::CannotLoadFile( ref path, ref inner ) => write!( formatter, "cannot load file {:?}: {}", path, inner ),
+            &Error::CannotRemoveDirectory( ref path, ref inner ) => write!( formatter, "cannot remove directory {:?}: {}", path, inner ),
+            &Error::CannotCreateFile( ref path, ref inner ) => write!( formatter, "cannot create file {:?}: {}", path, inner ),
+            &Error::CannotWriteToFile( ref path, ref inner ) => write!( formatter, "cannot write to file {:?}: {}", path, inner ),
+            &Error::CannotCopyFile( ref src_path, ref dst_path, ref inner ) => write!( formatter, "cannot copy file from {:?} to {:?}: {}", src_path, dst_path, inner ),
             &Error::Other( ref inner ) => write!( formatter, "{}", inner ),
             _ => write!( formatter, "{}", self.description() )
         }

@@ -1,9 +1,10 @@
 use std::collections::BTreeMap;
-use std::path::PathBuf;
-use std::io::{self, Read};
-use std::fs::File;
+use std::path::{PathBuf, Path};
+use std::io::{self, Read, Write};
+use std::fs::{self, File};
 
 use handlebars::Handlebars;
+use walkdir::WalkDir;
 
 use cargo_shim::{
     TargetKind,
@@ -59,7 +60,8 @@ enum RouteKind {
 
 struct Route {
     key: String,
-    kind: RouteKind
+    kind: RouteKind,
+    can_be_deployed: bool
 }
 
 pub struct Deployment {
@@ -128,31 +130,36 @@ impl Deployment {
                 //       `index.html` files.
                 routes.push( Route {
                     key: "js/app.js".to_owned(),
-                    kind: RouteKind::Blob( contents.clone() )
+                    kind: RouteKind::Blob( contents.clone() ),
+                    can_be_deployed: false
                 });
             }
 
             routes.push( Route {
                 key,
-                kind: RouteKind::Blob( contents )
+                kind: RouteKind::Blob( contents ),
+                can_be_deployed: true
             });
         }
 
         if let Some( target_static_path ) = target_static_path {
             routes.push( Route {
                 key: "".to_owned(),
-                kind: RouteKind::StaticDirectory( target_static_path.to_owned() )
+                kind: RouteKind::StaticDirectory( target_static_path.to_owned() ),
+                can_be_deployed: true
             });
         }
 
         routes.push( Route {
             key: "".to_owned(),
-            kind: RouteKind::StaticDirectory( crate_static_path.to_owned() )
+            kind: RouteKind::StaticDirectory( crate_static_path.to_owned() ),
+            can_be_deployed: true
         });
 
         routes.push( Route {
             key: "index.html".to_owned(),
-            kind: RouteKind::Blob( generate_index_html( &js_name ).into() )
+            kind: RouteKind::Blob( generate_index_html( &js_name ).into() ),
+            can_be_deployed: true
         });
 
         Ok( Deployment {
@@ -217,5 +224,62 @@ impl Deployment {
 
         trace!( "Get by URL of {:?}: not found", url );
         None
+    }
+
+    pub fn deploy_to( &self, root_directory: &Path ) -> Result< (), Error > {
+        for route in &self.routes {
+            if !route.can_be_deployed {
+                continue;
+            }
+
+            match route.kind {
+                RouteKind::Blob( ref bytes ) => {
+                    let mut target_path = root_directory.to_owned();
+                    for chunk in route.key.split( "/" ) {
+                        target_path = target_path.join( chunk );
+                    }
+
+                    if target_path.exists() {
+                        continue;
+                    }
+
+                    let target_dir = target_path.parent().unwrap();
+                    fs::create_dir_all( target_dir )
+                        .map_err( |err| Error::CannotCreateFile( target_dir.to_owned(), err ) )?; // TODO: Different error type?
+
+                    let mut fp = File::create( &target_path ).map_err( |err| Error::CannotCreateFile( target_path.to_owned(), err ) )?;
+                    fp.write_all( &bytes ).map_err( |err| Error::CannotWriteToFile( target_path.to_owned(), err ) )?;
+                },
+                RouteKind::StaticDirectory( ref source_dir ) => {
+                    if !source_dir.exists() {
+                        continue;
+                    }
+
+                    for entry in WalkDir::new( source_dir ) {
+                        let entry = entry.map_err( |err| {
+                            let err_path = err.path().map( |path| path.to_owned() ).unwrap_or_else( || source_dir.clone() );
+                            let err: io::Error = err.into();
+                            Error::CannotLoadFile( err_path, err ) // TODO: Different error type?
+                        })?;
+
+                        let source_path = entry.path();
+                        let relative_path = source_path.strip_prefix( source_dir ).unwrap();
+                        let target_path = root_directory.join( relative_path );
+                        if target_path.exists() {
+                            continue;
+                        }
+
+                        let target_dir = target_path.parent().unwrap();
+                        fs::create_dir_all( target_dir )
+                            .map_err( |err| Error::CannotCreateFile( target_dir.to_owned(), err ) )?; // TODO: Different error type?
+
+                        fs::copy( &source_path, &target_path )
+                            .map_err( |err| Error::CannotCopyFile( source_path.to_owned(), target_path.to_owned(), err ) )?;
+                    }
+                }
+            }
+        }
+
+        Ok(())
     }
 }

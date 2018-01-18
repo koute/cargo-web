@@ -29,6 +29,7 @@ extern crate unicode_categories;
 extern crate ordermap;
 extern crate websocket;
 extern crate regex;
+extern crate walkdir;
 
 extern crate parity_wasm;
 #[macro_use]
@@ -75,6 +76,7 @@ mod chrome_devtools;
 mod cmd_build;
 mod cmd_start;
 mod cmd_test;
+mod cmd_deploy;
 
 fn add_shared_build_params< 'a, 'b >( app: App< 'a, 'b > ) -> App< 'a, 'b > {
     return app
@@ -289,9 +291,14 @@ fn main() {
                     .help( "Will try to automatically reload the page on rebuild" )
             );
 
+    let mut deploy_subcommand =
+        SubCommand::with_name( "deploy" )
+            .about( "Deploys your project so that its ready to be served statically" );
+
     build_subcommand = add_shared_build_params( build_subcommand );
     test_subcommand = add_shared_build_params( test_subcommand );
     start_subcommand = add_shared_build_params( start_subcommand );
+    deploy_subcommand = add_shared_build_params( deploy_subcommand );
 
     let matches = App::new( "cargo-web" )
         .version( env!( "CARGO_PKG_VERSION" ) )
@@ -300,6 +307,7 @@ fn main() {
         .subcommand( build_subcommand )
         .subcommand( test_subcommand )
         .subcommand( start_subcommand )
+        .subcommand( deploy_subcommand )
         .get_matches_from( args );
 
     let result = if let Some( matches ) = matches.subcommand_matches( "build" ) {
@@ -308,6 +316,8 @@ fn main() {
         cmd_test::command_test( matches )
     } else if let Some( matches ) = matches.subcommand_matches( "start" ) {
         cmd_start::command_start( matches )
+    } else if let Some( matches ) = matches.subcommand_matches( "deploy" ) {
+        cmd_deploy::command_deploy( matches )
     } else {
         return;
     };
