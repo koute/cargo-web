@@ -67,34 +67,35 @@ pub struct Deployment {
     routes: Vec< Route >
 }
 
-pub enum Artifact {
-    Data {
-        mime_type: &'static str,
-        data: Vec< u8 >
-    },
-    File {
-        mime_type: &'static str,
-        fp: File
-    }
+pub enum ArtifactKind {
+    Data( Vec< u8 > ),
+    File( File )
+}
+
+pub struct Artifact {
+    pub mime_type: &'static str,
+    pub kind: ArtifactKind
 }
 
 impl Artifact {
     pub fn map_text< F: FnOnce( String ) -> String >( self, callback: F ) -> io::Result< Self > {
-        let (data, mime_type) = match self {
-            Artifact::Data { mime_type, data } => {
-                (data, mime_type)
-            },
-            Artifact::File { mime_type, mut fp } => {
+        let mime_type = self.mime_type;
+        let data = match self.kind {
+            ArtifactKind::Data( data ) => data,
+            ArtifactKind::File( mut fp ) => {
                 let mut data = Vec::new();
                 fp.read_to_end( &mut data )?;
-                (data, mime_type)
+                data
             }
         };
 
         let mut text = String::from_utf8_lossy( &data ).into_owned();
         text = callback( text );
         let data = text.into();
-        Ok( Artifact::Data { mime_type, data } )
+        Ok( Artifact {
+            mime_type,
+            kind: ArtifactKind::Data( data )
+        })
     }
 }
 
@@ -173,9 +174,9 @@ impl Deployment {
                     }
 
                     trace!( "Get by URL of {:?}: found blob", url );
-                    return Some( Artifact::Data {
+                    return Some( Artifact {
                         mime_type,
-                        data: bytes.clone()
+                        kind: ArtifactKind::Data( bytes.clone() )
                     });
                 },
                 RouteKind::StaticDirectory( ref path ) => {
@@ -188,9 +189,9 @@ impl Deployment {
                     if target_path.exists() {
                         match File::open( &target_path ) {
                             Ok( fp ) => {
-                                return Some( Artifact::File {
+                                return Some( Artifact {
                                     mime_type,
-                                    fp
+                                    kind: ArtifactKind::File( fp )
                                 });
                             },
                             Err( error ) => {

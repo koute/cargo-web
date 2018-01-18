@@ -26,7 +26,7 @@ use cargo_shim::{
 };
 
 use build::{BuildArgs, Project};
-use deployment::{Deployment, Artifact};
+use deployment::{Deployment, ArtifactKind};
 use error::Error;
 
 fn auto_reload_code( hash: u32 ) -> String {
@@ -236,12 +236,12 @@ pub fn command_start< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Er
                 }
             }
 
-            match artifact {
-                Artifact::Data { mime_type, mut data } => {
-                    rouille::Response::from_data( mime_type, data ).with_no_cache()
+            match artifact.kind {
+                ArtifactKind::Data( mut data ) => {
+                    rouille::Response::from_data( artifact.mime_type, data ).with_no_cache()
                 },
-                Artifact::File { mime_type, fp } => {
-                    rouille::Response::from_file( mime_type, fp ).with_no_cache()
+                ArtifactKind::File( fp ) => {
+                    rouille::Response::from_file( artifact.mime_type, fp ).with_no_cache()
                 }
             }
         } else {
