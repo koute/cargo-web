@@ -136,19 +136,6 @@ impl LastBuild {
     }
 }
 
-/*
-fn trigger_build( builder: &Builder, last_build: &Arc< Mutex< LastBuild > > ) -> Result< (), Error > {
-    let new_result = builder.run()?;
-    let mut new_outputs = result_to_outputs( new_result );
-    let mut last_build = last_build.lock().unwrap();
-
-    mem::swap( &mut last_build.outputs, &mut new_outputs );
-    last_build.counter += 1;
-
-    Ok(())
-}
-*/
-
 fn monitor_for_changes_and_rebuild(
     last_build: Arc< Mutex< LastBuild > >
 ) -> RecommendedWatcher {
