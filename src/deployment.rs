@@ -45,8 +45,7 @@ const DEFAULT_INDEX_HTML_TEMPLATE: &'static str = r#"
 </html>
 "#;
 
-fn generate_index_html() -> String {
-    let filename = "js/app.js"; // Hardcoded for now.
+fn generate_index_html( filename: &str ) -> String {
     let handlebars = Handlebars::new();
     let mut template_data = BTreeMap::new();
     template_data.insert( "js_url", filename.to_owned() );
@@ -108,11 +107,13 @@ impl Deployment {
             _ => None
         };
 
+        let js_name = format!( "{}.js", target.name );
+
         let mut routes = Vec::new();
         for path in result.artifacts() {
-            let key = match path.extension() {
-                Some( ext ) if ext == "js" => "js/app.js".to_owned(),
-                Some( ext ) if ext == "wasm" => path.file_name().unwrap().to_string_lossy().into_owned(),
+            let (is_js, key) = match path.extension() {
+                Some( ext ) if ext == "js" => (true, js_name.clone()),
+                Some( ext ) if ext == "wasm" => (false, path.file_name().unwrap().to_string_lossy().into_owned()),
                 _ => continue
             };
 
@@ -120,6 +121,16 @@ impl Deployment {
                 Ok( contents ) => contents,
                 Err( error ) => return Err( Error::CannotLoadFile( path.clone(), error ) )
             };
+
+            if is_js {
+                // TODO: Remove this eventually. We're keeping it for now
+                //       to not break compatibility with already written
+                //       `index.html` files.
+                routes.push( Route {
+                    key: "js/app.js".to_owned(),
+                    kind: RouteKind::Blob( contents.clone() )
+                });
+            }
 
             routes.push( Route {
                 key,
@@ -141,7 +152,7 @@ impl Deployment {
 
         routes.push( Route {
             key: "index.html".to_owned(),
-            kind: RouteKind::Blob( generate_index_html().into() )
+            kind: RouteKind::Blob( generate_index_html( &js_name ).into() )
         });
 
         Ok( Deployment {
