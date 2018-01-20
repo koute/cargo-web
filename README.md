@@ -65,6 +65,10 @@ To upgrade:
 
 Or clone and build with `$ cargo build --release` then place in your $PATH.
 
+On Linux the installation can fail with a message that it can't find OpenSSL,
+in which case you most likely need to install the `-dev` package for OpenSSL
+from your distribution's repositories. (On Ubuntu it's called `libssl-dev`.)
+
 ## License
 
 Licensed under either of
