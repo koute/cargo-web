@@ -182,7 +182,7 @@ impl Deployment {
             url = "index.html";
         }
 
-        // TODO: Support more mime types. Steal the `extension_to_mime_impl` from `rouille`'s `assets.rs`.
+        // TODO: Support more mime types. Use the mime_guess crate.
         let mime_type =
             if url.ends_with( ".js" ) { "application/javascript" }
             else if url.ends_with( ".wasm" ) { "application/wasm" }

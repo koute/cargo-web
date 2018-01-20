@@ -15,8 +15,9 @@ use notify::{
 };
 
 use clap;
-use rouille;
 use handlebars::Handlebars;
+
+use hyper::StatusCode;
 
 use cargo_shim::{
     Profile,
@@ -26,12 +27,18 @@ use cargo_shim::{
 };
 
 use build::{BuildArgs, Project, PathKind};
+use http_utils::{
+    SimpleServer,
+    response_from_data,
+    response_from_status,
+    response_from_file
+};
+
 use deployment::{Deployment, ArtifactKind};
 use error::Error;
 
 fn auto_reload_code( hash: u32 ) -> String {
-    // TODO: We probably should do this with with Websockets,
-    // but it isn't possible when using rouille as a web server. ):
+    // TODO: We probably should do this with with Websockets.
     const TEMPLATE: &'static str = r##"
         window.addEventListener( "load", function() {
             var current_build_hash = {{{current_build_hash}}};
@@ -250,18 +257,18 @@ pub fn command_start< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Er
     let _watcher = monitor_for_changes_and_rebuild( last_build.clone() );
 
     let address = address_or_default( matches );
-    let server = rouille::Server::new( &address, move |request| {
-        let url = request.url();
+    let server = SimpleServer::new(&address, move |request| {
+        let path = request.path();
         let last_build = last_build.lock().unwrap();
 
-        if url == "/__cargo-web__/build_hash" {
+        if path == "/__cargo-web__/build_hash" {
             let data = format!( "{}", last_build.get_build_hash() );
-            return rouille::Response::from_data( "application/text", data ).with_no_cache();
+            return response_from_data("application/text", data.into_bytes());
         }
 
-        debug!( "Received a request for {:?}", url );
-        if let Some( mut artifact ) = last_build.deployment.get_by_url( &url ) {
-            if auto_reload && (url == "/" || url == "/index.html") {
+        debug!( "Received a request for {:?}", path );
+        if let Some( mut artifact ) = last_build.deployment.get_by_url(&path) {
+            if auto_reload && (path == "/" || path == "/index.html") {
                 let result = artifact.map_text( |text| {
                     let injected_code = auto_reload_code( last_build.get_build_hash() );
                     text.replace( "<head>", &format!( "<head><script>{}</script>", injected_code ) )
@@ -269,24 +276,25 @@ pub fn command_start< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Er
                 artifact = match result {
                     Ok( artifact ) => artifact,
                     Err( error ) => {
-                        warn!( "Cannot read {:?}: {:?}", url, error );
-                        return rouille::Response::text( "Internal Server Error" ).with_status_code( 500 ).with_no_cache();
+                        warn!( "Cannot read {:?}: {:?}", path, error );
+                        return response_from_status(StatusCode::InternalServerError);
                     }
                 }
             }
 
             match artifact.kind {
-                ArtifactKind::Data( mut data ) => {
-                    rouille::Response::from_data( artifact.mime_type, data ).with_no_cache()
+                ArtifactKind::Data( data ) => {
+                    return response_from_data(artifact.mime_type, data);
                 },
+
                 ArtifactKind::File( fp ) => {
-                    rouille::Response::from_file( artifact.mime_type, fp ).with_no_cache()
+                    return response_from_file(artifact.mime_type, fp);
                 }
             }
         } else {
-            rouille::Response::empty_404().with_no_cache()
+            response_from_status(StatusCode::NotFound)
         }
-    }).unwrap();
+    });
 
     eprintln!( "" );
     eprintln!( "If you need to serve any extra files put them in the 'static' directory" );
