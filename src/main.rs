@@ -119,28 +119,41 @@ fn add_shared_build_params< 'a, 'b >( app: App< 'a, 'b > ) -> App< 'a, 'b > {
                 .help( "Build artifacts in release mode, with optimizations" )
         )
         .arg(
-            Arg::with_name( "target-asmjs-emscripten" )
-                .long( "target-asmjs-emscripten" )
-                .help( "Generate asmjs through Emscripten (default)" )
-                .overrides_with_all( &["target-webasm-emscripten", "target-webasm"] )
-        )
-        .arg(
-            Arg::with_name( "target-webasm-emscripten" )
-                .long( "target-webasm-emscripten" )
-                .help( "Generate webasm through Emscripten" )
-                .overrides_with_all( &["target-asmjs-emscripten", "target-webasm"] )
-        )
-        .arg(
-            Arg::with_name( "target-webasm" )
-                .long( "target-webasm" )
-                .help( "Generates webasm through Rust's native backend (HIGHLY EXPERIMENTAL!)" )
-                .overrides_with_all( &["target-asmjs-emscripten", "target-webasm-emscripten"] )
+            Arg::with_name( "target" )
+                .long( "target" )
+                .takes_value( true )
+                .value_name( "TRIPLE" )
+                .help( "Build for the target [default: asmjs-unknown-emscripten]" )
+                .possible_values( &[ "asmjs-unknown-emscripten", "wasm32-unknown-emscripten", "wasm32-unknown-unknown" ] )
+                .conflicts_with_all( &["target-asmjs-emscripten", "target-webasm-emscripten", "target-webasm"] )
         )
         .arg(
             Arg::with_name( "verbose" )
                 .short( "v" )
                 .long( "verbose" )
                 .help( "Use verbose output" )
+        )
+        // These three are legacy options kept for compatibility.
+        .arg(
+            Arg::with_name( "target-asmjs-emscripten" )
+                .long( "target-asmjs-emscripten" )
+                .help( "Generate asmjs through Emscripten (default)" )
+                .overrides_with_all( &["target-webasm-emscripten", "target-webasm"] )
+                .hidden( true )
+        )
+        .arg(
+            Arg::with_name( "target-webasm-emscripten" )
+                .long( "target-webasm-emscripten" )
+                .help( "Generate webasm through Emscripten" )
+                .overrides_with_all( &["target-asmjs-emscripten", "target-webasm"] )
+                .hidden( true )
+        )
+        .arg(
+            Arg::with_name( "target-webasm" )
+                .long( "target-webasm" )
+                .help( "Generates webasm through Rust's native backend (HIGHLY EXPERIMENTAL!)" )
+                .overrides_with_all( &["target-asmjs-emscripten", "target-webasm-emscripten"] )
+                .hidden( true )
         );
 }
 

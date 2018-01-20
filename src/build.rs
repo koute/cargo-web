@@ -112,11 +112,22 @@ impl BuildArgs {
         };
 
         let backend = if matches.is_present( "target-webasm-emscripten" ) {
+            eprintln!( "warning: `--target-webasm-emscripten` argument is deprecated; please use `--target wasm32-unknown-emscripten` instead" );
             Backend::EmscriptenWebAssembly
         } else if matches.is_present( "target-webasm" ) {
+            eprintln!( "warning: `--target-webasm` argument is deprecated; please use `--target wasm32-unknown-unknown` instead" );
             Backend::WebAssembly
-        } else {
+        } else if matches.is_present( "target-asmjs-emscripten" ) {
+            eprintln!( "warning: `--target-asmjs-emscripten` argument is deprecated; please use `--target asmjs-unknown-emscripten` instead" );
             Backend::EmscriptenAsmJs
+        } else {
+            let triplet = matches.value_of( "target" );
+            match triplet {
+                Some( "asmjs-unknown-emscripten" ) | None => Backend::EmscriptenAsmJs,
+                Some( "wasm32-unknown-emscripten" ) => Backend::EmscriptenWebAssembly,
+                Some( "wasm32-unknown-unknown" ) => Backend::WebAssembly,
+                _ => unreachable!( "Unknown target: {:?}", triplet )
+            }
         };
 
         let package_name = matches.value_of( "package" ).map( |name| name.to_owned() );
