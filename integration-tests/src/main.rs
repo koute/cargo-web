@@ -29,6 +29,7 @@ fn main() {
     cd( &*REPOSITORY_ROOT );
 
     for name in &[
+        "rlib",
         "workspace",
         "conflicting-versions",
         "requires-old-cargo-web",

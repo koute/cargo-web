@@ -225,6 +225,7 @@ impl CargoProject {
                             name: target.name,
                             kind: match target.kind[ 0 ].as_str() {
                                 "lib" => TargetKind::Lib,
+                                "rlib" => TargetKind::Lib,
                                 "cdylib" => TargetKind::Lib,
                                 "bin" => TargetKind::Bin,
                                 "example" => TargetKind::Example,
