@@ -26,11 +26,15 @@ pub fn command_deploy< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), E
 
     let deployment = Deployment::new( package, target, &result )?;
     let directory = package.crate_root.join( "target" ).join( "deploy" );
-    match fs::remove_dir_all( &directory ) {
-        Ok(()) => {},
-        Err( error ) => {
-            if directory.exists() {
-                return Err( Error::CannotRemoveDirectory( directory, error ) );
+    if directory.exists() {
+        let entries = fs::read_dir( &directory ).map_err( |error| Error::CannotRemoveDirectory( directory.clone(), error ) )?; // TODO: Another error?
+        for entry in entries {
+            let entry = entry.expect( "cannot unwrap directory entry" );
+            let path = entry.path();
+            if path.is_dir() {
+                fs::remove_dir_all( &path ).map_err( |error| Error::CannotRemoveDirectory( path.clone(), error ) )?;
+            } else {
+                fs::remove_file( &path ).map_err( |error| Error::CannotRemoveFile( path.clone(), error ) )?;
             }
         }
     }
