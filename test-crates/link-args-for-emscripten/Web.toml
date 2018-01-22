@@ -1,0 +1,2 @@
+[target.emscripten]
+link-args = ["-s", "EXPORT_NAME='CustomExportNameEmscripten'"]

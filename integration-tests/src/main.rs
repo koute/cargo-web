@@ -69,6 +69,35 @@ fn main() {
         });
     });
 
+    in_directory( "test-crates/link-args-per-target", || {
+        // In Web.toml of the test crate we set a different `EXPORT_NAME` link-arg
+        // for each target and we check if it's actually used by Emscripten.
+        run( &*CARGO_WEB, &["build", "--target", "asmjs-unknown-emscripten"] ).assert_success();
+        assert_file_contains( "target/asmjs-unknown-emscripten/debug/link-args-per-target.js", "CustomExportNameAsmJs" );
+
+        run( &*CARGO_WEB, &["build", "--target", "wasm32-unknown-emscripten"] ).assert_success();
+        assert_file_contains( "target/wasm32-unknown-emscripten/debug/link-args-per-target.js", "CustomExportNameWasm" );
+
+        if *IS_NIGHTLY {
+            // This has no flags set, but still should compile.
+            run( &*CARGO_WEB, &["build", "--target", "wasm32-unknown-unknown"] ).assert_success();
+        }
+    });
+
+    in_directory( "test-crates/link-args-for-emscripten", || {
+        // Here we set the same flag for both targets in a single target section.
+        run( &*CARGO_WEB, &["build", "--target", "asmjs-unknown-emscripten"] ).assert_success();
+        assert_file_contains( "target/asmjs-unknown-emscripten/debug/link-args-for-emscripten.js", "CustomExportNameEmscripten" );
+
+        run( &*CARGO_WEB, &["build", "--target", "wasm32-unknown-emscripten"] ).assert_success();
+        assert_file_contains( "target/wasm32-unknown-emscripten/debug/link-args-for-emscripten.js", "CustomExportNameEmscripten" );
+
+        if *IS_NIGHTLY {
+            // This has no flags set, but still should compile.
+            run( &*CARGO_WEB, &["build", "--target", "wasm32-unknown-unknown"] ).assert_success();
+        }
+    });
+
     if *IS_NIGHTLY {
         in_directory( "test-crates/native-webasm", || {
             run( &*CARGO_WEB, &["build", "--target", "wasm32-unknown-unknown"] ).assert_success();

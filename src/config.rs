@@ -1,10 +1,18 @@
+use std::collections::HashMap;
 use std::io;
 use std::path::{Path, PathBuf};
 use toml;
 use semver::Version;
 use cargo_shim::CargoPackage;
+
+use build::Backend;
 use utils::read;
 use error::Error;
+
+#[derive(Debug, Default)]
+pub struct PerTargetConfig {
+    pub link_args: Option< Vec< String > >
+}
 
 #[derive(Debug, Default)]
 pub struct Config {
@@ -12,7 +20,7 @@ pub struct Config {
     config_path: Option< PathBuf >,
 
     pub minimum_cargo_web_version: Option< Version >,
-    pub link_args: Option< Vec< String > >
+    pub per_target: HashMap< Backend, PerTargetConfig >
 }
 
 impl Config {
@@ -25,10 +33,27 @@ impl Config {
             "Web.toml".into()
         }
     }
+
+    pub fn get_link_args( &self, backend: Backend ) -> Option< &Vec< String > > {
+        self.per_target.get( &backend ).and_then( |per_target| per_target.link_args.as_ref() )
+    }
 }
 
 pub enum Warning {
-    UnknownKey( String )
+    UnknownKey( String ),
+    Deprecation( String, Option< String > )
+}
+
+fn add_link_args( config: &mut Config, backend: Backend, link_args: Vec< String > ) -> Result< (), Error > {
+    {
+        let per_target = config.per_target.entry( backend ).or_insert( Default::default() );
+        if per_target.link_args.is_none() {
+            per_target.link_args = Some( link_args.clone() );
+            return Ok(());
+        }
+    }
+
+    return Err( format!( "{}: you can't have multiple 'link-args' defined for a single target", config.source() ).into() );
 }
 
 impl Config {
@@ -58,35 +83,99 @@ impl Config {
 
         let raw: toml::Value = toml::from_str( config_toml.as_str() ).unwrap();
         let mut warnings = Vec::new();
+
+        // TODO: This is getting way too long. Split it into multiple functions.
+        trace!( "Loaded config: {:#?}", raw );
         match raw {
             toml::Value::Table( table ) => {
-                for (key, value) in table {
-                    match key.as_str() {
+                for (toplevel_key, toplevel_value) in table {
+                    match toplevel_key.as_str() {
+                        // TODO: Remove this in the future.
                         "link-args" => {
-                            config.link_args = Some(
-                                value.try_into().map_err( |_| format!( "{}: 'link-args' is not a string", config.source() ) )?
-                            );
+                            let link_args: Vec< String > =
+                                toplevel_value.try_into().map_err( |_|
+                                    format!( "{}: 'link-args' is not an array of strings", config.source()
+                                ))?;
+
+                            warnings.push( Warning::Deprecation(
+                                "link-args".to_owned(),
+                                Some( "it should be moved to the '[target.emscripten]' section".to_owned() )
+                            ));
+
+                            let backends = [
+                                Backend::EmscriptenAsmJs,
+                                Backend::EmscriptenWebAssembly,
+                                Backend::WebAssembly
+                            ];
+
+                            for backend in backends.iter().cloned() {
+                                add_link_args( &mut config, backend, link_args.clone() )?;
+                            }
                         },
                         "cargo-web" => {
-                            let subtable: toml::value::Table =
-                                value.try_into()
+                            let cargo_web_table: toml::value::Table =
+                                toplevel_value.try_into()
                                 .map_err( |_| format!( "{}: 'cargo-web' should be a section", config.source() ) )?;
 
-                            for (key, value) in subtable {
-                                match key.as_str() {
+                            for (cargo_web_key, cargo_web_value) in cargo_web_table {
+                                match cargo_web_key.as_str() {
                                     "minimum-version" => {
-                                        let version: String = value.try_into().map_err( |_| format!( "{}; 'cargo-web.minimum-version' is not a string", config.source() ) )?;
+                                        let version: String = cargo_web_value.try_into().map_err( |_| format!( "{}; 'cargo-web.minimum-version' is not a string", config.source() ) )?;
                                         let version = Version::parse( &version ).map_err( |_| format!( "{}: 'cargo-web.minimum-version' is not a valid version", config.source() ) )?;
                                         config.minimum_cargo_web_version = Some( version );
                                     },
-                                    _ => {
-                                        warnings.push( Warning::UnknownKey( format!( "cargo-web.{}", key ) ) );
+                                    cargo_web_key => {
+                                        warnings.push( Warning::UnknownKey( format!( "cargo-web.{}", cargo_web_key ) ) );
                                     }
                                 }
                             }
                         },
-                        _ => {
-                            warnings.push( Warning::UnknownKey( key.into() ) );
+                        "target" => {
+                            let target_table: toml::value::Table =
+                                toplevel_value.try_into()
+                                .map_err( |_| format!( "{}: 'target' should be a section", config.source() ) )?;
+
+                            for (target_key, target_value) in target_table {
+                                let backends = match target_key.as_str() {
+                                    "wasm32-unknown-unknown" => &[Backend::WebAssembly][..],
+                                    "wasm32-unknown-emscripten" => &[Backend::EmscriptenWebAssembly][..],
+                                    "asmjs-unknown-emscripten" => &[Backend::EmscriptenAsmJs][..],
+                                    "emscripten" => &[Backend::EmscriptenWebAssembly, Backend::EmscriptenAsmJs][..],
+                                    target_key => {
+                                        warnings.push( Warning::UnknownKey( format!( "target.{}", target_key ) ) );
+                                        continue;
+                                    }
+                                };
+
+                                let target_subtable: toml::value::Table =
+                                    target_value.try_into()
+                                    .map_err( |_| format!( "{}: 'target.{}' should be a section", config.source(), target_key ) )?;
+
+                                for (per_target_key, per_target_value) in target_subtable {
+                                    match per_target_key.as_str() {
+                                        "link-args" => {
+                                            let link_args: Vec< String > =
+                                                per_target_value.try_into().map_err( |_|
+                                                    format!(
+                                                        "{}: 'target.{}.link-args' is not an array of strings",
+                                                        config.source(),
+                                                        target_key
+                                                    )
+                                                )?;
+
+                                            for backend in backends.iter().cloned() {
+                                                add_link_args( &mut config, backend, link_args.clone() )?;
+                                            }
+                                        },
+                                        per_target_key => {
+                                            warnings.push( Warning::UnknownKey( format!( "target.{}.{}", target_key, per_target_key ) ) );
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        toplevel_key => {
+                            warnings.push( Warning::UnknownKey( toplevel_key.into() ) );
                         }
                     }
                 }
@@ -117,6 +206,12 @@ impl Config {
             match warning {
                 Warning::UnknownKey( key ) => {
                     println_err!( "warning: unknown key in {}: {}", config.source(), key );
+                },
+                Warning::Deprecation( key, None ) => {
+                    println_err!( "warning: key in {} is deprecated: {}", config.source(), key );
+                },
+                Warning::Deprecation( key, Some( description ) ) => {
+                    println_err!( "warning: key in {} is deprecated: {} ({})", config.source(), key, description );
                 }
             }
         }

@@ -2,7 +2,8 @@ use std::env;
 use std::path::Path;
 use std::process::{Command, ExitStatus};
 use std::ffi::{OsStr, OsString};
-use std::io;
+use std::io::{self, Read};
+use std::fs::File;
 
 #[cfg(windows)]
 pub const RUSTC_EXE: &'static str = "rustc.exe";
@@ -141,4 +142,27 @@ pub fn has_cmd( cmd: &str ) -> bool {
 
 pub fn find_cmd< 'a >( cmds: &[ &'a str ] ) -> Option< &'a str > {
     cmds.into_iter().map( |&s| s ).filter( |&s| has_cmd( s ) ).next()
+}
+
+pub fn read_to_string< P: AsRef< Path > >( path: P ) -> String {
+    let path = path.as_ref();
+    let mut fp = match File::open( path ) {
+        Ok( fp ) => fp,
+        Err( error ) => panic!( "Cannot open {:?}: {}", path, error )
+    };
+
+    let mut output = String::new();
+    if let Err( error ) = fp.read_to_string( &mut output ) {
+        panic!( "Cannot read {:?}: {:?}", path, error );
+    }
+
+    output
+}
+
+pub fn assert_file_contains< P: AsRef< Path > >( path: P, pattern: &str ) {
+    let path = path.as_ref();
+    let contents = read_to_string( path );
+    if !contents.contains( pattern ) {
+        panic!( "File {:?} doesn't contain the expected string: {:?}", path, pattern );
+    }
 }

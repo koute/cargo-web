@@ -22,7 +22,7 @@ use emscripten::initialize_emscripten;
 use error::Error;
 use wasm;
 
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
 pub enum Backend {
     EmscriptenWebAssembly,
     EmscriptenAsmJs,
@@ -322,7 +322,7 @@ impl Project {
 
         for config in configs.iter().rev() {
             if let Some( ref config ) = *config {
-                if let Some( ref link_args ) = config.link_args {
+                if let Some( ref link_args ) = config.get_link_args( self.build_args.backend() ) {
                     debug!( "{} defines the following link-args: {:?}", config.source(), link_args );
                     aggregated_config.link_args.extend( link_args.iter().cloned() );
                 }
