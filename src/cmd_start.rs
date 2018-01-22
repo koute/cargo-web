@@ -161,7 +161,7 @@ fn monitor_for_changes_and_rebuild(
                 _ => continue
             };
 
-            println_err!( "==== Triggering `cargo build` ====" );
+            eprintln!( "==== Triggering `cargo build` ====" );
             let (counter, build_args) = {
                 let last_build = last_build.lock().unwrap();
                 let counter = last_build.counter.next();
@@ -236,19 +236,19 @@ pub fn command_start< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Er
         }
     }).unwrap();
 
-    println_err!( "" );
-    println_err!( "If you need to serve any extra files put them in the 'static' directory" );
-    println_err!( "in the root of your crate; they will be served alongside your application." );
+    eprintln!( "" );
+    eprintln!( "If you need to serve any extra files put them in the 'static' directory" );
+    eprintln!( "in the root of your crate; they will be served alongside your application." );
     match target.kind {
-        TargetKind::Example => println_err!( "You can also put a '{}-static' directory in your 'examples' directory.", target.name ),
-        TargetKind::Bin => println_err!( "You can also put a 'static' directory in your 'src' directory." ),
+        TargetKind::Example => eprintln!( "You can also put a '{}-static' directory in your 'examples' directory.", target.name ),
+        TargetKind::Bin => eprintln!( "You can also put a 'static' directory in your 'src' directory." ),
         _ => unreachable!()
     };
-    println_err!( "" );
-    println_err!( "Your application is being served at '/js/app.js'. It will be automatically" );
-    println_err!( "rebuilt if you make any changes in your code." );
-    println_err!( "" );
-    println_err!( "You can access the web server at `http://{}`.", &address );
+    eprintln!( "" );
+    eprintln!( "Your application is being served at '/js/app.js'. It will be automatically" );
+    eprintln!( "rebuilt if you make any changes in your code." );
+    eprintln!( "" );
+    eprintln!( "You can access the web server at `http://{}`.", &address );
 
     server.run();
 

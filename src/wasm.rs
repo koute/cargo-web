@@ -35,10 +35,10 @@ pub fn process_wasm_file< P: AsRef< Path > + ?Sized >( build: &BuildConfig, arti
         }
     }
 
-    println_err!( "    Garbage collecting {:?}...", path.file_name().unwrap() );
+    eprintln!( "    Garbage collecting {:?}...", path.file_name().unwrap() );
     wasm_gc::run( &path, &path );
 
-    println_err!( "    Processing {:?}...", path.file_name().unwrap() );
+    eprintln!( "    Processing {:?}...", path.file_name().unwrap() );
     let mut module = parity_wasm::deserialize_file( &path ).unwrap();
     let mut ctx = Context::from_module( module );
     let snippets = wasm_inline_js::process_and_extract( &mut ctx );
@@ -55,6 +55,6 @@ pub fn process_wasm_file< P: AsRef< Path > + ?Sized >( build: &BuildConfig, arti
     let mut fp = File::create( &js_path ).unwrap();
     fp.write_all( js.as_bytes() ).unwrap();
 
-    println_err!( "    Finished processing of {:?}!", path.file_name().unwrap() );
+    eprintln!( "    Finished processing of {:?}!", path.file_name().unwrap() );
     Some( js_path )
 }

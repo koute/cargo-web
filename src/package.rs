@@ -78,7 +78,7 @@ pub fn download_package( package: &PrebuiltPackage ) -> PathBuf {
 
     fs::create_dir_all( &unpack_path ).unwrap();
 
-    println_err!( "Downloading {}...", package_filename );
+    eprintln!( "Downloading {}...", package_filename );
     let client = create_client().unwrap();
     let mut response = client.get( url )
         .header( header::Connection::close() )
@@ -118,16 +118,16 @@ pub fn download_package( package: &PrebuiltPackage ) -> PathBuf {
     let actual_hash = actual_hash.map( |byte| format!( "{:02x}", byte ) ).join( "" );
 
     if actual_hash != package.hash {
-        println_err!( "error: the hash of {} doesn't match the expected hash!", package_filename );
-        println_err!( "  actual: {}", actual_hash );
-        println_err!( "  expected: {}", package.hash );
+        eprintln!( "error: the hash of {} doesn't match the expected hash!", package_filename );
+        eprintln!( "  actual: {}", actual_hash );
+        eprintln!( "  expected: {}", package.hash );
         exit( 101 );
     }
 
-    println_err!( "Unpacking {}...", package_filename );
+    eprintln!( "Unpacking {}...", package_filename );
     unpack( &dlpath, &unpack_path ).unwrap();
     write( &version_path, package.version ).unwrap();
 
-    println_err!( "Package {} was successfully installed!", package_filename );
+    eprintln!( "Package {} was successfully installed!", package_filename );
     return unpack_path;
 }

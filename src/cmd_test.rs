@@ -107,7 +107,7 @@ pub fn command_test< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Err
         exit( 101 );
     } else {
         if build_args.backend().is_native_wasm() {
-            println_err!( "All tests passed!" );
+            eprintln!( "All tests passed!" );
             // At least **I hope** that's the case; there are no prints
             // when running those tests, so who knows what happens. *shrug*
         }

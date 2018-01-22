@@ -382,8 +382,8 @@ impl Project {
         for arg in &config.link_args {
             if arg.contains( " " ) {
                 // Not sure how to handle spaces, as `-C link-arg="{}"` doesn't work.
-                println_err!( "error: you have a space in one of the entries in `link-args` in your `Web.toml`;" );
-                println_err!( "       this is currently unsupported - aborting!" );
+                eprintln!( "error: you have a space in one of the entries in `link-args` in your `Web.toml`;" );
+                eprintln!( "       this is currently unsupported - aborting!" );
                 exit( 101 );
             }
 
@@ -407,8 +407,8 @@ impl Project {
         let build_type = self.build_args.build_type;
         let build_type = if self.build_args.backend.is_native_wasm() && build_type == BuildType::Debug {
             // TODO: Remove this in the future.
-            println_err!( "warning: debug builds on the wasm32-unknown-unknown are currently totally broken" );
-            println_err!( "         forcing a release build" );
+            eprintln!( "warning: debug builds on the wasm32-unknown-unknown are currently totally broken" );
+            eprintln!( "         forcing a release build" );
             BuildType::Release
         } else {
             build_type

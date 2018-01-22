@@ -206,7 +206,7 @@ pub fn test_in_chromium(
                 finished = true;
                 let status = body.get( "result" ).unwrap().get( "value" ).unwrap().as_u64().unwrap();
                 if status != 0 {
-                    println_err!( "error: process exited with a status of {}", status );
+                    eprintln!( "error: process exited with a status of {}", status );
                     *any_failure = true;
                 }
                 break;
@@ -224,14 +224,14 @@ pub fn test_in_chromium(
             },
             Reply::Event { ref method, ref body } if method == "Runtime.exceptionThrown" => {
                 let body: ExceptionThrownBody = serde_json::from_value( body.clone() ).expect( "Failed to parse `Runtime.exceptionThrown` event" );
-                println_err!( "error: unhandled exception thrown" );
+                eprintln!( "error: unhandled exception thrown" );
                 if let Some( exception ) = body.exception_details.exception {
                     if let Some( description ) = exception.description {
-                        println_err!( "error:     {}", description );
+                        eprintln!( "error:     {}", description );
                     }
                 }
                 if let Some( url ) = body.exception_details.url {
-                    println_err!( "error: source: {}:{}:{}", url, body.exception_details.line_number, body.exception_details.column_number );
+                    eprintln!( "error: source: {}:{}:{}", url, body.exception_details.line_number, body.exception_details.column_number );
                 }
                 // TODO: Better error message.
                 *any_failure = true;
@@ -283,7 +283,7 @@ pub fn test_in_chromium(
     }
 
     if !finished {
-        println_err!( "error: tests timed out!" );
+        eprintln!( "error: tests timed out!" );
         *any_failure = true;
     }
 

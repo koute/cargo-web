@@ -205,13 +205,13 @@ impl Config {
         for warning in warnings {
             match warning {
                 Warning::UnknownKey( key ) => {
-                    println_err!( "warning: unknown key in {}: {}", config.source(), key );
+                    eprintln!( "warning: unknown key in {}: {}", config.source(), key );
                 },
                 Warning::Deprecation( key, None ) => {
-                    println_err!( "warning: key in {} is deprecated: {}", config.source(), key );
+                    eprintln!( "warning: key in {} is deprecated: {}", config.source(), key );
                 },
                 Warning::Deprecation( key, Some( description ) ) => {
-                    println_err!( "warning: key in {} is deprecated: {} ({})", config.source(), key, description );
+                    eprintln!( "warning: key in {} is deprecated: {} ({})", config.source(), key, description );
                 }
             }
         }

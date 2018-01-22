@@ -338,7 +338,7 @@ fn main() {
     match result {
         Ok( _ ) => {},
         Err( error ) => {
-            println_err!( "error: {}", error );
+            eprintln!( "error: {}", error );
             exit( 101 );
         }
     }

@@ -8,13 +8,6 @@ use std::ffi::OsString;
 use libflate::gzip;
 use tar;
 
-macro_rules! println_err(
-    ($($arg:tt)*) => {{
-        use std::io::{Write, stderr};
-        writeln!( &mut stderr(), $($arg)* ).expect( "writeln to stderr failed" );
-    }}
-);
-
 pub struct ExecutionStatus {
     status: Option< i32 >
 }
