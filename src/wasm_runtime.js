@@ -14,6 +14,9 @@ if( typeof Rust === 'undefined' ) {
     }
 }( this, function() {
     const Module = {};
+
+    {{{prepend_js}}}
+
     let HEAP8 = null;
     let HEAP16 = null;
     let HEAP32 = null;

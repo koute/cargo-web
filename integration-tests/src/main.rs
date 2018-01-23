@@ -98,6 +98,15 @@ fn main() {
         }
     });
 
+    in_directory( "test-crates/prepend-js", || {
+        each_target( |target| {
+            run( &*CARGO_WEB, &["build", "--target", target] ).assert_success();
+            // TODO: We should run cargo-web with `--message-format=json` and grab this path automatically.
+            let build_dir = if target == "wasm32-unknown-unknown" { "release" } else { "debug" };
+            assert_file_contains( &format!( "target/{}/{}/prepend-js.js", target, build_dir ), "alert('THIS IS A TEST');" );
+        });
+    });
+
     if *IS_NIGHTLY {
         in_directory( "test-crates/native-webasm", || {
             run( &*CARGO_WEB, &["build", "--target", "wasm32-unknown-unknown"] ).assert_success();

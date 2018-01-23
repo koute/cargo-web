@@ -9,15 +9,36 @@ use build::Backend;
 use utils::read;
 use error::Error;
 
+fn is_all_strings( array: &[toml::Value] ) -> bool {
+    array.iter().all( |element| element.is_str() )
+}
+
+fn from_string_or_array_of_strings( path_in_toml: &str, config: &Config, prepend_js: toml::Value ) -> Result< Vec< String >, Error > {
+    match prepend_js {
+        toml::Value::String( path ) => Ok( vec![ path ] ),
+        toml::Value::Array( ref array ) if is_all_strings( &array ) => {
+            Ok( array.iter().map( |value| value.clone().try_into().unwrap() ).collect() )
+        },
+        _ => {
+            Err( format!(
+                "{}: '{}' must be either a string or an array of strings",
+                config.source(),
+                path_in_toml
+            ).into() )
+        }
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct PerTargetConfig {
-    pub link_args: Option< Vec< String > >
+    pub link_args: Option< Vec< String > >,
+    pub prepend_js: Option< Vec< String > >
 }
 
 #[derive(Debug, Default)]
 pub struct Config {
     crate_name: Option< String >,
-    config_path: Option< PathBuf >,
+    pub config_path: Option< PathBuf >,
 
     pub minimum_cargo_web_version: Option< Version >,
     pub per_target: HashMap< Backend, PerTargetConfig >
@@ -37,6 +58,10 @@ impl Config {
     pub fn get_link_args( &self, backend: Backend ) -> Option< &Vec< String > > {
         self.per_target.get( &backend ).and_then( |per_target| per_target.link_args.as_ref() )
     }
+
+    pub fn get_prepend_js( &self, backend: Backend ) -> Option< &Vec< String > > {
+        self.per_target.get( &backend ).and_then( |per_target| per_target.prepend_js.as_ref() )
+    }
 }
 
 pub enum Warning {
@@ -55,6 +80,24 @@ fn add_link_args( config: &mut Config, backend: Backend, link_args: Vec< String 
 
     return Err( format!( "{}: you can't have multiple 'link-args' defined for a single target", config.source() ).into() );
 }
+
+fn add_prepend_js( config: &mut Config, backend: Backend, prepend_js: Vec< String > ) -> Result< (), Error > {
+    {
+        let per_target = config.per_target.entry( backend ).or_insert( Default::default() );
+        if per_target.prepend_js.is_none() {
+            per_target.prepend_js = Some( prepend_js );
+            return Ok(());
+        }
+    }
+
+    return Err( format!( "{}: you can't have multiple 'prepend-js' defined for a single target", config.source() ).into() );
+}
+
+const ALL_BACKENDS: &'static [Backend] = &[
+    Backend::EmscriptenAsmJs,
+    Backend::EmscriptenWebAssembly,
+    Backend::WebAssembly
+];
 
 impl Config {
     pub fn load_from_file< P >(
@@ -102,14 +145,14 @@ impl Config {
                                 Some( "it should be moved to the '[target.emscripten]' section".to_owned() )
                             ));
 
-                            let backends = [
-                                Backend::EmscriptenAsmJs,
-                                Backend::EmscriptenWebAssembly,
-                                Backend::WebAssembly
-                            ];
-
-                            for backend in backends.iter().cloned() {
+                            for backend in ALL_BACKENDS.iter().cloned() {
                                 add_link_args( &mut config, backend, link_args.clone() )?;
+                            }
+                        },
+                        "prepend-js" => {
+                            let toplevel_value = from_string_or_array_of_strings( &toplevel_key, &config, toplevel_value )?;
+                            for backend in ALL_BACKENDS.iter().cloned() {
+                                add_prepend_js( &mut config, backend, toplevel_value.clone() )?;
                             }
                         },
                         "cargo-web" => {
@@ -152,14 +195,15 @@ impl Config {
                                     .map_err( |_| format!( "{}: 'target.{}' should be a section", config.source(), target_key ) )?;
 
                                 for (per_target_key, per_target_value) in target_subtable {
+                                    let path_in_toml = format!( "target.{}.{}", target_key, per_target_key );
                                     match per_target_key.as_str() {
                                         "link-args" => {
                                             let link_args: Vec< String > =
                                                 per_target_value.try_into().map_err( |_|
                                                     format!(
-                                                        "{}: 'target.{}.link-args' is not an array of strings",
+                                                        "{}: '{}' is not an array of strings",
                                                         config.source(),
-                                                        target_key
+                                                        path_in_toml
                                                     )
                                                 )?;
 
@@ -167,8 +211,14 @@ impl Config {
                                                 add_link_args( &mut config, backend, link_args.clone() )?;
                                             }
                                         },
-                                        per_target_key => {
-                                            warnings.push( Warning::UnknownKey( format!( "target.{}.{}", target_key, per_target_key ) ) );
+                                        "prepend-js" => {
+                                            let per_target_value = from_string_or_array_of_strings( &path_in_toml, &config, per_target_value )?;
+                                            for backend in backends.iter().cloned() {
+                                                add_prepend_js( &mut config, backend, per_target_value.clone() )?;
+                                            }
+                                        },
+                                        _ => {
+                                            warnings.push( Warning::UnknownKey( path_in_toml ) );
                                         }
                                     }
                                 }

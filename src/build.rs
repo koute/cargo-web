@@ -1,5 +1,5 @@
 use std::process::exit;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::env;
 
 use clap;
@@ -20,6 +20,7 @@ use semver::Version;
 use config::Config;
 use emscripten::initialize_emscripten;
 use error::Error;
+use utils::read;
 use wasm;
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
@@ -79,7 +80,8 @@ pub struct BuildArgs {
 
 pub struct AggregatedConfig {
     profile: Profile,
-    pub link_args: Vec< String >
+    pub link_args: Vec< String >,
+    pub prepend_js: Vec< (PathBuf, String) >
 }
 
 impl BuildArgs {
@@ -269,7 +271,8 @@ impl Project {
     pub fn aggregate_configuration( &self, main_package: &CargoPackage, profile: Profile ) -> Result< AggregatedConfig, Error > {
         let mut aggregated_config = AggregatedConfig {
             profile,
-            link_args: Vec::new()
+            link_args: Vec::new(),
+            prepend_js: Vec::new()
         };
 
         let mut packages = self.project.used_packages(
@@ -326,6 +329,22 @@ impl Project {
                     debug!( "{} defines the following link-args: {:?}", config.source(), link_args );
                     aggregated_config.link_args.extend( link_args.iter().cloned() );
                 }
+
+                if let Some( ref prepend_js ) = config.get_prepend_js( self.build_args.backend() ) {
+                    debug!( "{} wants to prepend the following JS files: {:?}", config.source(), prepend_js );
+                    let config_dir = config.config_path.as_ref().unwrap().parent().unwrap();
+                    for path in prepend_js.iter() {
+                        let full_path = config_dir.join( Path::new( path ) );
+                        if !full_path.exists() {
+                            return Err( format!( "{}: file specified by 'prepare-js' not found: {:?}", config.source(), path ).into() )
+                        }
+
+                        let contents = read( &full_path )
+                            .map_err( |err| format!( "{}: cannot read {:?}: {}", config.source(), path, err ) )?;
+
+                        aggregated_config.prepend_js.push( (full_path, contents) );
+                    }
+                }
             }
         }
 
@@ -336,6 +355,7 @@ impl Project {
         let mut extra_paths = Vec::new();
         let mut extra_rustflags = Vec::new();
         let mut extra_environment = Vec::new();
+        let mut extra_emmaken_cflags = Vec::new();
 
         if self.build_args.backend.is_emscripten() {
             if let Some( emscripten ) = initialize_emscripten( self.build_args.use_system_emscripten, self.build_args.backend.is_emscripten_wasm() ) {
@@ -377,6 +397,12 @@ impl Project {
             extra_rustflags.push( "link-arg=-s".to_owned() );
             extra_rustflags.push( "-C".to_owned() );
             extra_rustflags.push( format!( "link-arg=ALLOW_MEMORY_GROWTH={}", allow_memory_growth as u32 ) );
+
+            for &(ref path, _) in &config.prepend_js {
+                let path_str = path.to_str().expect( "invalid 'prepend-js' path" );
+                extra_emmaken_cflags.push( "--pre-js" );
+                extra_emmaken_cflags.push( path_str );
+            }
         }
 
         for arg in &config.link_args {
@@ -414,6 +440,18 @@ impl Project {
             build_type
         };
 
+        if !extra_emmaken_cflags.is_empty() {
+            // We need to do this through EMMAKEN_CFLAGS since Rust can't handle linker args with spaces.
+            // https://github.com/rust-lang/rust/issues/30947
+            let emmaken_cflags: Vec< _ > = extra_emmaken_cflags.into_iter().map( |flag| format!( "\"{}\"", flag ) ).collect();
+            let mut emmaken_cflags = emmaken_cflags.join( " " );
+            if let Ok( user_emmaken_cflags ) = env::var( "EMMAKEN_CFLAGS" ) {
+                emmaken_cflags = format!( "{} {}", emmaken_cflags, user_emmaken_cflags );
+            }
+
+            extra_environment.push( ("EMMAKEN_CFLAGS".to_owned(), emmaken_cflags) );
+        }
+
         BuildConfig {
             build_target: target_to_build_target( target, config.profile ),
             build_type,
@@ -432,10 +470,18 @@ impl Project {
 
     pub fn build( &self, config: &AggregatedConfig, package: &CargoPackage, target: &CargoTarget ) -> Result< CargoResult, Error > {
         let build_config = self.prepare_build_config( config, package, target );
+        let mut prepend_js = String::new();
+        if self.build_args.backend().is_native_wasm() {
+            for &(_, ref contents) in &config.prepend_js {
+                prepend_js.push_str( &contents );
+                prepend_js.push_str( "\n" );
+            }
+        }
+
         let result = build_config.build( Some( |artifacts: Vec< PathBuf >| {
             let mut out = Vec::new();
             for path in artifacts {
-                if let Some( artifact ) = wasm::process_wasm_file( &build_config, &path ) {
+                if let Some( artifact ) = wasm::process_wasm_file( &build_config, &prepend_js, &path ) {
                     debug!( "Generated artifact: {:?}", artifact );
                     out.push( artifact );
                 }
