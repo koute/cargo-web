@@ -452,6 +452,7 @@ impl Project {
             extra_environment.push( ("EMMAKEN_CFLAGS".to_owned(), emmaken_cflags) );
         }
 
+        extra_environment.push( ("COMPILING_UNDER_CARGO_WEB".to_owned(), "1".to_owned()) );
         BuildConfig {
             build_target: target_to_build_target( target, config.profile ),
             build_type,

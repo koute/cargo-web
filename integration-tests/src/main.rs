@@ -36,7 +36,8 @@ fn main() {
         "requires-future-cargo-web-through-disabled-dep",
         "requires-future-cargo-web-through-dev-dep",
         "requires-future-cargo-web-through-dep-dev-dep",
-        "requires-future-cargo-web-through-build-dep"
+        "requires-future-cargo-web-through-build-dep",
+        "compiling-under-cargo-web-env-var"
     ] {
         in_directory( &format!( "test-crates/{}", name ), || {
             each_target( |target| {
