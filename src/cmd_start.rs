@@ -269,7 +269,12 @@ pub fn command_start< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Er
     };
 
     let last_build = Arc::new( Mutex::new( last_build ) );
-    let target = last_build.lock().unwrap().target.clone();
+    let (target, js_url) = {
+        let last_build = last_build.lock().unwrap();
+        let target = last_build.target.clone();
+        let js_url = last_build.deployment.js_url().to_owned();
+        (target, js_url)
+    };
 
     let _watcher = monitor_for_changes_and_rebuild( last_build.clone() );
 
@@ -321,7 +326,7 @@ pub fn command_start< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Er
         _ => unreachable!()
     };
     eprintln!( "" );
-    eprintln!( "Your application is being served at '/js/app.js'. It will be automatically" );
+    eprintln!( "Your application is being served at '/{}'. It will be automatically", js_url );
     eprintln!( "rebuilt if you make any changes in your code." );
     eprintln!( "" );
     eprintln!( "You can access the web server at `http://{}`.", &address );

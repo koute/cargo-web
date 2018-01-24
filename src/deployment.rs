@@ -167,6 +167,11 @@ impl Deployment {
         })
     }
 
+    pub fn js_url( &self ) -> &str {
+        let route = self.routes.iter().find( |route| route.can_be_deployed && route.key.ends_with( ".js" ) ).unwrap();
+        &route.key
+    }
+
     pub fn get_by_url( &self, mut url: &str ) -> Option< Artifact > {
         if url.starts_with( "/" ) {
             url = &url[ 1.. ];
