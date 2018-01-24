@@ -268,13 +268,7 @@ impl Project {
         }))
     }
 
-    pub fn aggregate_configuration( &self, main_package: &CargoPackage, profile: Profile ) -> Result< AggregatedConfig, Error > {
-        let mut aggregated_config = AggregatedConfig {
-            profile,
-            link_args: Vec::new(),
-            prepend_js: Vec::new()
-        };
-
+    pub fn used_packages( &self, main_package: &CargoPackage, profile: Profile ) -> Vec< &CargoPackage > {
         let mut packages = self.project.used_packages(
             self.build_args.triplet(),
             main_package,
@@ -294,7 +288,17 @@ impl Project {
         });
 
         assert_eq!( *packages[ 0 ], *main_package );
+        packages
+    }
 
+    pub fn aggregate_configuration( &self, main_package: &CargoPackage, profile: Profile ) -> Result< AggregatedConfig, Error > {
+        let mut aggregated_config = AggregatedConfig {
+            profile,
+            link_args: Vec::new(),
+            prepend_js: Vec::new()
+        };
+
+        let packages = self.used_packages( main_package, profile );
         let mut maximum_minimum_version = None;
         let mut configs = Vec::new();
         for package in &packages {

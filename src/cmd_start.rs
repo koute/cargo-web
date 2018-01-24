@@ -6,6 +6,7 @@ use std::thread;
 use std::net::{self, ToSocketAddrs};
 use std::hash::Hash;
 use std::time::{SystemTime, UNIX_EPOCH};
+use std::path::PathBuf;
 
 use notify::{
     RecommendedWatcher,
@@ -96,17 +97,49 @@ impl Counter {
     }
 }
 
+// `notify`'s RecursiveMode is neither Copy nor Clone. ):
+// TODO: Remove this once it is.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+enum Mode {
+    NonRecursive,
+    Recursive
+}
+
+impl From< Mode > for RecursiveMode {
+    fn from( mode: Mode ) -> Self {
+        match mode {
+            Mode::NonRecursive => RecursiveMode::NonRecursive,
+            Mode::Recursive => RecursiveMode::Recursive
+        }
+    }
+}
+
 struct LastBuild {
     counter: Counter,
     deployment: Deployment,
-    build_args: BuildArgs,
+    project: Project,
     package: CargoPackage,
     target: CargoTarget
 }
 
-impl LastBuild {
-    fn new( project: Project, counter: Counter ) -> Result< Self, Error > {
-        let package = project.package();
+fn get_paths_to_watch( project: &Project, main_package: &CargoPackage, target: &CargoTarget ) -> Vec< (PathBuf, Mode) > {
+    let mut paths_to_watch = Vec::new();
+    paths_to_watch.push( (target.source_directory.clone(), Mode::Recursive) );
+
+    let packages = project.used_packages( main_package, Profile::Main );
+    for package in packages {
+        paths_to_watch.push( (package.manifest_path.clone(), Mode::NonRecursive) );
+        if let Some( lib_target ) = package.targets.iter().find( |target| target.kind == TargetKind::Lib ) {
+            paths_to_watch.push( (lib_target.source_directory.clone(), Mode::Recursive) );
+        }
+    }
+
+    paths_to_watch
+}
+
+fn select_package_and_target( project: &Project ) -> Result< (CargoPackage, CargoTarget), Error > {
+    let package = project.package().clone();
+    let target = {
         let targets = project.target_or_select( None, |target| {
             target.kind == TargetKind::Bin
         })?;
@@ -117,17 +150,24 @@ impl LastBuild {
             );
         }
 
-        let config = project.aggregate_configuration( package, Profile::Main )?;
-        let target = targets[ 0 ];
-        let result = project.build( &config, package, target )?;
-        let deployment = Deployment::new( package, target, &result )?;
+        targets[ 0 ].clone()
+    };
+
+    Ok( (package, target) )
+}
+
+impl LastBuild {
+    fn new( project: Project, package: CargoPackage, target: CargoTarget, counter: Counter ) -> Result< Self, Error > {
+        let config = project.aggregate_configuration( &package, Profile::Main )?;
+        let result = project.build( &config, &package, &target )?;
+        let deployment = Deployment::new( &package, &target, &result )?;
 
         Ok( LastBuild {
             counter,
             deployment,
-            build_args: project.build_args().clone(),
-            package: package.clone(),
-            target: target.clone()
+            project,
+            package,
+            target
         })
     }
 
@@ -138,20 +178,29 @@ impl LastBuild {
 
 fn monitor_for_changes_and_rebuild(
     last_build: Arc< Mutex< LastBuild > >
-) -> RecommendedWatcher {
+) -> Arc< Mutex< RecommendedWatcher > > {
     let (tx, rx) = channel();
     let mut watcher: RecommendedWatcher = Watcher::new( tx, Duration::from_millis( 500 ) ).unwrap();
 
-    // TODO: Support local dependencies.
-    // TODO: Support Cargo.toml reloading.
-    {
+    let last_paths_to_watch = {
         let last_build = last_build.lock().unwrap();
-        watcher.watch( &last_build.target.source_directory, RecursiveMode::Recursive ).unwrap();
-        watcher.watch( &last_build.package.manifest_path, RecursiveMode::NonRecursive ).unwrap();
-    }
+        let paths_to_watch = get_paths_to_watch( &last_build.project, &last_build.package, &last_build.target );
+        debug!( "Found paths to watch: {:#?}", paths_to_watch );
+
+        for &(ref path, ref mode) in &paths_to_watch {
+            watcher.watch( &path, (*mode).into() ).unwrap()
+        }
+
+        paths_to_watch.clone()
+    };
+
+    let watcher = Arc::new( Mutex::new( watcher ) );
+    let weak_watcher = Arc::downgrade( &watcher );
 
     thread::spawn( move || {
         let rx = rx;
+        let mut last_paths_to_watch = last_paths_to_watch;
+
         while let Ok( event ) = rx.recv() {
             match event {
                 DebouncedEvent::Create( _ ) |
@@ -165,13 +214,36 @@ fn monitor_for_changes_and_rebuild(
             let (counter, build_args) = {
                 let last_build = last_build.lock().unwrap();
                 let counter = last_build.counter.next();
-                let build_args = last_build.build_args.clone();
+                let build_args = last_build.project.build_args().clone();
                 (counter, build_args)
             };
 
             if let Ok( project ) = build_args.load_project() {
-                if let Ok( new_build ) = LastBuild::new( project, counter ) {
-                    *last_build.lock().unwrap() = new_build;
+                if let Ok( (package, target) ) = select_package_and_target( &project ) {
+                    let mut new_paths_to_watch = get_paths_to_watch(
+                        &project,
+                        &package,
+                        &target
+                    );
+
+                    if new_paths_to_watch != last_paths_to_watch {
+                        debug!( "Paths to watch have changed; new paths to watch: {:#?}", new_paths_to_watch );
+                        if let Some( watcher ) = weak_watcher.upgrade() {
+                            let mut watcher = watcher.lock().expect( "watcher was poisoned" );
+                            for (path, _) in last_paths_to_watch {
+                                let _ = watcher.unwatch( path );
+                            }
+
+                            for &(ref path, ref mode) in &new_paths_to_watch {
+                                watcher.watch( &path, (*mode).into() ).unwrap()
+                            }
+                        }
+                        last_paths_to_watch = new_paths_to_watch;
+                    }
+
+                    if let Ok( new_build ) = LastBuild::new( project, package, target, counter ) {
+                        *last_build.lock().unwrap() = new_build;
+                    }
                 }
             }
         }
@@ -191,11 +263,15 @@ pub fn command_start< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Er
     let build_args = BuildArgs::new( matches )?;
     let project = build_args.load_project()?;
 
-    let last_build = Arc::new( Mutex::new( LastBuild::new( project, Counter::new() )? ) );
+    let last_build = {
+        let (package, target) = select_package_and_target( &project )?;
+        LastBuild::new( project, package, target, Counter::new() )?
+    };
+
+    let last_build = Arc::new( Mutex::new( last_build ) );
     let target = last_build.lock().unwrap().target.clone();
 
-    #[allow(unused_variables)]
-    let watcher = monitor_for_changes_and_rebuild( last_build.clone() );
+    let _watcher = monitor_for_changes_and_rebuild( last_build.clone() );
 
     let address = address_or_default( matches );
     let server = rouille::Server::new( &address, move |request| {
