@@ -158,7 +158,13 @@ impl Connection {
         let mut response = reqwest::get( json_url )?;
         let text = response.text()?;
         let json: Value = serde_json::from_str( &text ).unwrap();
-        let url = json.get( 0 ).unwrap().get( "webSocketDebuggerUrl" ).unwrap().as_str().unwrap();
+
+        debug!( "Got initial response: {:?}", json );
+
+        let url = json.get( 0 ).expect( "can't find first element" )
+            .get( "webSocketDebuggerUrl" ).expect( "no webSocketDebuggerUrl found" )
+            .as_str().expect( "webSocketDebuggerUrl is not a string" );
+
         debug!( "Got websocket debugger URL {}", url );
 
         let client = ClientBuilder::new( &url ).unwrap().connect_insecure()?;
