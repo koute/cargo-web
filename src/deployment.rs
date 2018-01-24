@@ -269,6 +269,13 @@ impl Deployment {
                             continue;
                         }
 
+                        if source_path.is_dir() {
+                            fs::create_dir_all( &target_path )
+                                .map_err( |err| Error::CannotCreateFile( target_path.to_owned(), err ) )?; // TODO: Different error type?
+
+                            continue;
+                        }
+
                         let target_dir = target_path.parent().unwrap();
                         fs::create_dir_all( target_dir )
                             .map_err( |err| Error::CannotCreateFile( target_dir.to_owned(), err ) )?; // TODO: Different error type?
