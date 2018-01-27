@@ -7,6 +7,12 @@ use handlebars::Handlebars;
 
 use wasm_inline_js::JsSnippet;
 
+#[derive(Copy, Clone)]
+pub enum RuntimeKind {
+    Standalone,
+    OnlyLoader
+}
+
 // This is probably a total overkill, but oh well.
 fn to_js_identifier( string: &str ) -> String {
     // Source: https://mathiasbynens.be/notes/javascript-identifiers
@@ -50,9 +56,10 @@ fn to_js_identifier( string: &str ) -> String {
     ).collect()
 }
 
-static RUNTIME_TEMPLATE: &str = include_str!( "wasm_runtime.js" );
+static LOADER_TEMPLATE: &str = include_str!( "wasm_runtime_loader.js" );
+static STANDALONE_TEMPLATE: &str = include_str!( "wasm_runtime_standalone.js" );
 
-pub fn generate_js( wasm_path: &Path, prepend_js: &str, snippets: &[JsSnippet] ) -> String {
+pub fn generate_js( runtime: RuntimeKind, wasm_path: &Path, prepend_js: &str, snippets: &[JsSnippet] ) -> String {
     let filename = wasm_path.file_name().unwrap().to_str().unwrap();
     let module_name = to_js_identifier( wasm_path.file_stem().unwrap().to_str().unwrap() );
 
@@ -79,7 +86,15 @@ pub fn generate_js( wasm_path: &Path, prepend_js: &str, snippets: &[JsSnippet] )
     template_data.insert( "module_name", module_name );
     template_data.insert( "snippets", snippets_js.trim().to_owned() );
     template_data.insert( "prepend_js", prepend_js.to_owned() );
-    let output = handlebars.template_render( RUNTIME_TEMPLATE, &template_data ).unwrap();
+    let loader = handlebars.template_render( LOADER_TEMPLATE, &template_data ).unwrap();
 
-    output
+    match runtime {
+        RuntimeKind::Standalone => {
+            template_data.insert( "loader", loader );
+            handlebars.template_render( STANDALONE_TEMPLATE, &template_data ).unwrap()
+        },
+        RuntimeKind::OnlyLoader => {
+            loader
+        }
+    }
 }

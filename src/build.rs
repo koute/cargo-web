@@ -23,6 +23,8 @@ use error::Error;
 use utils::read;
 use wasm;
 
+use wasm_runtime::RuntimeKind;
+
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
 pub enum Backend {
     EmscriptenWebAssembly,
@@ -73,6 +75,7 @@ pub struct BuildArgs {
     message_format: MessageFormat,
 
     backend: Backend,
+    runtime: RuntimeKind,
 
     package_name: Option< String >,
     target_name: Option< TargetName >
@@ -132,6 +135,20 @@ impl BuildArgs {
             }
         };
 
+        let runtime = if let Some( runtime ) = matches.value_of( "runtime" ) {
+            if backend != Backend::WebAssembly {
+                return Err( format!( "`--runtime` can be only used with `--target=wasm32-unknown-unknown`" ).into() )
+            }
+
+            match runtime {
+                "standalone" => RuntimeKind::Standalone,
+                "experimental-only-loader" => RuntimeKind::OnlyLoader,
+                _ => unreachable!( "Unknown runtime: {:?}", runtime )
+            }
+        } else {
+            RuntimeKind::Standalone
+        };
+
         let package_name = matches.value_of( "package" ).map( |name| name.to_owned() );
         let target_name = if matches.is_present( "lib" ) {
             Some( TargetName::Lib )
@@ -154,6 +171,7 @@ impl BuildArgs {
             is_verbose,
             message_format,
             backend,
+            runtime,
             package_name,
             target_name
         })
@@ -486,7 +504,7 @@ impl Project {
         let result = build_config.build( Some( |artifacts: Vec< PathBuf >| {
             let mut out = Vec::new();
             for path in artifacts {
-                if let Some( artifact ) = wasm::process_wasm_file( &build_config, &prepend_js, &path ) {
+                if let Some( artifact ) = wasm::process_wasm_file( self.build_args.runtime, &build_config, &prepend_js, &path ) {
                     debug!( "Generated artifact: {:?}", artifact );
                     out.push( artifact );
                 }

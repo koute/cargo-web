@@ -230,6 +230,19 @@ fn main() {
                         "human",
                         "json"
                     ])
+            )
+            .arg(
+                Arg::with_name( "runtime" )
+                    .long( "runtime" )
+                    .takes_value( true )
+                    .value_name( "RUNTIME" )
+                    .help( "Selects the type of JavaScript runtime which will be generated; valid only for the `wasm32-unknown-unknown` target" )
+                    .possible_values( &["standalone", "experimental-only-loader"] )
+                    .default_value_if(
+                        "target", Some( "wasm32-unknown-unknown" ),
+                        "standalone"
+                    )
+                    .hidden( true ) // This is experimental for now.
             );
 
     let mut test_subcommand =

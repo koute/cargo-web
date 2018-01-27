@@ -13,9 +13,9 @@ use wasm_export_main;
 use wasm_export_table;
 use wasm_hook_grow;
 use wasm_intrinsics;
-use wasm_runtime;
+use wasm_runtime::{self, RuntimeKind};
 
-pub fn process_wasm_file< P: AsRef< Path > + ?Sized >( build: &BuildConfig, prepend_js: &str, artifact: &P ) -> Option< PathBuf > {
+pub fn process_wasm_file< P: AsRef< Path > + ?Sized >( runtime: RuntimeKind, build: &BuildConfig, prepend_js: &str, artifact: &P ) -> Option< PathBuf > {
     if !build.triplet.as_ref().map( |triplet| triplet == "wasm32-unknown-unknown" ).unwrap_or( false ) {
         return None;
     }
@@ -51,7 +51,7 @@ pub fn process_wasm_file< P: AsRef< Path > + ?Sized >( build: &BuildConfig, prep
     parity_wasm::serialize_to_file( path, module ).unwrap();
 
     let all_snippets: Vec< _ > = snippets.into_iter().chain( intrinsics.into_iter() ).collect();
-    let js = wasm_runtime::generate_js( path, prepend_js, &all_snippets );
+    let js = wasm_runtime::generate_js( runtime, path, prepend_js, &all_snippets );
     let mut fp = File::create( &js_path ).unwrap();
     fp.write_all( js.as_bytes() ).unwrap();
 
