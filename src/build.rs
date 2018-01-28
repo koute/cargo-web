@@ -16,6 +16,8 @@ use cargo_shim::{
     target_to_build_target
 };
 use semver::Version;
+use serde_json;
+use walkdir::WalkDir;
 
 use config::Config;
 use emscripten::initialize_emscripten;
@@ -24,6 +26,12 @@ use utils::read;
 use wasm;
 
 use wasm_runtime::RuntimeKind;
+
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum PathKind {
+    File,
+    Directory
+}
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
 pub enum Backend {
@@ -491,6 +499,22 @@ impl Project {
         }
     }
 
+    pub fn paths_to_watch( &self, main_package: &CargoPackage, target: &CargoTarget ) -> Vec< (PathBuf, PathKind) > {
+        // TODO: `Web.toml` and `prepend-js` support.
+        let mut paths = Vec::new();
+        paths.push( (target.source_directory.clone(), PathKind::Directory) );
+
+        let packages = self.used_packages( main_package, Profile::Main );
+        for package in packages {
+            paths.push( (package.manifest_path.clone(), PathKind::File) );
+            if let Some( lib_target ) = package.targets.iter().find( |target| target.kind == TargetKind::Lib ) {
+                paths.push( (lib_target.source_directory.clone(), PathKind::Directory) );
+            }
+        }
+
+        paths
+    }
+
     pub fn build( &self, config: &AggregatedConfig, package: &CargoPackage, target: &CargoTarget ) -> Result< CargoResult, Error > {
         let build_config = self.prepare_build_config( config, package, target );
         let mut prepend_js = String::new();
@@ -499,6 +523,34 @@ impl Project {
                 prepend_js.push_str( &contents );
                 prepend_js.push_str( "\n" );
             }
+        }
+
+        if self.build_args.message_format == MessageFormat::Json {
+            let mut paths = Vec::new();
+            for (path, kind) in self.paths_to_watch( package, target ) {
+                match kind {
+                    PathKind::File => {
+                        paths.push( json!({ "path": path.to_string_lossy() }) );
+                    },
+                    PathKind::Directory => {
+                        for entry in WalkDir::new( path ) {
+                            if let Ok( entry ) = entry {
+                                let path = entry.path();
+                                if path.is_file() {
+                                    paths.push( json!({ "path": path.to_string_lossy() }) );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            let message = json!({
+                "reason": "cargo-web-paths-to-watch",
+                "paths": paths
+            });
+
+            println!( "{}", serde_json::to_string( &message ).unwrap() );
         }
 
         let result = build_config.build( Some( |artifacts: Vec< PathBuf >| {

@@ -6,7 +6,6 @@ use std::thread;
 use std::net::{self, ToSocketAddrs};
 use std::hash::Hash;
 use std::time::{SystemTime, UNIX_EPOCH};
-use std::path::PathBuf;
 
 use notify::{
     RecommendedWatcher,
@@ -26,7 +25,7 @@ use cargo_shim::{
     CargoTarget
 };
 
-use build::{BuildArgs, Project};
+use build::{BuildArgs, Project, PathKind};
 use deployment::{Deployment, ArtifactKind};
 use error::Error;
 
@@ -97,19 +96,11 @@ impl Counter {
     }
 }
 
-// `notify`'s RecursiveMode is neither Copy nor Clone. ):
-// TODO: Remove this once it is.
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
-enum Mode {
-    NonRecursive,
-    Recursive
-}
-
-impl From< Mode > for RecursiveMode {
-    fn from( mode: Mode ) -> Self {
+impl From< PathKind > for RecursiveMode {
+    fn from( mode: PathKind ) -> Self {
         match mode {
-            Mode::NonRecursive => RecursiveMode::NonRecursive,
-            Mode::Recursive => RecursiveMode::Recursive
+            PathKind::File => RecursiveMode::NonRecursive,
+            PathKind::Directory => RecursiveMode::Recursive
         }
     }
 }
@@ -120,21 +111,6 @@ struct LastBuild {
     project: Project,
     package: CargoPackage,
     target: CargoTarget
-}
-
-fn get_paths_to_watch( project: &Project, main_package: &CargoPackage, target: &CargoTarget ) -> Vec< (PathBuf, Mode) > {
-    let mut paths_to_watch = Vec::new();
-    paths_to_watch.push( (target.source_directory.clone(), Mode::Recursive) );
-
-    let packages = project.used_packages( main_package, Profile::Main );
-    for package in packages {
-        paths_to_watch.push( (package.manifest_path.clone(), Mode::NonRecursive) );
-        if let Some( lib_target ) = package.targets.iter().find( |target| target.kind == TargetKind::Lib ) {
-            paths_to_watch.push( (lib_target.source_directory.clone(), Mode::Recursive) );
-        }
-    }
-
-    paths_to_watch
 }
 
 fn select_package_and_target( project: &Project ) -> Result< (CargoPackage, CargoTarget), Error > {
@@ -184,7 +160,7 @@ fn monitor_for_changes_and_rebuild(
 
     let last_paths_to_watch = {
         let last_build = last_build.lock().unwrap();
-        let paths_to_watch = get_paths_to_watch( &last_build.project, &last_build.package, &last_build.target );
+        let paths_to_watch = last_build.project.paths_to_watch( &last_build.package, &last_build.target );
         debug!( "Found paths to watch: {:#?}", paths_to_watch );
 
         for &(ref path, ref mode) in &paths_to_watch {
@@ -220,11 +196,7 @@ fn monitor_for_changes_and_rebuild(
 
             if let Ok( project ) = build_args.load_project() {
                 if let Ok( (package, target) ) = select_package_and_target( &project ) {
-                    let mut new_paths_to_watch = get_paths_to_watch(
-                        &project,
-                        &package,
-                        &target
-                    );
+                    let mut new_paths_to_watch = project.paths_to_watch( &package, &target );
 
                     if new_paths_to_watch != last_paths_to_watch {
                         debug!( "Paths to watch have changed; new paths to watch: {:#?}", new_paths_to_watch );
