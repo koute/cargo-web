@@ -23,7 +23,7 @@ Currently it supports the following features:
   * `cargo web build` - will build your project using one of Rust's three Web backends:
     * [asm.js] using Emscripten (when you pass `--target=asmjs-unknown-emscripten`; default)
     * [WebAssembly] using Emscripten (when you pass `--target=wasm32-unknown-emscripten`)
-    * [WebAssembly] using Rust's native WebAssembly backend (when you pass `--target=wasm32-unknown-unknown`)
+    * [WebAssembly] using Rust's native WebAssembly backend (when you pass `--target=wasm32-unknown-unknown`, requires Rust nightly)
   * `cargo web test` - will run your tests either under:
     * Under a headless instance of Google Chrome (default)
     * Under [Node.js] (when you pass `--nodejs`)
@@ -39,16 +39,6 @@ Currently it supports the following features:
 [asm.js]: https://en.wikipedia.org/wiki/Asm.js
 [WebAssembly]: https://en.wikipedia.org/wiki/WebAssembly
 [Node.js]: https://nodejs.org/en/
-
-Before compiling anything you will have to install the corresponding targets
-with `rustup` yourself:
-
-  * For compiling to asmjs through Emscripten:
-        `rustup target add asmjs-unknown-emscripten`
-  * For compiling to WebAssembly through Emscripten:
-        `rustup target add wasm32-unknown-emscripten`
-  * For compiling to WebAssembly through Rust's native backend:
-        `rustup target add wasm32-unknown-unknown`
 
 It's also highly recommended that you check out the [stdweb] crate if you want
 to interact with the JavaScript world in your project. (In fact, `cargo-web`
