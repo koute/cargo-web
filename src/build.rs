@@ -1,4 +1,5 @@
-use std::process::exit;
+use std::collections::HashMap;
+use std::process::{Command, Stdio, exit};
 use std::path::{Path, PathBuf};
 use std::env;
 
@@ -22,7 +23,7 @@ use walkdir::WalkDir;
 use config::Config;
 use emscripten::initialize_emscripten;
 use error::Error;
-use utils::read;
+use utils::{read, find_cmd};
 use wasm;
 
 use wasm_runtime::RuntimeKind;
@@ -515,7 +516,68 @@ impl Project {
         paths
     }
 
+    fn install_target_if_necessary( &self ) -> Result< (), Error > {
+        let rustup = match find_cmd( &[ "rustup", "rustup.exe" ] ) {
+            Some( path ) => path,
+            // If the user installed Rust not through rustup then they're on their own.
+            None => return Ok(())
+        };
+
+        let output = Command::new( rustup )
+            .args( &[ "target", "list" ] )
+            .output()
+            .map_err( |err| Error::RuntimeError( "cannot get the target list through rustup".into(), err.into() ) )?;
+
+        if !output.status.success() {
+            return Err( "cannot get the target list through rustup: rustup invocation failed".into() );
+        }
+
+        let mut targets = HashMap::new();
+        let stdout = String::from_utf8_lossy( &output.stdout );
+        for line in stdout.trim().split( "\n" ) {
+            let target = &line[ 0..line.find( " " ).unwrap_or( line.len() ) ];
+            let is_installed = line.ends_with( "(installed)" );
+
+            trace!( "Target `{}`: {}", target, is_installed );
+            targets.insert( target.to_owned(), is_installed );
+        }
+
+        match targets.get( self.build_args.triplet() ).cloned() {
+            Some( false ) => {
+                debug!( "Trying to install target `{}`...", self.build_args.triplet() );
+                let result = Command::new( rustup )
+                    .args( &[ "target", "add", self.build_args.triplet() ] )
+                    .stdout( Stdio::null() )
+                    .stderr( Stdio::inherit() )
+                    .status();
+                let result = result.map_err( |err| {
+                    Error::RuntimeError(
+                        format!( "installation of target `{}` through rustup failed", self.build_args.triplet() ),
+                        err.into()
+                    )
+                })?;
+
+                if !result.success() {
+                    return Err( format!( "installation of target `{}` through rustup failed", self.build_args.triplet() ).into() );
+                }
+
+                Ok(())
+            },
+            Some( true ) => {
+                Ok(())
+            },
+            None => {
+                Err( format!(
+                    "target `{}` is not available for this Rust toolchain; maybe try Rust nighly?",
+                    self.build_args.triplet()
+                ).into() )
+            }
+        }
+    }
+
     pub fn build( &self, config: &AggregatedConfig, package: &CargoPackage, target: &CargoTarget ) -> Result< CargoResult, Error > {
+        self.install_target_if_necessary()?;
+
         let build_config = self.prepare_build_config( config, package, target );
         let mut prepend_js = String::new();
         if self.build_args.backend().is_native_wasm() {

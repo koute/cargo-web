@@ -36,13 +36,6 @@ echo "++ Is Rust from nightly: $IS_NIGHTLY"
 cargo test
 cargo build
 
-rustup target add asmjs-unknown-emscripten
-rustup target add wasm32-unknown-emscripten
-
-if [ "$IS_NIGHTLY" = "1" ]; then
-    rustup target add wasm32-unknown-unknown
-fi
-
 echo ""
 
 cd integration-tests
