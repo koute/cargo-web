@@ -227,6 +227,7 @@ impl CargoProject {
                                 "lib" => TargetKind::Lib,
                                 "rlib" => TargetKind::Lib,
                                 "cdylib" => TargetKind::Lib,
+                                "dylib" => TargetKind::Lib,
                                 "bin" => TargetKind::Bin,
                                 "example" => TargetKind::Example,
                                 "test" => TargetKind::Test,

@@ -30,6 +30,7 @@ fn main() {
 
     for name in &[
         "rlib",
+        "dev-depends-on-dylib",
         "workspace",
         "conflicting-versions",
         "requires-old-cargo-web",
