@@ -59,7 +59,7 @@ fn to_js_identifier( string: &str ) -> String {
 static LOADER_TEMPLATE: &str = include_str!( "wasm_runtime_loader.js" );
 static STANDALONE_TEMPLATE: &str = include_str!( "wasm_runtime_standalone.js" );
 
-pub fn generate_js( runtime: RuntimeKind, wasm_path: &Path, prepend_js: &str, snippets: &[JsSnippet] ) -> String {
+pub fn generate_js( runtime: RuntimeKind, main_symbol: Option< String >, wasm_path: &Path, prepend_js: &str, snippets: &[JsSnippet] ) -> String {
     let filename = wasm_path.file_name().unwrap().to_str().unwrap();
     let module_name = to_js_identifier( wasm_path.file_stem().unwrap().to_str().unwrap() );
 
@@ -86,6 +86,13 @@ pub fn generate_js( runtime: RuntimeKind, wasm_path: &Path, prepend_js: &str, sn
     template_data.insert( "module_name", module_name );
     template_data.insert( "snippets", snippets_js.trim().to_owned() );
     template_data.insert( "prepend_js", prepend_js.to_owned() );
+
+    if let Some( main_symbol ) = main_symbol {
+        template_data.insert( "call_main", format!( "Module.instance.exports.{}();", main_symbol ) );
+    } else {
+        template_data.insert( "call_main", "".to_owned() );
+    }
+
     let loader = handlebars.template_render( LOADER_TEMPLATE, &template_data ).unwrap();
 
     match runtime {

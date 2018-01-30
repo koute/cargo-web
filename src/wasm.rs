@@ -43,7 +43,7 @@ pub fn process_wasm_file< P: AsRef< Path > + ?Sized >( runtime: RuntimeKind, bui
     let mut ctx = Context::from_module( module );
     let snippets = wasm_inline_js::process_and_extract( &mut ctx );
     let intrinsics = wasm_intrinsics::process( &mut ctx );
-    wasm_export_main::process( &mut ctx );
+    let main_symbol = wasm_export_main::process( &mut ctx );
     wasm_export_table::process( &mut ctx );
     wasm_hook_grow::process( &mut ctx );
     module = ctx.into_module();
@@ -51,7 +51,7 @@ pub fn process_wasm_file< P: AsRef< Path > + ?Sized >( runtime: RuntimeKind, bui
     parity_wasm::serialize_to_file( path, module ).unwrap();
 
     let all_snippets: Vec< _ > = snippets.into_iter().chain( intrinsics.into_iter() ).collect();
-    let js = wasm_runtime::generate_js( runtime, path, prepend_js, &all_snippets );
+    let js = wasm_runtime::generate_js( runtime, main_symbol, path, prepend_js, &all_snippets );
     let mut fp = File::create( &js_path ).unwrap();
     fp.write_all( js.as_bytes() ).unwrap();
 
