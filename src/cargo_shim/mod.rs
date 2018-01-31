@@ -37,6 +37,7 @@ pub enum Profile {
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum TargetKind {
     Lib,
+    CDyLib,
     Bin,
     Example,
     Test,
@@ -226,7 +227,7 @@ impl CargoProject {
                             kind: match target.kind[ 0 ].as_str() {
                                 "lib" => TargetKind::Lib,
                                 "rlib" => TargetKind::Lib,
-                                "cdylib" => TargetKind::Lib,
+                                "cdylib" => TargetKind::CDyLib,
                                 "dylib" => TargetKind::Lib,
                                 "staticlib" => TargetKind::Lib,
                                 "bin" => TargetKind::Bin,
@@ -434,6 +435,7 @@ fn profile_to_arg( profile: Profile ) -> &'static str {
 pub fn target_to_build_target( target: &CargoTarget, profile: Profile ) -> BuildTarget {
     match target.kind {
         TargetKind::Lib => BuildTarget::Lib( target.name.clone(), profile ),
+        TargetKind::CDyLib => BuildTarget::Lib( target.name.clone(), profile ),
         TargetKind::Bin => BuildTarget::Bin( target.name.clone(), profile ),
         TargetKind::Example => BuildTarget::ExampleBin( target.name.clone() ),
         TargetKind::Test => BuildTarget::IntegrationTest( target.name.clone() ),

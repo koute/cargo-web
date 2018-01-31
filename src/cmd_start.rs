@@ -117,7 +117,8 @@ fn select_package_and_target( project: &Project ) -> Result< (CargoPackage, Carg
     let package = project.package().clone();
     let target = {
         let targets = project.target_or_select( None, |target| {
-            target.kind == TargetKind::Bin
+            target.kind == TargetKind::Bin ||
+            (target.kind == TargetKind::CDyLib && project.build_args().backend().is_native_wasm())
         })?;
 
         if targets.is_empty() {
@@ -294,7 +295,7 @@ pub fn command_start< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Er
     eprintln!( "in the root of your crate; they will be served alongside your application." );
     match target.kind {
         TargetKind::Example => eprintln!( "You can also put a '{}-static' directory in your 'examples' directory.", target.name ),
-        TargetKind::Bin => eprintln!( "You can also put a 'static' directory in your 'src' directory." ),
+        TargetKind::Bin | TargetKind::CDyLib => eprintln!( "You can also put a 'static' directory in your 'src' directory." ),
         _ => unreachable!()
     };
     eprintln!( "" );

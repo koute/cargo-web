@@ -14,7 +14,7 @@ pub fn command_build< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Er
 
     let package = project.package();
     let targets = project.target_or_select( None, |target| {
-        target.kind == TargetKind::Lib || target.kind == TargetKind::Bin
+        target.kind == TargetKind::Lib || target.kind == TargetKind::CDyLib || target.kind == TargetKind::Bin
     })?;
 
     let config = project.aggregate_configuration( package, Profile::Main )?;

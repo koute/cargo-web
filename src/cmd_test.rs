@@ -79,7 +79,10 @@ pub fn command_test< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Err
 
     let package = project.package();
     let targets = project.target_or_select( None, |target| {
-        target.kind == TargetKind::Lib || target.kind == TargetKind::Bin || target.kind == TargetKind::Test
+        target.kind == TargetKind::Lib ||
+        target.kind == TargetKind::CDyLib ||
+        target.kind == TargetKind::Bin ||
+        target.kind == TargetKind::Test
     })?;
     let config = project.aggregate_configuration( package, Profile::Test )?;
 

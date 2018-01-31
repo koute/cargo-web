@@ -118,6 +118,7 @@ fn main() {
 
         in_directory( "test-crates/cdylib", || {
             run( &*CARGO_WEB, &["build", "--target", "wasm32-unknown-unknown"] ).assert_success();
+            run( &*CARGO_WEB, &["deploy", "--target", "wasm32-unknown-unknown"] ).assert_success();
             run( &*NODEJS, &["target/wasm32-unknown-unknown/release/cdylib.js"] ).assert_success();
         });
     }

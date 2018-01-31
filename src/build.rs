@@ -508,7 +508,7 @@ impl Project {
         let packages = self.used_packages( main_package, Profile::Main );
         for package in packages {
             paths.push( (package.manifest_path.clone(), PathKind::File) );
-            if let Some( lib_target ) = package.targets.iter().find( |target| target.kind == TargetKind::Lib ) {
+            if let Some( lib_target ) = package.targets.iter().find( |target| target.kind == TargetKind::Lib || target.kind == TargetKind::CDyLib ) {
                 paths.push( (lib_target.source_directory.clone(), PathKind::Directory) );
             }
         }

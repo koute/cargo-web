@@ -17,7 +17,8 @@ pub fn command_deploy< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), E
 
     let package = project.package();
     let targets = project.target_or_select( None, |target| {
-        target.kind == TargetKind::Bin
+        target.kind == TargetKind::Bin ||
+        (target.kind == TargetKind::CDyLib && project.build_args().backend().is_native_wasm())
     })?;
 
     let config = project.aggregate_configuration( package, Profile::Main )?;
