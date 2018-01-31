@@ -188,6 +188,11 @@ impl Deployment {
             else if url.ends_with( ".wasm" ) { "application/wasm" }
             else if url.ends_with( ".html" ) { "text/html" }
             else if url.ends_with( ".css" ) { "text/css" }
+            else if url.ends_with( ".svg" ) { "image/svg+xml" }
+            else if url.ends_with( ".png" ) { "image/png" }
+            else if url.ends_with( ".gif" ) { "image/gif" }
+            else if url.ends_with( ".jpeg" ) { "image/jpeg" }
+            else if url.ends_with( ".jpg" ) { "image/jpeg" }
             else { "application/octet-stream" };
 
         for route in &self.routes {
