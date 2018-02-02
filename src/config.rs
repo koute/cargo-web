@@ -29,19 +29,20 @@ fn from_string_or_array_of_strings( path_in_toml: &str, config: &Config, prepend
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct PerTargetConfig {
     pub link_args: Option< Vec< String > >,
     pub prepend_js: Option< Vec< String > >
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct Config {
     crate_name: Option< String >,
     pub config_path: Option< PathBuf >,
 
     pub minimum_cargo_web_version: Option< Version >,
-    pub per_target: HashMap< Backend, PerTargetConfig >
+    pub per_target: HashMap< Backend, PerTargetConfig >,
+    pub default_target: Option< Backend >
 }
 
 impl Config {
@@ -66,6 +67,7 @@ impl Config {
 
 pub enum Warning {
     UnknownKey( String ),
+    InvalidValue( String ),
     Deprecation( String, Option< String > )
 }
 
@@ -102,7 +104,8 @@ const ALL_BACKENDS: &'static [Backend] = &[
 impl Config {
     pub fn load_from_file< P >(
             path: P,
-            crate_name: Option< String >
+            crate_name: Option< String >,
+            is_main_crate: bool
         ) -> Result< Option< (Self, Vec< Warning >) >, Error > where P: AsRef< Path >
     {
         let path = path.as_ref();
@@ -154,6 +157,29 @@ impl Config {
                             for backend in ALL_BACKENDS.iter().cloned() {
                                 add_prepend_js( &mut config, backend, toplevel_value.clone() )?;
                             }
+                        },
+                        "default-target" => {
+                            let default_target: String =
+                                toplevel_value.try_into().map_err( |_|
+                                    format!( "{}: 'default-target' is not a string", config.source()
+                                ))?;
+
+                            let default_target = match default_target.as_str() {
+                                "wasm32-unknown-unknown" => Backend::WebAssembly,
+                                "wasm32-unknown-emscripten" => Backend::EmscriptenWebAssembly,
+                                "asmjs-unknown-emscripten" => Backend::EmscriptenAsmJs,
+                                _ => {
+                                    if is_main_crate {
+                                        return Err( format!( "{}: `default-target` has an invalid value: `{}`", config.source(), default_target ).into() );
+                                    } else {
+                                        warnings.push( Warning::InvalidValue( toplevel_key.clone() ) );
+                                    }
+
+                                    continue;
+                                }
+                            };
+
+                            config.default_target = Some( default_target );
                         },
                         "cargo-web" => {
                             let cargo_web_table: toml::value::Table =
@@ -236,9 +262,9 @@ impl Config {
         Ok( Some( (config, warnings) ) )
     }
 
-    pub fn load_for_package( package: &CargoPackage ) -> Result< Option< (Self, Vec< Warning >) >, Error > {
+    pub fn load_for_package( package: &CargoPackage, is_main_crate: bool ) -> Result< Option< (Self, Vec< Warning >) >, Error > {
         let path = package.manifest_path.with_file_name( "Web.toml" );
-        let config = match Config::load_from_file( path, Some( package.name.clone() ) )? {
+        let config = match Config::load_from_file( path, Some( package.name.clone() ), is_main_crate )? {
             None => return Ok( None ),
             Some( config ) => config
         };
@@ -246,8 +272,8 @@ impl Config {
         Ok( Some( config ) )
     }
 
-    pub fn load_for_package_printing_warnings( package: &CargoPackage ) -> Result< Option< Self >, Error > {
-        let (config, warnings) = match Config::load_for_package( package )? {
+    pub fn load_for_package_printing_warnings( package: &CargoPackage, is_main_crate: bool ) -> Result< Option< Self >, Error > {
+        let (config, warnings) = match Config::load_for_package( package, is_main_crate )? {
             Some( (config, warnings) ) => (config, warnings),
             None => return Ok( None )
         };
@@ -262,6 +288,9 @@ impl Config {
                 },
                 Warning::Deprecation( key, Some( description ) ) => {
                     eprintln!( "warning: key in {} is deprecated: {} ({})", config.source(), key, description );
+                },
+                Warning::InvalidValue( key ) => {
+                    eprintln!( "warning: key `{}` in {} has an invalid value", key, config.source() );
                 }
             }
         }

@@ -72,6 +72,10 @@ and will be fixed in the near future.
 Here's an example configuration showing every supported key:
 
 ```toml
+# The default value of `--target` used when building this crate
+# in cases where it's not specified on the command line.
+default-target = "wasm32-unknown-unknown"
+
 # This will prepend a given JavaScript file to the resulting `.js` artifact.
 # You can put any initialization code here which you'd like to have executed
 # when your `.js` file first loads.

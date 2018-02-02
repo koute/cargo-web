@@ -61,6 +61,14 @@ impl Backend {
     pub fn is_emscripten( self ) -> bool {
         self.is_emscripten_wasm() || self.is_emscripten_asmjs()
     }
+
+    pub fn triplet( &self ) -> &str {
+        match *self {
+            Backend::EmscriptenAsmJs => "asmjs-unknown-emscripten",
+            Backend::EmscriptenWebAssembly => "wasm32-unknown-emscripten",
+            Backend::WebAssembly => "wasm32-unknown-unknown"
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -83,7 +91,7 @@ pub struct BuildArgs {
     is_verbose: bool,
     message_format: MessageFormat,
 
-    backend: Backend,
+    backend: Option< Backend >,
     runtime: RuntimeKind,
 
     package_name: Option< String >,
@@ -127,28 +135,27 @@ impl BuildArgs {
 
         let backend = if matches.is_present( "target-webasm-emscripten" ) {
             eprintln!( "warning: `--target-webasm-emscripten` argument is deprecated; please use `--target wasm32-unknown-emscripten` instead" );
-            Backend::EmscriptenWebAssembly
+            Some( Backend::EmscriptenWebAssembly )
         } else if matches.is_present( "target-webasm" ) {
             eprintln!( "warning: `--target-webasm` argument is deprecated; please use `--target wasm32-unknown-unknown` instead" );
-            Backend::WebAssembly
+            Some( Backend::WebAssembly )
         } else if matches.is_present( "target-asmjs-emscripten" ) {
             eprintln!( "warning: `--target-asmjs-emscripten` argument is deprecated; please use `--target asmjs-unknown-emscripten` instead" );
-            Backend::EmscriptenAsmJs
-        } else {
-            let triplet = matches.value_of( "target" );
-            match triplet {
-                Some( "asmjs-unknown-emscripten" ) | None => Backend::EmscriptenAsmJs,
-                Some( "wasm32-unknown-emscripten" ) => Backend::EmscriptenWebAssembly,
-                Some( "wasm32-unknown-unknown" ) => Backend::WebAssembly,
+            Some( Backend::EmscriptenAsmJs )
+        } else if let Some( triplet ) = matches.value_of( "target" ) {
+            let backend = match triplet {
+                "asmjs-unknown-emscripten" => Backend::EmscriptenAsmJs,
+                "wasm32-unknown-emscripten" => Backend::EmscriptenWebAssembly,
+                "wasm32-unknown-unknown" => Backend::WebAssembly,
                 _ => unreachable!( "Unknown target: {:?}", triplet )
-            }
+            };
+
+            Some( backend )
+        } else {
+            None
         };
 
         let runtime = if let Some( runtime ) = matches.value_of( "runtime" ) {
-            if backend != Backend::WebAssembly {
-                return Err( format!( "`--runtime` can be only used with `--target=wasm32-unknown-unknown`" ).into() )
-            }
-
             match runtime {
                 "standalone" => RuntimeKind::Standalone,
                 "experimental-only-loader" => RuntimeKind::OnlyLoader,
@@ -186,18 +193,6 @@ impl BuildArgs {
         })
     }
 
-    pub fn backend( &self ) -> Backend {
-        self.backend
-    }
-
-    fn triplet( &self ) -> &str {
-        match self.backend {
-            Backend::EmscriptenAsmJs => "asmjs-unknown-emscripten",
-            Backend::EmscriptenWebAssembly => "wasm32-unknown-emscripten",
-            Backend::WebAssembly => "wasm32-unknown-unknown"
-        }
-    }
-
     pub fn load_project( &self ) -> Result< Project, Error > {
         Project::new( self.clone() )
     }
@@ -208,7 +203,8 @@ pub struct Project {
     build_args: BuildArgs,
     project: CargoProject,
     default_package: usize,
-    default_target: Option< usize >
+    default_target: Option< usize >,
+    main_config: Option< Config >
 }
 
 fn get_package< 'a >( name: Option< &str >, project: &'a CargoProject ) -> Result< usize, Error > {
@@ -265,12 +261,27 @@ impl Project {
         let default_package = get_package( args.package_name.as_ref().map( |name| name.as_str() ), &project )?;
         let default_target = get_target( &args.target_name, &project.packages[ default_package ] )?;
 
-        Ok( Project {
+        let main_config = Config::load_for_package_printing_warnings( &project.packages[ default_package ], true )?;
+
+        let project = Project {
             build_args: args,
             project,
             default_package,
-            default_target
-        })
+            default_target,
+            main_config
+        };
+
+        if project.build_args.runtime != RuntimeKind::Standalone && !project.backend().is_native_wasm() {
+            return Err( format!( "`--runtime` can be only used with `--target=wasm32-unknown-unknown`" ).into() );
+        }
+
+        Ok( project )
+    }
+
+    pub fn backend( &self ) -> Backend {
+        self.build_args.backend
+            .or_else( || self.main_config.as_ref().and_then( |config| config.default_target ) )
+            .unwrap_or( Backend::EmscriptenAsmJs )
     }
 
     pub fn build_args( &self ) -> &BuildArgs {
@@ -281,23 +292,19 @@ impl Project {
         &self.project.packages[ self.default_package ]
     }
 
-    pub fn target_or_select< 'a, F >( &'a self, package: Option< &'a CargoPackage >, filter: F ) -> Result< Vec< &'a CargoTarget >, Error >
+    pub fn target_or_select< 'a, F >( &'a self, filter: F ) -> Result< Vec< &'a CargoTarget >, Error >
         where for< 'r > F: Fn( &'r CargoTarget ) -> bool
     {
-        let (package, index) = if let Some( package ) = package {
-            (package, get_target( &self.build_args.target_name, &package )?)
-        } else {
-            (self.package(), self.default_target)
-        };
-
-        Ok( index.map( |target| vec![ &package.targets[ target ] ] ).unwrap_or_else( || {
+        let package = self.package();
+        Ok( self.default_target.map( |target| vec![ &package.targets[ target ] ] ).unwrap_or_else( || {
             package.targets.iter().filter( |target| filter( target ) ).collect()
         }))
     }
 
-    pub fn used_packages( &self, main_package: &CargoPackage, profile: Profile ) -> Vec< &CargoPackage > {
+    fn used_packages( &self, profile: Profile ) -> Vec< &CargoPackage > {
+        let main_package = self.package();
         let mut packages = self.project.used_packages(
-            self.build_args.triplet(),
+            self.backend().triplet(),
             main_package,
             profile
         );
@@ -318,18 +325,26 @@ impl Project {
         packages
     }
 
-    pub fn aggregate_configuration( &self, main_package: &CargoPackage, profile: Profile ) -> Result< AggregatedConfig, Error > {
+    pub fn aggregate_configuration( &self, profile: Profile ) -> Result< AggregatedConfig, Error > {
+        let main_package = self.package();
         let mut aggregated_config = AggregatedConfig {
             profile,
             link_args: Vec::new(),
             prepend_js: Vec::new()
         };
 
-        let packages = self.used_packages( main_package, profile );
+        let packages = self.used_packages( profile );
         let mut maximum_minimum_version = None;
         let mut configs = Vec::new();
+        configs.push( self.main_config.clone() );
+
         for package in &packages {
-            let config = Config::load_for_package_printing_warnings( package )?;
+            let config = if package.id == main_package.id {
+                self.main_config.clone()
+            } else {
+                Config::load_for_package_printing_warnings( package, false )?
+            };
+
             if let Some( ref config ) = config {
                 if let Some( ref new_requirement ) = config.minimum_cargo_web_version {
                     debug!( "{} requires cargo-web {}", config.source(), new_requirement );
@@ -356,12 +371,12 @@ impl Project {
 
         for config in configs.iter().rev() {
             if let Some( ref config ) = *config {
-                if let Some( ref link_args ) = config.get_link_args( self.build_args.backend() ) {
+                if let Some( ref link_args ) = config.get_link_args( self.backend() ) {
                     debug!( "{} defines the following link-args: {:?}", config.source(), link_args );
                     aggregated_config.link_args.extend( link_args.iter().cloned() );
                 }
 
-                if let Some( ref prepend_js ) = config.get_prepend_js( self.build_args.backend() ) {
+                if let Some( ref prepend_js ) = config.get_prepend_js( self.backend() ) {
                     debug!( "{} wants to prepend the following JS files: {:?}", config.source(), prepend_js );
                     let config_dir = config.config_path.as_ref().unwrap().parent().unwrap();
                     for path in prepend_js.iter() {
@@ -382,14 +397,15 @@ impl Project {
         Ok( aggregated_config )
     }
 
-    fn prepare_build_config( &self, config: &AggregatedConfig, package: &CargoPackage, target: &CargoTarget ) -> BuildConfig {
+    fn prepare_build_config( &self, config: &AggregatedConfig, target: &CargoTarget ) -> BuildConfig {
+        let package = self.package();
         let mut extra_paths = Vec::new();
         let mut extra_rustflags = Vec::new();
         let mut extra_environment = Vec::new();
         let mut extra_emmaken_cflags = Vec::new();
 
-        if self.build_args.backend.is_emscripten() {
-            if let Some( emscripten ) = initialize_emscripten( self.build_args.use_system_emscripten, self.build_args.backend.is_emscripten_wasm() ) {
+        if self.backend().is_emscripten() {
+            if let Some( emscripten ) = initialize_emscripten( self.build_args.use_system_emscripten, self.backend().is_emscripten_wasm() ) {
                 extra_paths.push( emscripten.emscripten_path.clone() );
 
                 let emscripten_path = emscripten.emscripten_path.to_string_lossy().into_owned();
@@ -422,7 +438,7 @@ impl Project {
             //
             // See more here:
             //   https://kripken.github.io/emscripten-site/docs/optimizing/Optimizing-Code.html#memory-growth
-            let allow_memory_growth = self.build_args.backend.is_emscripten_wasm();
+            let allow_memory_growth = self.backend().is_emscripten_wasm();
 
             extra_rustflags.push( "-C".to_owned() );
             extra_rustflags.push( "link-arg=-s".to_owned() );
@@ -448,12 +464,12 @@ impl Project {
             extra_rustflags.push( format!( "link-arg={}", arg ) );
         }
 
-        if self.build_args.backend.is_native_wasm() && self.build_args.build_type == BuildType::Debug {
+        if self.backend().is_native_wasm() && self.build_args.build_type == BuildType::Debug {
             extra_rustflags.push( "-C".to_owned() );
             extra_rustflags.push( "debuginfo=2".to_owned() );
         }
 
-        if self.build_args.backend.is_native_wasm() {
+        if self.backend().is_native_wasm() {
             // Incremental compilation currently doesn't work very well with
             // this target, so disable it.
             if env::var_os( "CARGO_INCREMENTAL" ).is_some() {
@@ -462,7 +478,7 @@ impl Project {
         }
 
         let build_type = self.build_args.build_type;
-        let build_type = if self.build_args.backend.is_native_wasm() && build_type == BuildType::Debug {
+        let build_type = if self.backend().is_native_wasm() && build_type == BuildType::Debug {
             // TODO: Remove this in the future.
             eprintln!( "warning: debug builds on the wasm32-unknown-unknown are currently totally broken" );
             eprintln!( "         forcing a release build" );
@@ -487,7 +503,7 @@ impl Project {
         BuildConfig {
             build_target: target_to_build_target( target, config.profile ),
             build_type,
-            triplet: Some( self.build_args.triplet().into() ),
+            triplet: Some( self.backend().triplet().into() ),
             package: Some( package.name.clone() ),
             features: self.build_args.features.clone(),
             no_default_features: self.build_args.no_default_features,
@@ -500,12 +516,12 @@ impl Project {
         }
     }
 
-    pub fn paths_to_watch( &self, main_package: &CargoPackage, target: &CargoTarget ) -> Vec< (PathBuf, PathKind) > {
+    pub fn paths_to_watch( &self, target: &CargoTarget ) -> Vec< (PathBuf, PathKind) > {
         // TODO: `Web.toml` and `prepend-js` support.
         let mut paths = Vec::new();
         paths.push( (target.source_directory.clone(), PathKind::Directory) );
 
-        let packages = self.used_packages( main_package, Profile::Main );
+        let packages = self.used_packages( Profile::Main );
         for package in packages {
             paths.push( (package.manifest_path.clone(), PathKind::File) );
             if let Some( lib_target ) = package.targets.iter().find( |target| target.kind == TargetKind::Lib || target.kind == TargetKind::CDyLib ) {
@@ -542,23 +558,23 @@ impl Project {
             targets.insert( target.to_owned(), is_installed );
         }
 
-        match targets.get( self.build_args.triplet() ).cloned() {
+        match targets.get( self.backend().triplet() ).cloned() {
             Some( false ) => {
-                debug!( "Trying to install target `{}`...", self.build_args.triplet() );
+                debug!( "Trying to install target `{}`...", self.backend().triplet() );
                 let result = Command::new( rustup )
-                    .args( &[ "target", "add", self.build_args.triplet() ] )
+                    .args( &[ "target", "add", self.backend().triplet() ] )
                     .stdout( Stdio::null() )
                     .stderr( Stdio::inherit() )
                     .status();
                 let result = result.map_err( |err| {
                     Error::RuntimeError(
-                        format!( "installation of target `{}` through rustup failed", self.build_args.triplet() ),
+                        format!( "installation of target `{}` through rustup failed", self.backend().triplet() ),
                         err.into()
                     )
                 })?;
 
                 if !result.success() {
-                    return Err( format!( "installation of target `{}` through rustup failed", self.build_args.triplet() ).into() );
+                    return Err( format!( "installation of target `{}` through rustup failed", self.backend().triplet() ).into() );
                 }
 
                 Ok(())
@@ -569,18 +585,18 @@ impl Project {
             None => {
                 Err( format!(
                     "target `{}` is not available for this Rust toolchain; maybe try Rust nighly?",
-                    self.build_args.triplet()
+                    self.backend().triplet()
                 ).into() )
             }
         }
     }
 
-    pub fn build( &self, config: &AggregatedConfig, package: &CargoPackage, target: &CargoTarget ) -> Result< CargoResult, Error > {
+    pub fn build( &self, config: &AggregatedConfig, target: &CargoTarget ) -> Result< CargoResult, Error > {
         self.install_target_if_necessary()?;
 
-        let build_config = self.prepare_build_config( config, package, target );
+        let build_config = self.prepare_build_config( config, target );
         let mut prepend_js = String::new();
-        if self.build_args.backend().is_native_wasm() {
+        if self.backend().is_native_wasm() {
             for &(_, ref contents) in &config.prepend_js {
                 prepend_js.push_str( &contents );
                 prepend_js.push_str( "\n" );
@@ -589,7 +605,7 @@ impl Project {
 
         if self.build_args.message_format == MessageFormat::Json {
             let mut paths = Vec::new();
-            for (path, kind) in self.paths_to_watch( package, target ) {
+            for (path, kind) in self.paths_to_watch( target ) {
                 match kind {
                     PathKind::File => {
                         paths.push( json!({ "path": path.to_string_lossy() }) );

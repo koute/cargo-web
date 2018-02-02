@@ -39,7 +39,8 @@ fn main() {
         "requires-future-cargo-web-through-dev-dep",
         "requires-future-cargo-web-through-dep-dev-dep",
         "requires-future-cargo-web-through-build-dep",
-        "compiling-under-cargo-web-env-var"
+        "compiling-under-cargo-web-env-var",
+        "depends-on-default-target-invalid"
     ] {
         in_directory( &format!( "test-crates/{}", name ), || {
             each_target( |target| {
@@ -110,6 +111,26 @@ fn main() {
         });
     });
 
+    in_directory( "test-crates/default-target-asmjs-unknown-emscripten", || {
+        run( &*CARGO_WEB, &["build"] ).assert_success();
+        assert_file_exists( "target/asmjs-unknown-emscripten/debug/default-target-asmjs-unknown-emscripten.js" );
+        run( &*CARGO_WEB, &["test"] ).assert_success();
+        run( &*CARGO_WEB, &["deploy"] ).assert_success();
+    });
+
+    in_directory( "test-crates/default-target-wasm32-unknown-emscripten", || {
+        run( &*CARGO_WEB, &["build"] ).assert_success();
+        assert_file_exists( "target/wasm32-unknown-emscripten/debug/default-target-wasm32-unknown-emscripten.js" );
+        run( &*CARGO_WEB, &["test"] ).assert_success();
+        run( &*CARGO_WEB, &["deploy"] ).assert_success();
+    });
+
+    in_directory( "test-crates/default-target-invalid", || {
+        run( &*CARGO_WEB, &["build"] ).assert_failure();
+        run( &*CARGO_WEB, &["test"] ).assert_failure();
+        run( &*CARGO_WEB, &["deploy"] ).assert_failure();
+    });
+
     if *IS_NIGHTLY {
         in_directory( "test-crates/native-webasm", || {
             run( &*CARGO_WEB, &["build", "--target", "wasm32-unknown-unknown"] ).assert_success();
@@ -120,6 +141,12 @@ fn main() {
             run( &*CARGO_WEB, &["build", "--target", "wasm32-unknown-unknown"] ).assert_success();
             run( &*CARGO_WEB, &["deploy", "--target", "wasm32-unknown-unknown"] ).assert_success();
             run( &*NODEJS, &["target/wasm32-unknown-unknown/release/cdylib.js"] ).assert_success();
+        });
+
+        in_directory( "test-crates/default-target-wasm32-unknown-unknown", || {
+            run( &*CARGO_WEB, &["build"] ).assert_success();
+            assert_file_exists( "target/wasm32-unknown-unknown/release/default-target-wasm32-unknown-unknown.js" );
+            run( &*CARGO_WEB, &["deploy"] ).assert_success();
         });
     }
 }

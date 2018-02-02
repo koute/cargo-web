@@ -109,16 +109,15 @@ struct LastBuild {
     counter: Counter,
     deployment: Deployment,
     project: Project,
-    package: CargoPackage,
     target: CargoTarget
 }
 
 fn select_package_and_target( project: &Project ) -> Result< (CargoPackage, CargoTarget), Error > {
     let package = project.package().clone();
     let target = {
-        let targets = project.target_or_select( None, |target| {
+        let targets = project.target_or_select( |target| {
             target.kind == TargetKind::Bin ||
-            (target.kind == TargetKind::CDyLib && project.build_args().backend().is_native_wasm())
+            (target.kind == TargetKind::CDyLib && project.backend().is_native_wasm())
         })?;
 
         if targets.is_empty() {
@@ -135,15 +134,14 @@ fn select_package_and_target( project: &Project ) -> Result< (CargoPackage, Carg
 
 impl LastBuild {
     fn new( project: Project, package: CargoPackage, target: CargoTarget, counter: Counter ) -> Result< Self, Error > {
-        let config = project.aggregate_configuration( &package, Profile::Main )?;
-        let result = project.build( &config, &package, &target )?;
+        let config = project.aggregate_configuration( Profile::Main )?;
+        let result = project.build( &config, &target )?;
         let deployment = Deployment::new( &package, &target, &result )?;
 
         Ok( LastBuild {
             counter,
             deployment,
             project,
-            package,
             target
         })
     }
@@ -161,7 +159,7 @@ fn monitor_for_changes_and_rebuild(
 
     let last_paths_to_watch = {
         let last_build = last_build.lock().unwrap();
-        let paths_to_watch = last_build.project.paths_to_watch( &last_build.package, &last_build.target );
+        let paths_to_watch = last_build.project.paths_to_watch( &last_build.target );
         debug!( "Found paths to watch: {:#?}", paths_to_watch );
 
         for &(ref path, ref mode) in &paths_to_watch {
@@ -197,7 +195,7 @@ fn monitor_for_changes_and_rebuild(
 
             if let Ok( project ) = build_args.load_project() {
                 if let Ok( (package, target) ) = select_package_and_target( &project ) {
-                    let mut new_paths_to_watch = project.paths_to_watch( &package, &target );
+                    let mut new_paths_to_watch = project.paths_to_watch( &target );
 
                     if new_paths_to_watch != last_paths_to_watch {
                         debug!( "Paths to watch have changed; new paths to watch: {:#?}", new_paths_to_watch );

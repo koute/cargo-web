@@ -1,0 +1,6 @@
+[package]
+name = "default-target-wasm32-unknown-unknown"
+version = "0.1.0"
+authors = ["Jan Bujak <j@exia.io>"]
+
+[dependencies]

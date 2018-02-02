@@ -70,25 +70,24 @@ pub fn command_test< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Err
 
     let use_nodejs = matches.is_present( "nodejs" );
     let no_run = matches.is_present( "no-run" );
-    if build_args.backend().is_native_wasm() && !use_nodejs {
+    if project.backend().is_native_wasm() && !use_nodejs {
         return Err( Error::ConfigurationError( "running tests for the native wasm target is currently only supported with `--nodejs`".into() ) );
     }
 
     let arg_passthrough = matches.values_of_os( "passthrough" )
         .map_or( vec![], |args| args.collect() );
 
-    let package = project.package();
-    let targets = project.target_or_select( None, |target| {
+    let targets = project.target_or_select( |target| {
         target.kind == TargetKind::Lib ||
         target.kind == TargetKind::CDyLib ||
         target.kind == TargetKind::Bin ||
         target.kind == TargetKind::Test
     })?;
-    let config = project.aggregate_configuration( package, Profile::Test )?;
+    let config = project.aggregate_configuration( Profile::Test )?;
 
     let mut builds = Vec::new();
     for target in targets {
-        builds.push( project.build( &config, package, target )? );
+        builds.push( project.build( &config, target )? );
     }
 
     if no_run {
@@ -98,18 +97,18 @@ pub fn command_test< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Err
     let mut any_failure = false;
     if use_nodejs {
         for build in builds {
-            test_in_nodejs( build_args.backend(), build, &arg_passthrough, &mut any_failure )?;
+            test_in_nodejs( project.backend(), build, &arg_passthrough, &mut any_failure )?;
         }
     } else {
         for build in builds {
-            test_in_chromium( build_args.backend(), build, &arg_passthrough, &mut any_failure )?;
+            test_in_chromium( project.backend(), build, &arg_passthrough, &mut any_failure )?;
         }
     }
 
     if any_failure {
         exit( 101 );
     } else {
-        if build_args.backend().is_native_wasm() {
+        if project.backend().is_native_wasm() {
             eprintln!( "All tests passed!" );
             // At least **I hope** that's the case; there are no prints
             // when running those tests, so who knows what happens. *shrug*

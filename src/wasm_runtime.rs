@@ -9,7 +9,7 @@ use handlebars::Handlebars;
 use wasm_inline_js::JsSnippet;
 use wasm_js_export::{JsExport, TypeMetadata};
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum RuntimeKind {
     Standalone,
     OnlyLoader

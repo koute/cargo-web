@@ -16,14 +16,14 @@ pub fn command_deploy< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), E
     let project = build_args.load_project()?;
 
     let package = project.package();
-    let targets = project.target_or_select( None, |target| {
+    let targets = project.target_or_select( |target| {
         target.kind == TargetKind::Bin ||
-        (target.kind == TargetKind::CDyLib && project.build_args().backend().is_native_wasm())
+        (target.kind == TargetKind::CDyLib && project.backend().is_native_wasm())
     })?;
 
-    let config = project.aggregate_configuration( package, Profile::Main )?;
+    let config = project.aggregate_configuration( Profile::Main )?;
     let target = targets[ 0 ];
-    let result = project.build( &config, package, target )?;
+    let result = project.build( &config, target )?;
 
     let deployment = Deployment::new( package, target, &result )?;
     let directory = package.crate_root.join( "target" ).join( "deploy" );

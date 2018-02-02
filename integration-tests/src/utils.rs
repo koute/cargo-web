@@ -166,3 +166,10 @@ pub fn assert_file_contains< P: AsRef< Path > >( path: P, pattern: &str ) {
         panic!( "File {:?} doesn't contain the expected string: {:?}", path, pattern );
     }
 }
+
+pub fn assert_file_exists< P: AsRef< Path > >( path: P ) {
+    let path = path.as_ref();
+    if !path.exists() {
+        panic!( "File {:?} doesn't exist", path );
+    }
+}
