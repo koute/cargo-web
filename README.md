@@ -61,10 +61,6 @@ On Linux the installation can fail with a message that it can't find OpenSSL,
 in which case you most likely need to install the `-dev` package for OpenSSL
 from your distribution's repositories. (On Ubuntu it's called `libssl-dev`.)
 
-**If you're on macOS you need to use stable Rust to compile this**, otherwise
-it will not build. This is due to an issue in one of the crates we depend on,
-and will be fixed in the near future.
-
 ## `Web.toml`
 
 `cargo-web` has its own configuration file which you can put next to `cargo`'s [`Cargo.toml`].
