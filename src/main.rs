@@ -12,7 +12,6 @@ extern crate rouille;
 extern crate tempdir;
 extern crate reqwest;
 extern crate pbr;
-extern crate app_dirs;
 extern crate libflate;
 extern crate tar;
 extern crate sha1;
@@ -52,6 +51,9 @@ use clap::{
     AppSettings,
     SubCommand
 };
+
+#[allow(dead_code)]
+mod app_dirs;
 
 mod cargo_shim;
 

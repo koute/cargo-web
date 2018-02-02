@@ -21,7 +21,6 @@ cargo_metadata = "0.4"
 ansi_term = "0.10"
 reqwest = "0.8"
 pbr = "1"
-app_dirs = "^1.1"
 libflate = "0.1"
 tar = "0.4"
 sha1 = "0.3"
@@ -50,3 +49,12 @@ version = "0.8"
 
 [features]
 development-mode = []
+
+# These are `app_dirs`'s dependencies.
+[target.'cfg(all(unix, not(target_os="macos")))'.dependencies]
+xdg = "^2.0.0"
+
+[target.'cfg(windows)'.dependencies]
+ole32-sys = "^0.2.0"
+shell32-sys = "^0.1.1"
+winapi = "^0.2.8"
