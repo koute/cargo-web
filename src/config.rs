@@ -163,7 +163,7 @@ impl Config {
                             for (cargo_web_key, cargo_web_value) in cargo_web_table {
                                 match cargo_web_key.as_str() {
                                     "minimum-version" => {
-                                        let version: String = cargo_web_value.try_into().map_err( |_| format!( "{}; 'cargo-web.minimum-version' is not a string", config.source() ) )?;
+                                        let version: String = cargo_web_value.try_into().map_err( |_| format!( "{}: 'cargo-web.minimum-version' is not a string", config.source() ) )?;
                                         let version = Version::parse( &version ).map_err( |_| format!( "{}: 'cargo-web.minimum-version' is not a valid version", config.source() ) )?;
                                         config.minimum_cargo_web_version = Some( version );
                                     },
