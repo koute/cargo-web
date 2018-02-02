@@ -36,6 +36,12 @@ echo "++ Is Rust from nightly: $IS_NIGHTLY"
 cargo test
 cargo build
 
+rustup target add x86_64-apple-darwin
+rustup target add i686-pc-windows-gnu
+
+cargo check --target=x86_64-apple-darwin
+cargo check --target=i686-pc-windows-gnu
+
 echo ""
 
 cd integration-tests
