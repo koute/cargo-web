@@ -41,7 +41,7 @@ pub use self::utils::*;
 
 #[cfg(test)]
 mod tests {
-    use AppDataType::*;
+    use self::AppDataType::*;
     use super::*;
     #[test]
     fn it_works() {
