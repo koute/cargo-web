@@ -18,7 +18,6 @@ pub fn run<I: AsRef<Path>, O: AsRef<Path>>(input: I, output: O) {
     let analysis = {
         let mut cx = LiveContext::new(&module);
 
-        cx.blacklist.insert("main");
         cx.blacklist.insert("__ashldi3");
         cx.blacklist.insert("__ashlti3");
         cx.blacklist.insert("__ashrdi3");
