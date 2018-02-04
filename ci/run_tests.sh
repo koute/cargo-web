@@ -3,7 +3,7 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-export REPOSITORY_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+export REPOSITORY_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/.."
 export CARGO_WEB=$REPOSITORY_ROOT/target/debug/cargo-web
 
 ONLY_LOCAL=0
