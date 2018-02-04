@@ -336,7 +336,6 @@ impl Project {
         let packages = self.used_packages( profile );
         let mut maximum_minimum_version = None;
         let mut configs = Vec::new();
-        configs.push( self.main_config.clone() );
 
         for package in &packages {
             let config = if package.id == main_package.id {

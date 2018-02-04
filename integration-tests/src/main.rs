@@ -158,5 +158,10 @@ fn main() {
             assert_file_exists( "target/wasm32-unknown-unknown/release/default-target-wasm32-unknown-unknown.js" );
             run( &*CARGO_WEB, &["deploy"] ).assert_success();
         });
+
+        in_directory( "test-crates/prepend-js-includable-only-once", || {
+            run( &*CARGO_WEB, &["build", "--release", "--target", "wasm32-unknown-unknown"] ).assert_success();
+            run( &*NODEJS, &["target/wasm32-unknown-unknown/release/prepend-js-includable-only-once.js"] ).assert_success();
+        });
     }
 }
