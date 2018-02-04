@@ -688,7 +688,9 @@ impl BuildConfig {
         // the `.wasm` file as an artifact.
         if status == 0 && self.triplet.as_ref().map( |triplet| triplet == "wasm32-unknown-emscripten" ).unwrap_or( false ) {
             match self.build_target {
-                BuildTarget::Bin( _, Profile::Test ) | BuildTarget::Lib( _, Profile::Test ) => {
+                BuildTarget::Bin( _, Profile::Test ) |
+                BuildTarget::Lib( _, Profile::Test ) |
+                BuildTarget::IntegrationTest( _ ) => {
                     if find_artifact( &artifacts, "wasm" ).is_none() {
                         if let Some( (artifact_index, filename_index) ) = find_artifact( &artifacts, "js" ) {
                             let wasm_path = {
@@ -699,6 +701,7 @@ impl BuildConfig {
 
                             assert!( wasm_path.exists(), "internal error: wasm doesn't exist where I expected it to be" );
                             artifacts[ artifact_index ].filenames.push( wasm_path.to_str().unwrap().to_owned() );
+                            debug!( "Found `.wasm` test artifact: {:?}", wasm_path );
                         }
                     }
                 },

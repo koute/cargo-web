@@ -49,6 +49,16 @@ fn main() {
         });
     }
 
+    for name in &[
+        "crate-with-integration-tests"
+    ] {
+        in_directory( &format!( "test-crates/{}", name ), || {
+            each_target( |target| {
+                run( &*CARGO_WEB, &["test", "--nodejs", "--target", target] ).assert_success();
+            });
+        });
+    }
+
     in_directory( "test-crates/requires-future-cargo-web-through-target-dep", || {
         run( &*CARGO_WEB, &["build", "--target", "asmjs-unknown-emscripten"] ).assert_success();
         run( &*CARGO_WEB, &["build", "--target", "wasm32-unknown-emscripten"] ).assert_failure();
