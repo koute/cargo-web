@@ -275,6 +275,7 @@ pub struct Context {
     pub fn_pointer_tables: Option< FnPointerTable >,
     pub data: Vec< Data >,
     pub module_name: Option< String >,
+    pub source_mapping_url: Option< String >,
     next_function_index: u32,
     next_type_index: u32
 }
@@ -398,6 +399,7 @@ impl Context {
             fn_pointer_tables: Default::default(),
             data: Default::default(),
             module_name: Default::default(),
+            source_mapping_url: Default::default(),
             next_function_index: 0,
             next_type_index: 0
         }
@@ -619,6 +621,12 @@ impl Context {
                                 kind => panic!( "unknown name section chunk type: {}", kind )
                             }
                         }
+                    } else if section.name() == "sourceMappingURL" {
+                        let payload = take( section.payload_mut() );
+                        let mut p: &[u8] = &payload;
+                        let url_length = u32::from( pw::VarUint32::deserialize( &mut p ).unwrap() );
+                        let url = str::from_utf8( &p[ 0..url_length as usize ] ).expect( "invalid sourceMappingURL" );
+                        ctx.source_mapping_url = Some( url.to_owned() );
                     } else {
                         panic!( "unsupported custom section: '{}'", section.name() );
                     }
@@ -895,6 +903,17 @@ impl Context {
             let name_section_bytes = serialize_name_section( self.module_name, function_names, function_variable_names );
             sections.push( pw::Section::Custom(
                 pw::CustomSection::deserialize( &mut name_section_bytes.as_slice() ).unwrap()
+            ));
+        }
+
+        if let Some( source_mapping_url ) = self.source_mapping_url {
+            let mut section_bytes = Vec::new();
+            write_with_length( &mut section_bytes, move |body| {
+                write_string( body, "sourceMappingURL" );
+                write_string( body, &source_mapping_url );
+            });
+            sections.push( pw::Section::Custom(
+                pw::CustomSection::deserialize( &mut section_bytes.as_slice() ).unwrap()
             ));
         }
 
