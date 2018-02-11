@@ -3,11 +3,12 @@ use std::sync::Arc;
 use std::fs::File;
 use std::thread;
 use std::net::SocketAddr;
+use std::time::UNIX_EPOCH;
 use futures::sync::{mpsc, oneshot};
 use futures::Sink;
 use futures::future::{self, Future};
 use hyper::{self, Chunk, StatusCode};
-use hyper::header::{ContentLength, ContentType};
+use hyper::header::{CacheControl, CacheDirective, ContentLength, ContentType, Expires, Pragma};
 use hyper::server::{Http, NewService, Request, Response, Service};
 
 pub type FutureResponse = Box< Future< Item = Response, Error = hyper::Error > >;
@@ -76,10 +77,21 @@ impl SimpleServer {
     }
 }
 
+fn add_no_cache_headers( response: Response ) -> Response {
+    response
+        .with_header( CacheControl( vec![
+            CacheDirective::NoCache,
+            CacheDirective::NoStore,
+            CacheDirective::MustRevalidate,
+        ] ) )
+        .with_header( Expires( UNIX_EPOCH.into() ) )
+        .with_header( Pragma::NoCache )
+}
+
 pub fn response_from_file( mime_type: &str, mut file: File ) -> FutureResponse {
     let ( tx, rx ) = oneshot::channel();
     let ( mut tx_body, rx_body ) = mpsc::channel( 1 );
-    let response = Response::new()
+    let response = add_no_cache_headers(Response::new())
         .with_header( ContentType( mime_type.parse().unwrap() ) )
         .with_body( rx_body );
 
@@ -110,7 +122,7 @@ pub fn response_from_file( mime_type: &str, mut file: File ) -> FutureResponse {
 }
 
 fn sync_response_from_data( mime_type: &str, data: Vec< u8 > ) -> Response {
-    Response::new()
+    add_no_cache_headers(Response::new())
         .with_header( ContentType( mime_type.parse().unwrap() ) )
         .with_header( ContentLength( data.len() as u64 ) )
         .with_body( data )
