@@ -8,7 +8,8 @@
 
 extern crate clap;
 extern crate notify;
-extern crate rouille;
+extern crate hyper;
+extern crate futures;
 extern crate tempdir;
 extern crate reqwest;
 extern crate pbr;
@@ -59,6 +60,7 @@ mod cargo_shim;
 
 #[macro_use]
 mod utils;
+mod http_utils;
 mod config;
 mod package;
 mod build;
