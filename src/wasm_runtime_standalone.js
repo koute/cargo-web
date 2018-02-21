@@ -15,7 +15,7 @@ if( typeof Rust === "undefined" ) {
 }( this, function() {
     {{{loader}}}
 
-    if( typeof window === "undefined" ) {
+    if( typeof window === "undefined" && typeof process === "object" ) {
         const fs = require( "fs" );
         const path = require( "path" );
         const wasm_path = path.join( __dirname, "{{{wasm_filename}}}" );
