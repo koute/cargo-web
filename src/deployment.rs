@@ -185,6 +185,7 @@ impl Deployment {
         // TODO: Support more mime types. Use the mime_guess crate.
         let mime_type =
             if url.ends_with( ".js" ) { "application/javascript" }
+            else if url.ends_with( ".json" ) { "application/json" }
             else if url.ends_with( ".wasm" ) { "application/wasm" }
             else if url.ends_with( ".html" ) { "text/html" }
             else if url.ends_with( ".css" ) { "text/css" }
