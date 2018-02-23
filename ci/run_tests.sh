@@ -62,15 +62,4 @@ else
     cd stdweb
 fi
 
-$CARGO_WEB test --nodejs --target-asmjs-emscripten
-$CARGO_WEB test --target-asmjs-emscripten
-$CARGO_WEB test --nodejs --target-webasm-emscripten
-$CARGO_WEB test --target-asmjs-emscripten
-
-if [ "$IS_NIGHTLY" = "1" ]; then
-    $CARGO_WEB test --nodejs --target-webasm
-
-    cd examples/hasher
-    $CARGO_WEB build --target-webasm
-    node example.js
-fi
+./ci/run_tests.sh
