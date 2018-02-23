@@ -1,15 +1,54 @@
-use std::io::{self, Read};
+use std::io;
 use std::sync::Arc;
 use std::fs::File;
-use std::thread;
 use std::net::SocketAddr;
 use std::time::UNIX_EPOCH;
-use futures::sync::{mpsc, oneshot};
-use futures::Sink;
+use futures::{Poll, Async};
 use futures::future::{self, Future};
-use hyper::{self, Chunk, StatusCode};
+use futures::stream::Stream;
+use hyper::{self, StatusCode};
 use hyper::header::{CacheControl, CacheDirective, ContentLength, ContentType, Expires, Pragma};
-use hyper::server::{Http, NewService, Request, Response, Service};
+use hyper::server::{Http, NewService, Request, Service};
+use memmap::Mmap;
+
+pub enum BodyContents {
+    Owned( Vec< u8 > ),
+    Mmap( Mmap )
+}
+
+impl AsRef< [u8] > for BodyContents {
+    fn as_ref( &self ) -> &[u8] {
+        match *self {
+            BodyContents::Owned( ref buffer ) => &buffer,
+            BodyContents::Mmap( ref map ) => &map
+        }
+    }
+}
+
+pub struct Body( Option< BodyContents > );
+
+impl Stream for Body {
+    type Item = BodyContents;
+    type Error = hyper::error::Error;
+
+    fn poll( &mut self ) -> Poll< Option< Self::Item >, Self::Error > {
+        Ok( Async::Ready( self.0.take() ) )
+    }
+}
+
+impl From< Vec< u8 > > for Body {
+    fn from( buffer: Vec< u8 > ) -> Self {
+        Body( Some( BodyContents::Owned( buffer ) ) )
+    }
+}
+
+impl From< Mmap > for Body {
+    fn from( map: Mmap ) -> Self {
+        Body( Some( BodyContents::Mmap( map ) ) )
+    }
+}
+
+type Response = hyper::server::Response< Body >;
 
 pub type FutureResponse = Box< Future< Item = Response, Error = hyper::Error > >;
 pub type FnHandler = Box< Fn( Request ) -> FutureResponse + Send + Sync >;
@@ -49,7 +88,7 @@ impl NewService for NewSimpleService {
 }
 
 pub struct SimpleServer {
-    server: hyper::Server< NewSimpleService, hyper::Body >
+    server: hyper::Server< NewSimpleService, Body >
 }
 
 impl SimpleServer {
@@ -88,44 +127,25 @@ fn add_no_cache_headers( response: Response ) -> Response {
         .with_header( Pragma::NoCache )
 }
 
-pub fn response_from_file( mime_type: &str, mut file: File ) -> FutureResponse {
-    let ( tx, rx ) = oneshot::channel();
-    let ( mut tx_body, rx_body ) = mpsc::channel( 1 );
-    let response = add_no_cache_headers(Response::new())
+pub fn response_from_file( mime_type: &str, fp: File ) -> FutureResponse {
+    let map = unsafe { Mmap::map( &fp ) }.expect( "mmap failed" );
+    let length = map.len();
+    let body: Body = map.into();
+    let response = add_no_cache_headers( Response::new() )
         .with_header( ContentType( mime_type.parse().unwrap() ) )
-        .with_body( rx_body );
+        .with_header( ContentLength( length as u64 ) )
+        .with_body( body );
 
-    thread::spawn( move || {
-        tx.send( response )
-            .expect( "Send error on successful file read" );
-
-        let mut buf = [ 0u8; 4096 ];
-        while let Ok( n ) = file.read( &mut buf ) {
-            if n == 0 {
-                // eof
-                tx_body.close().expect( "panic closing" );
-                break;
-            } else {
-                let chunk: Chunk = buf.to_vec().into();
-                match tx_body.send( Ok( chunk ) ).wait() {
-                    Ok( t ) => {
-                        tx_body = t;
-                    }
-                    Err( _ ) => {
-                        break;
-                    }
-                };
-            }
-        }
-    } );
-    Box::new( rx.map_err( |e| hyper::Error::from( io::Error::new( io::ErrorKind::Other, e ) ) ) )
+    Box::new( future::ok( response ) )
 }
 
 fn sync_response_from_data( mime_type: &str, data: Vec< u8 > ) -> Response {
-    add_no_cache_headers(Response::new())
+    let length = data.len();
+    let body: Body = data.into();
+    add_no_cache_headers( Response::new() )
         .with_header( ContentType( mime_type.parse().unwrap() ) )
-        .with_header( ContentLength( data.len() as u64 ) )
-        .with_body( data )
+        .with_header( ContentLength( length as u64 ) )
+        .with_body( body )
 }
 
 pub fn response_from_data( mime_type: &str, data: Vec< u8 > ) -> FutureResponse {

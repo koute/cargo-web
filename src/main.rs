@@ -42,6 +42,7 @@ extern crate cargo_metadata;
 extern crate ansi_term;
 
 extern crate semver;
+extern crate memmap;
 
 use std::process::exit;
 use std::env;
