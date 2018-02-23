@@ -1,7 +1,11 @@
 #[macro_use]
 extern crate lazy_static;
 
+extern crate reqwest;
+
 use std::path::PathBuf;
+use std::thread;
+use std::time::{Duration, Instant};
 
 mod utils;
 use utils::*;
@@ -164,4 +168,34 @@ fn main() {
             run( &*NODEJS, &["target/wasm32-unknown-unknown/release/prepend-js-includable-only-once.js"] ).assert_success();
         });
     }
+
+    in_directory( "test-crates/static-files", || {
+        use std::str::FromStr;
+        use reqwest::header::ContentType;
+        use reqwest::StatusCode;
+        use reqwest::mime::Mime;
+
+        run( &*CARGO_WEB, &["build"] ).assert_success();
+        let _child = run_in_the_background( &*CARGO_WEB, &["start"] );
+        let start = Instant::now();
+        let mut response = None;
+        while start.elapsed() < Duration::from_secs( 10 ) && response.is_none() {
+            thread::sleep( Duration::from_millis( 100 ) );
+            response = reqwest::get( "http://localhost:8000" ).ok();
+        }
+
+        let response = response.unwrap();
+        assert_eq!( response.status(), StatusCode::Ok );
+        assert_eq!( *response.headers().get::< ContentType >().unwrap(), ContentType::html() );
+
+        let mut response = reqwest::get( "http://localhost:8000/subdirectory/dummy.json" ).unwrap();
+        assert_eq!( response.status(), StatusCode::Ok );
+        assert_eq!( *response.headers().get::< ContentType >().unwrap(), ContentType::json() );
+        assert_eq!( response.text().unwrap(), "{}" );
+
+        let mut response = reqwest::get( "http://localhost:8000/static-files.js" ).unwrap();
+        assert_eq!( response.status(), StatusCode::Ok );
+        assert_eq!( *response.headers().get::< ContentType >().unwrap(), ContentType( Mime::from_str( "application/javascript" ).unwrap() ) );
+        assert_eq!( response.text().unwrap(), read_to_string( "target/asmjs-unknown-emscripten/debug/static-files.js" ) );
+    });
 }

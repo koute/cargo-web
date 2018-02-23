@@ -1,6 +1,6 @@
 use std::env;
 use std::path::Path;
-use std::process::{Command, ExitStatus};
+use std::process::{Command, ExitStatus, Child};
 use std::ffi::{OsStr, OsString};
 use std::io::{self, Read};
 use std::fs::File;
@@ -129,6 +129,23 @@ pub fn run< E, S >( executable: E, args: &[S] ) -> CommandResult
     CommandResult {
         status
     }
+}
+
+pub struct ChildHandle {
+    child: Child
+}
+
+impl Drop for ChildHandle {
+    fn drop( &mut self ) {
+        let _ = self.child.kill();
+    }
+}
+
+pub fn run_in_the_background< E, S >( executable: E, args: &[S] ) -> ChildHandle
+    where E: AsRef< OsStr >,
+          S: AsRef< OsStr >
+{
+    run_internal( executable, args, |mut cmd| cmd.spawn().map( |child| ChildHandle { child } ) )
 }
 
 pub fn has_cmd( cmd: &str ) -> bool {
