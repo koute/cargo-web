@@ -321,6 +321,10 @@ impl Project {
             ))
         });
 
+        for package in &packages {
+            trace!( "Used package: {}", package.name );
+        }
+
         assert_eq!( *packages[ 0 ], *main_package );
         packages
     }
