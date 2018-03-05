@@ -277,13 +277,15 @@ impl CargoProject {
             let package = &mut project.packages[ package_index ];
             for dependency_id in node.dependencies {
                 let dependency_id = CargoPackageId::new( &dependency_id ).expect( "unparsable dependency package id" );
-                let dependency =
-                    package.dependencies.iter_mut()
-                        .find( |dep| dep.name == dependency_id.name )
-                        .expect( "dependency missing from packages" );
 
-                assert!( dependency.resolved_to.is_none(), "duplicate dependency" );
-                dependency.resolved_to = Some( dependency_id );
+                let mut dependency_found = false;
+                for dependency in package.dependencies.iter_mut().filter( |dep| dep.name == dependency_id.name ) {
+                    assert!( dependency.resolved_to.is_none(), "duplicate dependency" );
+                    dependency.resolved_to = Some( dependency_id.clone() );
+                    dependency_found = true;
+                }
+
+                assert!( dependency_found, "dependency missing from packages" );
             }
         }
 

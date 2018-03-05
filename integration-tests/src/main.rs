@@ -125,6 +125,14 @@ fn main() {
         });
     });
 
+    in_directory( "test-crates/depends-on-prepend-js-two-targets" , || {
+        run( &*CARGO_WEB, &["build", "--target", "asmjs-unknown-emscripten"] ).assert_success();
+        assert_file_contains( &format!( "target/asmjs-unknown-emscripten/debug/depends-on-prepend-js-two-targets.js" ), "alert('THIS IS A TEST');" );
+
+        run( &*CARGO_WEB, &["build", "--target", "wasm32-unknown-emscripten"] ).assert_success();
+        assert_file_contains( &format!( "target/wasm32-unknown-emscripten/debug/depends-on-prepend-js-two-targets.js" ), "alert('THIS IS A TEST');" );
+    });
+
     in_directory( "test-crates/default-target-asmjs-unknown-emscripten", || {
         run( &*CARGO_WEB, &["build"] ).assert_success();
         assert_file_exists( "target/asmjs-unknown-emscripten/debug/default-target-asmjs-unknown-emscripten.js" );
