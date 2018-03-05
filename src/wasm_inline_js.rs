@@ -84,7 +84,13 @@ pub fn process_and_extract( ctx: &mut Context ) -> Vec< JsSnippet > {
     mem::swap( &mut data_entries, &mut ctx.data );
 
     fn add_js_snippet( ctx: &mut Context, value_slice: &[u8], snippet_index_by_hash: &mut HashMap< String, usize >, snippet_index_by_offset: &mut HashMap< i32, usize >, snippets: &mut Vec< Snippet >, offset: i32, type_index: u32 ) {
-        let code = String::from_utf8( value_slice.to_owned() ).unwrap();
+        let code = match String::from_utf8( value_slice.to_owned() ) {
+            Ok( code ) => code,
+            Err( error ) => {
+                panic!( "You have invalid UTF-8 in one of your `js!` snippets! (offset = {}, length = {})", offset, value_slice.len() );
+            }
+        };
+
         let code_hash = hash( &code );
 
         let shim_ty = ctx.fn_ty_by_index( type_index ).unwrap();
