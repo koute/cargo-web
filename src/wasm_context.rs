@@ -627,6 +627,8 @@ impl Context {
                         let url_length = u32::from( pw::VarUint32::deserialize( &mut p ).unwrap() );
                         let url = str::from_utf8( &p[ 0..url_length as usize ] ).expect( "invalid sourceMappingURL" );
                         ctx.source_mapping_url = Some( url.to_owned() );
+                    } else if section.name() == "linking" {
+                        // TODO: Support this section.
                     } else {
                         panic!( "unsupported custom section: '{}'", section.name() );
                     }
