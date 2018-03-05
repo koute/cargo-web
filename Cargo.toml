@@ -12,9 +12,6 @@ categories = ["development-tools", "development-tools::cargo-plugins", "web-prog
 
 exclude = ["build-scripts/**"]
 
-[workspace]
-members = [".", "integration-tests"]
-
 [dependencies]
 clap = "2"
 notify = "4"
