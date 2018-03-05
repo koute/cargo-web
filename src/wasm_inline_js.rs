@@ -137,14 +137,13 @@ pub fn process_and_extract( ctx: &mut Context ) -> Vec< JsSnippet > {
             _ => return true
         };
 
-        let mut value_slice = data.value.as_slice();
-        // Strip a trailing null if present.
-        if value_slice.last().map( |&last_byte| last_byte == 0 ).unwrap_or( false ) {
-            let len = value_slice.len();
-            value_slice = &value_slice[ 0..len - 1 ];
+        let mut slice = data.value.as_slice();
+        let slice = &slice[ 0..slice.iter().position( |&byte| byte == 0 ).unwrap_or( slice.len() ) ];
+        if slice.len() + 1 < data.value.len() {
+            return true;
         }
 
-        add_js_snippet( ctx, value_slice, &mut snippet_index_by_hash, &mut snippet_index_by_offset, &mut snippets, offset, type_index );
+        add_js_snippet( ctx, slice, &mut snippet_index_by_hash, &mut snippet_index_by_offset, &mut snippets, offset, type_index );
         return false;
     });
 
