@@ -83,29 +83,7 @@ pub fn process_and_extract( ctx: &mut Context ) -> Vec< JsSnippet > {
     let mut data_entries = Vec::new();
     mem::swap( &mut data_entries, &mut ctx.data );
 
-    data_entries.retain( |data| {
-        if data.offset.len() != 2 {
-            return true;
-        }
-
-        let (offset, type_index) = match (&data.offset[ 0 ], &data.offset[ 1 ]) {
-            (&Opcode::I32Const( offset ), &Opcode::End) => {
-                if let Some( &type_index ) = snippet_offset_to_type_index.get( &offset ) {
-                    (offset, type_index)
-                } else {
-                    return true;
-                }
-            },
-            _ => return true
-        };
-
-        let mut value_slice = data.value.as_slice();
-        // Strip a trailing null if present.
-        if value_slice.last().map( |&last_byte| last_byte == 0 ).unwrap_or( false ) {
-            let len = value_slice.len();
-            value_slice = &value_slice[ 0..len - 1 ];
-        }
-
+    fn add_js_snippet( ctx: &mut Context, value_slice: &[u8], snippet_index_by_hash: &mut HashMap< String, usize >, snippet_index_by_offset: &mut HashMap< i32, usize >, snippets: &mut Vec< Snippet >, offset: i32, type_index: u32 ) {
         let code = String::from_utf8( value_slice.to_owned() ).unwrap();
         let code_hash = hash( &code );
 
@@ -134,9 +112,60 @@ pub fn process_and_extract( ctx: &mut Context ) -> Vec< JsSnippet > {
             snippet_index_by_hash.insert( code_hash, snippets.len() );
             snippets.push( snippet );
         }
+    }
 
+    // For older Rust nightlies.
+    data_entries.retain( |data| {
+        if data.offset.len() != 2 {
+            return true;
+        }
+
+        let (offset, type_index) = match data.constant_offset() {
+            Some( offset ) => {
+                if let Some( &type_index ) = snippet_offset_to_type_index.get( &offset ) {
+                    (offset, type_index)
+                } else {
+                    return true;
+                }
+            },
+            _ => return true
+        };
+
+        let mut value_slice = data.value.as_slice();
+        // Strip a trailing null if present.
+        if value_slice.last().map( |&last_byte| last_byte == 0 ).unwrap_or( false ) {
+            let len = value_slice.len();
+            value_slice = &value_slice[ 0..len - 1 ];
+        }
+
+        add_js_snippet( ctx, value_slice, &mut snippet_index_by_hash, &mut snippet_index_by_offset, &mut snippets, offset, type_index );
         return false;
     });
+
+    // For newer Rust nightlies.
+    for (offset, type_index) in snippet_offset_to_type_index {
+        if snippet_index_by_offset.contains_key( &offset ) {
+            continue; // Already done.
+        }
+
+        let (data, data_offset) = data_entries.iter()
+            .filter_map( |data| {
+                if let Some( offset ) = data.constant_offset() {
+                    Some( (data, offset) )
+                } else {
+                    None
+                }
+            })
+            .find( |&(data, data_offset)| offset >= data_offset && offset < (data_offset + data.value.len() as i32) )
+            .expect( "js! snippet not found in data section" );
+
+        let relative_offset = offset - data_offset;
+        let slice = &data.value[ relative_offset as usize.. ];
+        let slice = &slice[ 0..slice.iter().position( |&byte| byte == 0 ).unwrap_or( slice.len() ) ];
+
+        // TODO: Purge this with the help of the new "linking" WASM section?
+        add_js_snippet( ctx, slice, &mut snippet_index_by_hash, &mut snippet_index_by_offset, &mut snippets, offset, type_index );
+    }
 
     ctx.data = data_entries;
 

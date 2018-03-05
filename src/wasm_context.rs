@@ -264,6 +264,19 @@ pub struct Data {
     pub value: Vec< u8 >
 }
 
+impl Data {
+    pub fn constant_offset( &self ) -> Option< i32 > {
+        if self.offset.len() != 2 {
+            return None;
+        }
+
+        match (&self.offset[ 0 ], &self.offset[ 1 ]) {
+            (&Opcode::I32Const( offset ), &Opcode::End) => Some( offset ),
+            _ => None
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Context {
     pub types: OrderMap< TypeIndex, FnTy >,
