@@ -47,6 +47,11 @@ jobs:
     - <<: *test
       os: linux
       rust: nightly
+      env: TEST_SUBSET=1
+    - <<: *test
+      os: linux
+      rust: nightly
+      env: TEST_SUBSET=2
     - <<: *test
       os: linux
       rust: beta

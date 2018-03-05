@@ -6,6 +6,8 @@ IFS=$'\n\t'
 export REPOSITORY_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/.."
 export CARGO_WEB=$REPOSITORY_ROOT/target/debug/cargo-web
 
+TEST_SUBSET=${TEST_SUBSET:-0}
+
 ONLY_LOCAL=0
 for ARG in "$@"
 do
@@ -33,33 +35,38 @@ cd $REPOSITORY_ROOT
 
 echo "++ Is Rust from nightly: $IS_NIGHTLY"
 
-cargo test
 cargo build
 
-rustup target add x86_64-apple-darwin
-rustup target add i686-pc-windows-gnu
+if [[ "$TEST_SUBSET" == 0 || "$TEST_SUBSET" == 1 ]]; then
+    cargo test
 
-cargo check --target=x86_64-apple-darwin
-cargo check --target=i686-pc-windows-gnu
+    rustup target add x86_64-apple-darwin
+    rustup target add i686-pc-windows-gnu
 
-echo ""
+    cargo check --target=x86_64-apple-darwin
+    cargo check --target=i686-pc-windows-gnu
 
-cd integration-tests
-cargo run
-cd ..
+    echo ""
 
-echo "++ Basic test crate tests passed!"
+    cd integration-tests
+    cargo run
+    cd ..
 
-if [ "$ONLY_LOCAL" == "1" ]; then
-    echo "++ Will not run further tests since I was called with '--only-local'!"
-    exit 0
+    echo "++ Basic test crate tests passed!"
 fi
 
-if [ -d "../stdweb" ]; then
-    cd ../stdweb
-else
-    git clone --depth 1 https://github.com/koute/stdweb.git
-    cd stdweb
-fi
+if [[ "$TEST_SUBSET" == 0 || "$TEST_SUBSET" == 2 ]]; then
+    if [ "$ONLY_LOCAL" == "1" ]; then
+        echo "++ Will not run further tests since I was called with '--only-local'!"
+        exit 0
+    fi
 
-./ci/run_tests.sh
+    if [ -d "../stdweb" ]; then
+        cd ../stdweb
+    else
+        git clone --depth 1 https://github.com/koute/stdweb.git
+        cd stdweb
+    fi
+
+    ./ci/run_tests.sh
+fi
