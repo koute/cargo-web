@@ -481,14 +481,10 @@ impl Project {
         }
 
         let build_type = self.build_args.build_type;
-        let build_type = if self.backend().is_native_wasm() && build_type == BuildType::Debug {
+        if self.backend().is_native_wasm() && build_type == BuildType::Debug {
             // TODO: Remove this in the future.
-            eprintln!( "warning: debug builds on the wasm32-unknown-unknown are currently totally broken" );
-            eprintln!( "         forcing a release build" );
-            BuildType::Release
-        } else {
-            build_type
-        };
+            eprintln!( "warning: debug builds on the wasm32-unknown-unknown are potentially weird." );
+        }
 
         if !extra_emmaken_cflags.is_empty() {
             // We need to do this through EMMAKEN_CFLAGS since Rust can't handle linker args with spaces.

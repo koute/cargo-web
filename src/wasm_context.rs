@@ -957,6 +957,20 @@ impl Context {
         type_index
     }
 
+    
+    pub fn patch_code_by_index< F >( &mut self, mut callback: F ) where F: for <'r> FnMut( &'r u32, &'r mut Vec< Opcode > ) {
+        for (index, function) in self.functions.iter_mut() {
+            match function {
+                &mut FunctionKind::Definition { ref mut opcodes, .. } => {
+                    callback( index, opcodes );
+                },
+                _ => {}
+            }
+        }
+
+        // TODO: Other places where opcodes are used.
+    }
+
     pub fn patch_code< F >( &mut self, mut callback: F ) where F: for <'r> FnMut( &'r mut Vec< Opcode > ) {
         for function in self.functions.values_mut() {
             match function {

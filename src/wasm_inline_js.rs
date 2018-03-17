@@ -41,7 +41,8 @@ struct Snippet {
 
 pub fn process_and_extract( ctx: &mut Context ) -> Vec< JsSnippet > {
     let mut shim_map: HashMap< FunctionIndex, TypeIndex > = HashMap::new();
-    let mut snippet_offset_to_type_index = HashMap::new();
+    let mut snippet_function_index_to_offset : HashMap<(u32, usize), i32> = HashMap::new();
+    let mut snippet_offset_to_type_index : HashMap<i32, u32> = HashMap::new();
     let mut snippet_index_by_offset = HashMap::new();
     let mut snippet_index_by_hash: HashMap< String, usize > = HashMap::new();
     let mut snippets = Vec::new();
@@ -54,27 +55,48 @@ pub fn process_and_extract( ctx: &mut Context ) -> Vec< JsSnippet > {
         }
     }
 
-    for (_, function) in &ctx.functions {
+   
+    for (&loop_function_index, function) in &ctx.functions {
         if let &FunctionKind::Definition { ref opcodes, .. } = function {
-            for (index, opcode) in opcodes.iter().enumerate() {
-                match opcode {
-                    &Opcode::Call( function_index ) => {
-                        if let Some( &type_index ) = shim_map.get( &function_index ) {
-                            match opcodes[ index - 1 ] {
-                                Opcode::I32Const( offset ) => {
-                                    if let Some( previous_ty ) = snippet_offset_to_type_index.get( &offset ).cloned() {
-                                        if type_index != previous_ty {
-                                            panic!( "internal error: same snippet of JS (by offset) is used with two different shims; please report this!" );
-                                        }
-                                    }
 
-                                    snippet_offset_to_type_index.insert( offset, type_index );
-                                },
-                                _ => panic!( "internal error: unexpected way of calling JS shims; please report this!" )
+            // we have to run a medium-effort interpreter for the wasm because it could store the offset,
+            // and then retreive it right before the Call() instruction, instead of assuming it's immediately
+            // before (like it usually is in release builds)
+            let mut local_map : HashMap<u32, i32> = HashMap::new();
+            let mut local : i32 = 0;
+
+            for ( index, opcode) in opcodes.iter().enumerate() {
+                match opcode {
+                    &Opcode::Call( target_function_index ) => {
+                        let offset = local;
+
+                        if let Some( &type_index ) = shim_map.get( &target_function_index ) {
+                            if let Some( previous_ty ) = snippet_offset_to_type_index.get( &offset ).cloned() {
+                                if type_index != previous_ty {
+                                    panic!( "internal error: same snippet of JS (by offset) is used with two different shims; please report this!" );
+                                }
                             }
+                            
+                            snippet_offset_to_type_index.insert( offset, type_index );
+                            snippet_function_index_to_offset.insert( (loop_function_index, index), offset );
                         }
                     },
-                    _ => {}
+                    &Opcode::I32Const( value ) => {
+                        local = value;
+                    },
+                    &Opcode::SetLocal( index ) => {
+                        let local_value = local_map.entry(index).or_insert(0);
+                        *local_value = local.clone();
+                    },
+                    &Opcode::GetLocal( index ) => {
+                        if let Some( value ) = local_map.get(&index) {
+                            local = value.clone();
+                        } else {
+                            //panic!("Get local at unset location");
+                        }
+                    },
+                    _ => {
+                    }
                 }
             }
         }
@@ -190,7 +212,7 @@ pub fn process_and_extract( ctx: &mut Context ) -> Vec< JsSnippet > {
         ctx.functions.remove( function_index );
     }
 
-    ctx.patch_code( |opcodes| {
+    ctx.patch_code_by_index( |&fn_index, opcodes| {
         let should_process = opcodes.iter().any( |opcode| {
             match opcode {
                 &Opcode::Call( function_index ) => shim_map.contains_key( &function_index ),
@@ -206,14 +228,17 @@ pub fn process_and_extract( ctx: &mut Context ) -> Vec< JsSnippet > {
         let mut old_opcodes = Vec::new();
         mem::swap( opcodes, &mut old_opcodes );
 
-        for opcode in old_opcodes {
+        for (opcode_index, opcode) in old_opcodes.into_iter().enumerate() {
             match opcode {
                 Opcode::Call( function_index ) if shim_map.contains_key( &function_index ) => {
-                    // Pop the last argument which was a pointer to the code.
-                    let offset = match new_opcodes.pop().unwrap() {
-                        Opcode::I32Const( offset ) => offset,
+                    let offset = snippet_function_index_to_offset.get(&(fn_index, opcode_index)).unwrap();
+
+                    match new_opcodes.pop().unwrap() {
+                        Opcode::I32Const( _ ) => {},
+                        Opcode::GetLocal( _ ) => {},
                         _ => panic!()
                     };
+
                     let &snippet_index = snippet_index_by_offset.get( &offset ).unwrap();
                     let snippet = &snippets[ snippet_index ];
                     new_opcodes.push( Opcode::Call( snippet.function_index ) );
