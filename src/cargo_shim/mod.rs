@@ -306,15 +306,15 @@ impl CargoProject {
             }
         }
 
-        let default_package_index = default_package
-            .expect( "cannot figure out which package is the default" ).0;
+        if let Some( (default_package_index, _) ) = default_package {
+            project.packages[ default_package_index ].is_default = true;
+        }
 
-        project.packages[ default_package_index ].is_default = true;
         Ok( project )
     }
 
-    pub fn default_package( &self ) -> &CargoPackage {
-        self.packages.iter().find( |package| package.is_default ).unwrap()
+    pub fn default_package( &self ) -> Option< &CargoPackage > {
+        self.packages.iter().find( |package| package.is_default )
     }
 
     pub fn used_packages( &self, triplet: &str, main_package: &CargoPackage, profile: Profile ) -> Vec< &CargoPackage > {

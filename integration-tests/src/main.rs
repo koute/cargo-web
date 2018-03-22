@@ -206,4 +206,14 @@ fn main() {
         assert_eq!( *response.headers().get::< ContentType >().unwrap(), ContentType( Mime::from_str( "application/javascript" ).unwrap() ) );
         assert_eq!( response.text().unwrap(), read_to_string( "target/asmjs-unknown-emscripten/debug/static-files.js" ) );
     });
+
+    in_directory( "test-crates/virtual-manifest", || {
+        each_target( |target| {
+            run( &*CARGO_WEB, &["build"] ).assert_failure();
+            run( &*CARGO_WEB, &["build", "-p", "child"] ).assert_success();
+
+            run( &*CARGO_WEB, &["test"] ).assert_failure();
+            run( &*CARGO_WEB, &["test", "-p", "child"] ).assert_success();
+        });
+    });
 }

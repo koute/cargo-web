@@ -214,8 +214,7 @@ fn get_package< 'a >( name: Option< &str >, project: &'a CargoProject ) -> Resul
             Some( index ) => Ok( index )
         }
     } else {
-        let index = project.packages.iter().position( |package| package.is_default ).unwrap();
-        Ok( index )
+        project.packages.iter().position( |package| package.is_default ).ok_or( Error::NoDefaultPackage )
     }
 }
 
