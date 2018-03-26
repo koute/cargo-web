@@ -291,6 +291,10 @@ impl Project {
         &self.project.packages[ self.default_package ]
     }
 
+    pub fn target_directory( &self ) -> &Path {
+        self.project.target_directory.as_ref()
+    }
+
     pub fn target_or_select< 'a, F >( &'a self, filter: F ) -> Result< Vec< &'a CargoTarget >, Error >
         where for< 'r > F: Fn( &'r CargoTarget ) -> bool
     {

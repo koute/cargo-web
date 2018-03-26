@@ -26,7 +26,7 @@ pub fn command_deploy< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), E
     let result = project.build( &config, target )?;
 
     let deployment = Deployment::new( package, target, &result )?;
-    let directory = package.crate_root.join( "target" ).join( "deploy" );
+    let directory = project.target_directory().join( "deploy" );
     if directory.exists() {
         let entries = fs::read_dir( &directory ).map_err( |error| Error::CannotRemoveDirectory( directory.clone(), error ) )?; // TODO: Another error?
         for entry in entries {

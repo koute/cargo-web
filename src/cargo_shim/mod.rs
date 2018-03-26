@@ -46,7 +46,8 @@ pub enum TargetKind {
 
 #[derive(Clone, Debug)]
 pub struct CargoProject {
-    pub packages: Vec< CargoPackage >
+    pub packages: Vec< CargoPackage >,
+    pub target_directory: String
 }
 
 #[derive(Clone, Debug)]
@@ -211,6 +212,7 @@ impl CargoProject {
         }
 
         let mut project = CargoProject {
+            target_directory: metadata.target_directory,
             packages: metadata.packages.into_iter().map( |package| {
                 let manifest_path: PathBuf = package.manifest_path.into();
                 let is_workspace_member = workspace_members.contains( &package.name );
