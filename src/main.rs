@@ -331,13 +331,12 @@ fn main() {
 
     let mut prepare_emscripten_subcommand =
         SubCommand::with_name( "prepare-emscripten" )
-            .about( "Prepares and installs emscripten" );
+            .about( "Fetches and installs prebuilt Emscripten packages" );
 
     build_subcommand = add_shared_build_params( build_subcommand );
     test_subcommand = add_shared_build_params( test_subcommand );
     start_subcommand = add_shared_build_params( start_subcommand );
     deploy_subcommand = add_shared_build_params( deploy_subcommand );
-    prepare_emscripten_subcommand = add_shared_build_params( prepare_emscripten_subcommand );
 
     let matches = App::new( "cargo-web" )
         .version( env!( "CARGO_PKG_VERSION" ) )
