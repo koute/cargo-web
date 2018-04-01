@@ -84,6 +84,7 @@ mod cmd_build;
 mod cmd_start;
 mod cmd_test;
 mod cmd_deploy;
+mod cmd_prepare_emscripten;
 
 fn add_shared_build_params< 'a, 'b >( app: App< 'a, 'b > ) -> App< 'a, 'b > {
     return app
@@ -328,6 +329,10 @@ fn main() {
         SubCommand::with_name( "deploy" )
             .about( "Deploys your project so that its ready to be served statically" );
 
+    let mut prepare_emscripten_subcommand =
+        SubCommand::with_name( "prepare-emscripten" )
+            .about( "Fetches and installs prebuilt Emscripten packages" );
+
     build_subcommand = add_shared_build_params( build_subcommand );
     test_subcommand = add_shared_build_params( test_subcommand );
     start_subcommand = add_shared_build_params( start_subcommand );
@@ -341,6 +346,7 @@ fn main() {
         .subcommand( test_subcommand )
         .subcommand( start_subcommand )
         .subcommand( deploy_subcommand )
+        .subcommand( prepare_emscripten_subcommand )
         .get_matches_from( args );
 
     let result = if let Some( matches ) = matches.subcommand_matches( "build" ) {
@@ -351,6 +357,8 @@ fn main() {
         cmd_start::command_start( matches )
     } else if let Some( matches ) = matches.subcommand_matches( "deploy" ) {
         cmd_deploy::command_deploy( matches )
+    } else if let Some( matches ) = matches.subcommand_matches( "prepare-emscripten" ) {
+        cmd_prepare_emscripten::command_prepare_emscripten()
     } else {
         return;
     };
