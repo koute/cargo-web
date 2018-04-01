@@ -1,0 +1,5 @@
+[target.asmjs-unknown-emscripten]
+link-args = ["-s", "EXPORT_NAME='CustomExportNameAsmJs'"]
+
+[target.wasm32-unknown-emscripten]
+link-args = ["-s", "EXPORT_NAME='CustomExportNameWasm'"]

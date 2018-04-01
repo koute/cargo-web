@@ -7,7 +7,7 @@ use std::thread;
 use std::sync::mpsc::{self, channel};
 use std::fmt;
 use std::error::Error;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use websocket::{Message, OwnedMessage};
 use websocket::client::ClientBuilder;
@@ -155,10 +155,31 @@ fn owned_message_to_json( message: Result< OwnedMessage, CommunicationError > ) 
 
 impl Connection {
     pub fn connect( json_url: &str ) -> Result< Self , ConnectionError > {
-        let mut response = reqwest::get( json_url )?;
-        let text = response.text()?;
-        let json: Value = serde_json::from_str( &text ).unwrap();
-        let url = json.get( 0 ).unwrap().get( "webSocketDebuggerUrl" ).unwrap().as_str().unwrap();
+        let start = Instant::now();
+        let mut initial_json = None;
+        while start.elapsed() < Duration::from_secs( 3 ) {
+            let mut response = reqwest::get( json_url )?;
+            let text = response.text()?;
+            let json: Value = serde_json::from_str( &text ).unwrap();
+
+            debug!( "Got initial response: {:?}", json );
+
+            // This tends to be race-y and very rarely fails,
+            // so we'll retry a few times.
+            if json.get( 0 ).is_none() {
+                thread::sleep( Duration::from_millis( 100 ) );
+                continue;
+            } else {
+                initial_json = Some( json );
+                break;
+            }
+        }
+
+        let json = initial_json.expect( "timed out while waiting for Chromium to give us websocket debugger URL" );
+        let url = json.get( 0 ).expect( "can't find first element" )
+            .get( "webSocketDebuggerUrl" ).expect( "no webSocketDebuggerUrl found" )
+            .as_str().expect( "webSocketDebuggerUrl is not a string" );
+
         debug!( "Got websocket debugger URL {}", url );
 
         let client = ClientBuilder::new( &url ).unwrap().connect_insecure()?;

@@ -15,8 +15,9 @@ use notify::{
 };
 
 use clap;
-use rouille;
 use handlebars::Handlebars;
+
+use hyper::StatusCode;
 
 use cargo_shim::{
     Profile,
@@ -25,13 +26,19 @@ use cargo_shim::{
     CargoTarget
 };
 
-use build::{BuildArgs, Project};
+use build::{BuildArgs, Project, PathKind};
+use http_utils::{
+    SimpleServer,
+    response_from_data,
+    response_from_status,
+    response_from_file
+};
+
 use deployment::{Deployment, ArtifactKind};
 use error::Error;
 
 fn auto_reload_code( hash: u32 ) -> String {
-    // TODO: We probably should do this with with Websockets,
-    // but it isn't possible when using rouille as a web server. ):
+    // TODO: We probably should do this with with Websockets.
     const TEMPLATE: &'static str = r##"
         window.addEventListener( "load", function() {
             var current_build_hash = {{{current_build_hash}}};
@@ -96,19 +103,28 @@ impl Counter {
     }
 }
 
+impl From< PathKind > for RecursiveMode {
+    fn from( mode: PathKind ) -> Self {
+        match mode {
+            PathKind::File => RecursiveMode::NonRecursive,
+            PathKind::Directory => RecursiveMode::Recursive
+        }
+    }
+}
+
 struct LastBuild {
     counter: Counter,
     deployment: Deployment,
-    build_args: BuildArgs,
-    package: CargoPackage,
+    project: Project,
     target: CargoTarget
 }
 
-impl LastBuild {
-    fn new( project: Project, counter: Counter ) -> Result< Self, Error > {
-        let package = project.package();
-        let targets = project.target_or_select( None, |target| {
-            target.kind == TargetKind::Bin
+fn select_package_and_target( project: &Project ) -> Result< (CargoPackage, CargoTarget), Error > {
+    let package = project.package().clone();
+    let target = {
+        let targets = project.target_or_select( |target| {
+            target.kind == TargetKind::Bin ||
+            (target.kind == TargetKind::CDyLib && project.backend().is_native_wasm())
         })?;
 
         if targets.is_empty() {
@@ -117,17 +133,23 @@ impl LastBuild {
             );
         }
 
-        let config = project.aggregate_configuration( package, Profile::Main )?;
-        let target = targets[ 0 ];
-        let result = project.build( &config, package, target )?;
-        let deployment = Deployment::new( package, target, &result )?;
+        targets[ 0 ].clone()
+    };
+
+    Ok( (package, target) )
+}
+
+impl LastBuild {
+    fn new( project: Project, package: CargoPackage, target: CargoTarget, counter: Counter ) -> Result< Self, Error > {
+        let config = project.aggregate_configuration( Profile::Main )?;
+        let result = project.build( &config, &target )?;
+        let deployment = Deployment::new( &package, &target, &result )?;
 
         Ok( LastBuild {
             counter,
             deployment,
-            build_args: project.build_args().clone(),
-            package: package.clone(),
-            target: target.clone()
+            project,
+            target
         })
     }
 
@@ -138,20 +160,29 @@ impl LastBuild {
 
 fn monitor_for_changes_and_rebuild(
     last_build: Arc< Mutex< LastBuild > >
-) -> RecommendedWatcher {
+) -> Arc< Mutex< RecommendedWatcher > > {
     let (tx, rx) = channel();
     let mut watcher: RecommendedWatcher = Watcher::new( tx, Duration::from_millis( 500 ) ).unwrap();
 
-    // TODO: Support local dependencies.
-    // TODO: Support Cargo.toml reloading.
-    {
+    let last_paths_to_watch = {
         let last_build = last_build.lock().unwrap();
-        watcher.watch( &last_build.target.source_directory, RecursiveMode::Recursive ).unwrap();
-        watcher.watch( &last_build.package.manifest_path, RecursiveMode::NonRecursive ).unwrap();
-    }
+        let paths_to_watch = last_build.project.paths_to_watch( &last_build.target );
+        debug!( "Found paths to watch: {:#?}", paths_to_watch );
+
+        for &(ref path, ref mode) in &paths_to_watch {
+            watcher.watch( &path, (*mode).into() ).unwrap()
+        }
+
+        paths_to_watch.clone()
+    };
+
+    let watcher = Arc::new( Mutex::new( watcher ) );
+    let weak_watcher = Arc::downgrade( &watcher );
 
     thread::spawn( move || {
         let rx = rx;
+        let mut last_paths_to_watch = last_paths_to_watch;
+
         while let Ok( event ) = rx.recv() {
             match event {
                 DebouncedEvent::Create( _ ) |
@@ -161,17 +192,36 @@ fn monitor_for_changes_and_rebuild(
                 _ => continue
             };
 
-            println_err!( "==== Triggering `cargo build` ====" );
+            eprintln!( "==== Triggering `cargo build` ====" );
             let (counter, build_args) = {
                 let last_build = last_build.lock().unwrap();
                 let counter = last_build.counter.next();
-                let build_args = last_build.build_args.clone();
+                let build_args = last_build.project.build_args().clone();
                 (counter, build_args)
             };
 
             if let Ok( project ) = build_args.load_project() {
-                if let Ok( new_build ) = LastBuild::new( project, counter ) {
-                    *last_build.lock().unwrap() = new_build;
+                if let Ok( (package, target) ) = select_package_and_target( &project ) {
+                    let mut new_paths_to_watch = project.paths_to_watch( &target );
+
+                    if new_paths_to_watch != last_paths_to_watch {
+                        debug!( "Paths to watch have changed; new paths to watch: {:#?}", new_paths_to_watch );
+                        if let Some( watcher ) = weak_watcher.upgrade() {
+                            let mut watcher = watcher.lock().expect( "watcher was poisoned" );
+                            for (path, _) in last_paths_to_watch {
+                                let _ = watcher.unwatch( path );
+                            }
+
+                            for &(ref path, ref mode) in &new_paths_to_watch {
+                                watcher.watch( &path, (*mode).into() ).unwrap()
+                            }
+                        }
+                        last_paths_to_watch = new_paths_to_watch;
+                    }
+
+                    if let Ok( new_build ) = LastBuild::new( project, package, target, counter ) {
+                        *last_build.lock().unwrap() = new_build;
+                    }
                 }
             }
         }
@@ -191,25 +241,34 @@ pub fn command_start< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Er
     let build_args = BuildArgs::new( matches )?;
     let project = build_args.load_project()?;
 
-    let last_build = Arc::new( Mutex::new( LastBuild::new( project, Counter::new() )? ) );
-    let target = last_build.lock().unwrap().target.clone();
+    let last_build = {
+        let (package, target) = select_package_and_target( &project )?;
+        LastBuild::new( project, package, target, Counter::new() )?
+    };
 
-    #[allow(unused_variables)]
-    let watcher = monitor_for_changes_and_rebuild( last_build.clone() );
+    let last_build = Arc::new( Mutex::new( last_build ) );
+    let (target, js_url) = {
+        let last_build = last_build.lock().unwrap();
+        let target = last_build.target.clone();
+        let js_url = last_build.deployment.js_url().to_owned();
+        (target, js_url)
+    };
+
+    let _watcher = monitor_for_changes_and_rebuild( last_build.clone() );
 
     let address = address_or_default( matches );
-    let server = rouille::Server::new( &address, move |request| {
-        let url = request.url();
+    let server = SimpleServer::new(&address, move |request| {
+        let path = request.path();
         let last_build = last_build.lock().unwrap();
 
-        if url == "/__cargo-web__/build_hash" {
+        if path == "/__cargo-web__/build_hash" {
             let data = format!( "{}", last_build.get_build_hash() );
-            return rouille::Response::from_data( "application/text", data ).with_no_cache();
+            return response_from_data("application/text", data.into_bytes());
         }
 
-        debug!( "Received a request for {:?}", url );
-        if let Some( mut artifact ) = last_build.deployment.get_by_url( &url ) {
-            if auto_reload && (url == "/" || url == "/index.html") {
+        debug!( "Received a request for {:?}", path );
+        if let Some( mut artifact ) = last_build.deployment.get_by_url(&path) {
+            if auto_reload && (path == "/" || path == "/index.html") {
                 let result = artifact.map_text( |text| {
                     let injected_code = auto_reload_code( last_build.get_build_hash() );
                     text.replace( "<head>", &format!( "<head><script>{}</script>", injected_code ) )
@@ -217,38 +276,39 @@ pub fn command_start< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Er
                 artifact = match result {
                     Ok( artifact ) => artifact,
                     Err( error ) => {
-                        warn!( "Cannot read {:?}: {:?}", url, error );
-                        return rouille::Response::text( "Internal Server Error" ).with_status_code( 500 ).with_no_cache();
+                        warn!( "Cannot read {:?}: {:?}", path, error );
+                        return response_from_status(StatusCode::InternalServerError);
                     }
                 }
             }
 
             match artifact.kind {
-                ArtifactKind::Data( mut data ) => {
-                    rouille::Response::from_data( artifact.mime_type, data ).with_no_cache()
+                ArtifactKind::Data( data ) => {
+                    return response_from_data(artifact.mime_type, data);
                 },
+
                 ArtifactKind::File( fp ) => {
-                    rouille::Response::from_file( artifact.mime_type, fp ).with_no_cache()
+                    return response_from_file(artifact.mime_type, fp);
                 }
             }
         } else {
-            rouille::Response::empty_404().with_no_cache()
+            response_from_status(StatusCode::NotFound)
         }
-    }).unwrap();
+    });
 
-    println_err!( "" );
-    println_err!( "If you need to serve any extra files put them in the 'static' directory" );
-    println_err!( "in the root of your crate; they will be served alongside your application." );
+    eprintln!( "" );
+    eprintln!( "If you need to serve any extra files put them in the 'static' directory" );
+    eprintln!( "in the root of your crate; they will be served alongside your application." );
     match target.kind {
-        TargetKind::Example => println_err!( "You can also put a '{}-static' directory in your 'examples' directory.", target.name ),
-        TargetKind::Bin => println_err!( "You can also put a 'static' directory in your 'src' directory." ),
+        TargetKind::Example => eprintln!( "You can also put a '{}-static' directory in your 'examples' directory.", target.name ),
+        TargetKind::Bin | TargetKind::CDyLib => eprintln!( "You can also put a 'static' directory in your 'src' directory." ),
         _ => unreachable!()
     };
-    println_err!( "" );
-    println_err!( "Your application is being served at '/js/app.js'. It will be automatically" );
-    println_err!( "rebuilt if you make any changes in your code." );
-    println_err!( "" );
-    println_err!( "You can access the web server at `http://{}`.", &address );
+    eprintln!( "" );
+    eprintln!( "Your application is being served at '/{}'. It will be automatically", js_url );
+    eprintln!( "rebuilt if you make any changes in your code." );
+    eprintln!( "" );
+    eprintln!( "You can access the web server at `http://{}`.", &address );
 
     server.run();
 

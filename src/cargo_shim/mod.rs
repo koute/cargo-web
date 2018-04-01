@@ -37,6 +37,7 @@ pub enum Profile {
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum TargetKind {
     Lib,
+    CDyLib,
     Bin,
     Example,
     Test,
@@ -45,7 +46,8 @@ pub enum TargetKind {
 
 #[derive(Clone, Debug)]
 pub struct CargoProject {
-    pub packages: Vec< CargoPackage >
+    pub packages: Vec< CargoPackage >,
+    pub target_directory: String
 }
 
 #[derive(Clone, Debug)]
@@ -210,6 +212,7 @@ impl CargoProject {
         }
 
         let mut project = CargoProject {
+            target_directory: metadata.target_directory,
             packages: metadata.packages.into_iter().map( |package| {
                 let manifest_path: PathBuf = package.manifest_path.into();
                 let is_workspace_member = workspace_members.contains( &package.name );
@@ -225,7 +228,10 @@ impl CargoProject {
                             name: target.name,
                             kind: match target.kind[ 0 ].as_str() {
                                 "lib" => TargetKind::Lib,
-                                "cdylib" => TargetKind::Lib,
+                                "rlib" => TargetKind::Lib,
+                                "cdylib" => TargetKind::CDyLib,
+                                "dylib" => TargetKind::Lib,
+                                "staticlib" => TargetKind::Lib,
                                 "bin" => TargetKind::Bin,
                                 "example" => TargetKind::Example,
                                 "test" => TargetKind::Test,
@@ -273,13 +279,15 @@ impl CargoProject {
             let package = &mut project.packages[ package_index ];
             for dependency_id in node.dependencies {
                 let dependency_id = CargoPackageId::new( &dependency_id ).expect( "unparsable dependency package id" );
-                let dependency =
-                    package.dependencies.iter_mut()
-                        .find( |dep| dep.name == dependency_id.name )
-                        .expect( "dependency missing from packages" );
 
-                assert!( dependency.resolved_to.is_none(), "duplicate dependency" );
-                dependency.resolved_to = Some( dependency_id );
+                let mut dependency_found = false;
+                for dependency in package.dependencies.iter_mut().filter( |dep| dep.name == dependency_id.name ) {
+                    assert!( dependency.resolved_to.is_none(), "duplicate dependency" );
+                    dependency.resolved_to = Some( dependency_id.clone() );
+                    dependency_found = true;
+                }
+
+                assert!( dependency_found, "dependency missing from packages" );
             }
         }
 
@@ -300,15 +308,15 @@ impl CargoProject {
             }
         }
 
-        let default_package_index = default_package
-            .expect( "cannot figure out which package is the default" ).0;
+        if let Some( (default_package_index, _) ) = default_package {
+            project.packages[ default_package_index ].is_default = true;
+        }
 
-        project.packages[ default_package_index ].is_default = true;
         Ok( project )
     }
 
-    pub fn default_package( &self ) -> &CargoPackage {
-        self.packages.iter().find( |package| package.is_default ).unwrap()
+    pub fn default_package( &self ) -> Option< &CargoPackage > {
+        self.packages.iter().find( |package| package.is_default )
     }
 
     pub fn used_packages( &self, triplet: &str, main_package: &CargoPackage, profile: Profile ) -> Vec< &CargoPackage > {
@@ -431,6 +439,7 @@ fn profile_to_arg( profile: Profile ) -> &'static str {
 pub fn target_to_build_target( target: &CargoTarget, profile: Profile ) -> BuildTarget {
     match target.kind {
         TargetKind::Lib => BuildTarget::Lib( target.name.clone(), profile ),
+        TargetKind::CDyLib => BuildTarget::Lib( target.name.clone(), profile ),
         TargetKind::Bin => BuildTarget::Bin( target.name.clone(), profile ),
         TargetKind::Example => BuildTarget::ExampleBin( target.name.clone() ),
         TargetKind::Test => BuildTarget::IntegrationTest( target.name.clone() ),
@@ -683,7 +692,9 @@ impl BuildConfig {
         // the `.wasm` file as an artifact.
         if status == 0 && self.triplet.as_ref().map( |triplet| triplet == "wasm32-unknown-emscripten" ).unwrap_or( false ) {
             match self.build_target {
-                BuildTarget::Bin( _, Profile::Test ) | BuildTarget::Lib( _, Profile::Test ) => {
+                BuildTarget::Bin( _, Profile::Test ) |
+                BuildTarget::Lib( _, Profile::Test ) |
+                BuildTarget::IntegrationTest( _ ) => {
                     if find_artifact( &artifacts, "wasm" ).is_none() {
                         if let Some( (artifact_index, filename_index) ) = find_artifact( &artifacts, "js" ) {
                             let wasm_path = {
@@ -694,6 +705,7 @@ impl BuildConfig {
 
                             assert!( wasm_path.exists(), "internal error: wasm doesn't exist where I expected it to be" );
                             artifacts[ artifact_index ].filenames.push( wasm_path.to_str().unwrap().to_owned() );
+                            debug!( "Found `.wasm` test artifact: {:?}", wasm_path );
                         }
                     }
                 },

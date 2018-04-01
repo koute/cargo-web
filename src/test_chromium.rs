@@ -6,9 +6,10 @@ use std::time::Duration;
 use std::thread;
 use std::time::Instant;
 use std::io::{BufRead, BufReader};
+use std::net::SocketAddr;
 use std::ffi::OsStr;
 
-use rouille;
+use hyper::StatusCode;
 use tempdir::TempDir;
 use handlebars::Handlebars;
 use serde_json::{self, Value};
@@ -21,7 +22,12 @@ use error::Error;
 use utils::{
     read,
     read_bytes,
-    find_cmd
+    find_cmd,
+};
+use http_utils::{
+    SimpleServer,
+    response_from_status,
+    response_from_data
 };
 use chrome_devtools::{Connection, Reply, ReplyError, ConsoleApiCalledBody, ExceptionThrownBody};
 
@@ -74,30 +80,29 @@ pub fn test_in_chromium(
     let server_app_wasm = app_wasm.clone();
     let server_wasm_url = wasm_url.clone();
 
-    let server = rouille::Server::new( "localhost:0", move |request| {
-        let url = request.url();
-        let response = if url == "/" || url == "index.html" {
-            rouille::Response::html( test_index.clone() )
-        } else if url == "/js/app.js" {
-            let data = server_app_js.lock().unwrap().clone();
-            rouille::Response::from_data( "application/javascript", data )
-        } else {
-            match *server_wasm_url.lock().unwrap() {
-                Some( ref wasm_url ) if url == *wasm_url => {
-                    let data = server_app_wasm.lock().unwrap().as_ref().unwrap().clone();
-                    rouille::Response::from_data( "application/wasm", data )
-                },
-                _ => rouille::Response::empty_404()
-            }
-        };
-
-        response.with_no_cache()
-    }).unwrap();
-
-    let server_address = server.server_addr();
+    let (addr_tx, addr_rx) = channel();
     thread::spawn( move || {
+        let server = SimpleServer::new(&"127.0.0.1:0".parse().unwrap(), move |request| {
+            let path = request.path();
+            if path == "/" || path == "index.html" {
+                response_from_data( "text/html", test_index.clone().into_bytes() )
+            } else if path == "/js/app.js" {
+                let data = server_app_js.lock().unwrap().clone();
+                response_from_data( "application/javascript", data.into_bytes() )
+            } else {
+                match *server_wasm_url.lock().unwrap() {
+                    Some( ref server_wasm_url ) if path == *server_wasm_url => {
+                        let data = server_app_wasm.lock().unwrap().as_ref().unwrap().clone();
+                        response_from_data( "application/wasm", data )
+                    },
+                    _ => response_from_status(StatusCode::NotFound)
+                }
+            }
+        });
+        addr_tx.send(server.server_addr()).unwrap();
         server.run();
     });
+    let server_address: SocketAddr = addr_rx.recv().unwrap();
 
     let artifact = build.artifacts().iter()
         .find( |artifact| artifact.extension().map( |ext| ext == "js" ).unwrap_or( false ) )
@@ -206,7 +211,7 @@ pub fn test_in_chromium(
                 finished = true;
                 let status = body.get( "result" ).unwrap().get( "value" ).unwrap().as_u64().unwrap();
                 if status != 0 {
-                    println_err!( "error: process exited with a status of {}", status );
+                    eprintln!( "error: process exited with a status of {}", status );
                     *any_failure = true;
                 }
                 break;
@@ -224,14 +229,14 @@ pub fn test_in_chromium(
             },
             Reply::Event { ref method, ref body } if method == "Runtime.exceptionThrown" => {
                 let body: ExceptionThrownBody = serde_json::from_value( body.clone() ).expect( "Failed to parse `Runtime.exceptionThrown` event" );
-                println_err!( "error: unhandled exception thrown" );
+                eprintln!( "error: unhandled exception thrown" );
                 if let Some( exception ) = body.exception_details.exception {
                     if let Some( description ) = exception.description {
-                        println_err!( "error:     {}", description );
+                        eprintln!( "error:     {}", description );
                     }
                 }
                 if let Some( url ) = body.exception_details.url {
-                    println_err!( "error: source: {}:{}:{}", url, body.exception_details.line_number, body.exception_details.column_number );
+                    eprintln!( "error: source: {}:{}:{}", url, body.exception_details.line_number, body.exception_details.column_number );
                 }
                 // TODO: Better error message.
                 *any_failure = true;
@@ -283,7 +288,7 @@ pub fn test_in_chromium(
     }
 
     if !finished {
-        println_err!( "error: tests timed out!" );
+        eprintln!( "error: tests timed out!" );
         *any_failure = true;
     }
 

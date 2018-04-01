@@ -1,8 +1,9 @@
 use std::env;
 use std::path::Path;
-use std::process::{Command, ExitStatus};
+use std::process::{Command, ExitStatus, Child};
 use std::ffi::{OsStr, OsString};
-use std::io;
+use std::io::{self, Read};
+use std::fs::File;
 
 #[cfg(windows)]
 pub const RUSTC_EXE: &'static str = "rustc.exe";
@@ -130,6 +131,23 @@ pub fn run< E, S >( executable: E, args: &[S] ) -> CommandResult
     }
 }
 
+pub struct ChildHandle {
+    child: Child
+}
+
+impl Drop for ChildHandle {
+    fn drop( &mut self ) {
+        let _ = self.child.kill();
+    }
+}
+
+pub fn run_in_the_background< E, S >( executable: E, args: &[S] ) -> ChildHandle
+    where E: AsRef< OsStr >,
+          S: AsRef< OsStr >
+{
+    run_internal( executable, args, |mut cmd| cmd.spawn().map( |child| ChildHandle { child } ) )
+}
+
 pub fn has_cmd( cmd: &str ) -> bool {
     let path = env::var_os( "PATH" ).unwrap_or( OsString::new() );
     env::split_paths( &path ).map( |p| {
@@ -141,4 +159,34 @@ pub fn has_cmd( cmd: &str ) -> bool {
 
 pub fn find_cmd< 'a >( cmds: &[ &'a str ] ) -> Option< &'a str > {
     cmds.into_iter().map( |&s| s ).filter( |&s| has_cmd( s ) ).next()
+}
+
+pub fn read_to_string< P: AsRef< Path > >( path: P ) -> String {
+    let path = path.as_ref();
+    let mut fp = match File::open( path ) {
+        Ok( fp ) => fp,
+        Err( error ) => panic!( "Cannot open {:?}: {}", path, error )
+    };
+
+    let mut output = String::new();
+    if let Err( error ) = fp.read_to_string( &mut output ) {
+        panic!( "Cannot read {:?}: {:?}", path, error );
+    }
+
+    output
+}
+
+pub fn assert_file_contains< P: AsRef< Path > >( path: P, pattern: &str ) {
+    let path = path.as_ref();
+    let contents = read_to_string( path );
+    if !contents.contains( pattern ) {
+        panic!( "File {:?} doesn't contain the expected string: {:?}", path, pattern );
+    }
+}
+
+pub fn assert_file_exists< P: AsRef< Path > >( path: P ) {
+    let path = path.as_ref();
+    if !path.exists() {
+        panic!( "File {:?} doesn't exist", path );
+    }
 }

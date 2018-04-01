@@ -16,21 +16,26 @@ pub fn command_deploy< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), E
     let project = build_args.load_project()?;
 
     let package = project.package();
-    let targets = project.target_or_select( None, |target| {
-        target.kind == TargetKind::Bin
+    let targets = project.target_or_select( |target| {
+        target.kind == TargetKind::Bin ||
+        (target.kind == TargetKind::CDyLib && project.backend().is_native_wasm())
     })?;
 
-    let config = project.aggregate_configuration( package, Profile::Main )?;
+    let config = project.aggregate_configuration( Profile::Main )?;
     let target = targets[ 0 ];
-    let result = project.build( &config, package, target )?;
+    let result = project.build( &config, target )?;
 
     let deployment = Deployment::new( package, target, &result )?;
-    let directory = package.crate_root.join( "target" ).join( "deploy" );
-    match fs::remove_dir_all( &directory ) {
-        Ok(()) => {},
-        Err( error ) => {
-            if directory.exists() {
-                return Err( Error::CannotRemoveDirectory( directory, error ) );
+    let directory = project.target_directory().join( "deploy" );
+    if directory.exists() {
+        let entries = fs::read_dir( &directory ).map_err( |error| Error::CannotRemoveDirectory( directory.clone(), error ) )?; // TODO: Another error?
+        for entry in entries {
+            let entry = entry.expect( "cannot unwrap directory entry" );
+            let path = entry.path();
+            if path.is_dir() {
+                fs::remove_dir_all( &path ).map_err( |error| Error::CannotRemoveDirectory( path.clone(), error ) )?;
+            } else {
+                fs::remove_file( &path ).map_err( |error| Error::CannotRemoveFile( path.clone(), error ) )?;
             }
         }
     }

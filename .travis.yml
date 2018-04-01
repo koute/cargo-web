@@ -1,20 +1,64 @@
 language: rust
 
-cache:
-  cargo: true
-  directories:
-    - /home/travis/.local/share/cargo-web/emscripten
-
 dist: trusty
 sudo: false
-addons:
-  chrome: stable
 
-rust:
-  - nightly
-  - stable
-  - beta
+custom:
+  test: &test
+    stage: test
+    cache:
+      cargo: true
+      directories:
+        - /home/travis/.local/share/cargo-web/emscripten
+    addons:
+      chrome: stable
+    script:
+      - nvm install 9
+      - ./ci/run_tests.sh
+  deploy: &deploy
+    stage: deploy
+    if: (tag IS present)
+    rust: stable
+    script: ./ci/build_for_deployment.sh
+    deploy:
+      provider: releases
+      # To generate the API key:
+      #   1. On Github: Settings -> Developer settings -> Personal access tokens -> Generate new token
+      #   2. Select only `public_repo`
+      #   3. gem install travis
+      #   4. travis login
+      #   5. travis encrypt <TOKEN>
+      api_key:
+        secure: nnd57nVyFefT+/KNgX2ksmC4IuVegR4yHZBVK6djsn92bTFmw2fKKdPC8VBC23eR2Rr03QEwV11zYsESQp2rkGWjDHsXwWwhlg9L69wsRGdDTH4DZHMAVIJ6afq9RLXdjJZtIlGdKERcNXcXmJFJfb2yn7xMHjbNQK3QBnADlVYkIni2gbYqWWK+5hkxJyjcsvmTu6rBAWbGu9Ubv7J6mL9KJQiTukQDSdb4N2/fP+DSePDfl8aioXuK0uYSArdz09m3BxNPSgzCmTtGNeN5dmrfngbUPuC+68svDV+LDHvbpyC0EVyjvwucDqgF2bQix9SoR/uUv4oxKOrXilhf43hr0uAe2om3STcUzXQbz9cemUylKG/ct8p6sqv2GSN5qZvtVPev14oMEjAA1lU0dvn6qqfkkYF2bhNUuv7xdYVlV1kNJIAI5rp/iWxpX6u+Xf/UvR2PWgiv/ZP5IjpR981Fp4lpw4EXjHNIPUy+4UOBZsjapQuvb7gPd0Y1Kwg3PZO/XAHUDFa4qV16i1YcaZD1BU1D3fIzXeaotUpLqPMxrH6c0mA/t+/M6LR8/ZrMRICrjHCpicZugBT47/jVz1KwVaYnfoWXGo3rH5yhZHKouKSuB53BE7+tQ5v5ixXRjVUVFXuRxH1up2syK3LLLh6JEekDY6PHcrxf1/trlXc=
+      file_glob: true
+      file:
+        - travis-deployment/*
+      skip_cleanup: true
+      on:
+        repo: koute/cargo-web
+        branch: master
+        tags: true
 
-script:
-  - nvm install 9
-  - ./ci.sh
+jobs:
+  include:
+    - <<: *test
+      os: linux
+      rust: stable
+    - <<: *test
+      os: linux
+      rust: nightly
+      env: TEST_SUBSET=1
+    - <<: *test
+      os: linux
+      rust: nightly
+      env: TEST_SUBSET=2
+    - <<: *test
+      os: linux
+      rust: beta
+
+    - <<: *deploy
+      os: linux
+      env: DEPLOY_TARGETS="x86_64-unknown-linux-gnu"
+    - <<: *deploy
+      os: osx
+      env: DEPLOY_TARGETS="x86_64-apple-darwin"

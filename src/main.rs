@@ -8,11 +8,11 @@
 
 extern crate clap;
 extern crate notify;
-extern crate rouille;
+extern crate hyper;
+extern crate futures;
 extern crate tempdir;
 extern crate reqwest;
 extern crate pbr;
-extern crate app_dirs;
 extern crate libflate;
 extern crate tar;
 extern crate sha1;
@@ -30,6 +30,7 @@ extern crate ordermap;
 extern crate websocket;
 extern crate regex;
 extern crate walkdir;
+extern crate base_x;
 
 extern crate parity_wasm;
 #[macro_use]
@@ -41,6 +42,7 @@ extern crate cargo_metadata;
 extern crate ansi_term;
 
 extern crate semver;
+extern crate memmap;
 
 use std::process::exit;
 use std::env;
@@ -52,10 +54,14 @@ use clap::{
     SubCommand
 };
 
+#[allow(dead_code)]
+mod app_dirs;
+
 mod cargo_shim;
 
 #[macro_use]
 mod utils;
+mod http_utils;
 mod config;
 mod package;
 mod build;
@@ -70,6 +76,7 @@ mod wasm_hook_grow;
 mod wasm_runtime;
 mod wasm_context;
 mod wasm_intrinsics;
+mod wasm_js_export;
 mod emscripten;
 mod test_chromium;
 mod chrome_devtools;
@@ -231,6 +238,19 @@ fn main() {
                         "human",
                         "json"
                     ])
+            )
+            .arg(
+                Arg::with_name( "runtime" )
+                    .long( "runtime" )
+                    .takes_value( true )
+                    .value_name( "RUNTIME" )
+                    .help( "Selects the type of JavaScript runtime which will be generated; valid only for the `wasm32-unknown-unknown` target" )
+                    .possible_values( &["standalone", "experimental-only-loader"] )
+                    .default_value_if(
+                        "target", Some( "wasm32-unknown-unknown" ),
+                        "standalone"
+                    )
+                    .hidden( true ) // This is experimental for now.
             );
 
     let mut test_subcommand =
@@ -347,7 +367,7 @@ fn main() {
     match result {
         Ok( _ ) => {},
         Err( error ) => {
-            println_err!( "error: {}", error );
+            eprintln!( "error: {}", error );
             exit( 101 );
         }
     }

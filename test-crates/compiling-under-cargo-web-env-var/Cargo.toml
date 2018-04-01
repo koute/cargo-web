@@ -1,0 +1,6 @@
+[package]
+name = "compiling-under-cargo-web-env-var"
+version = "0.1.0"
+authors = ["Jan Bujak <j@exia.io>"]
+
+[dependencies]

@@ -73,33 +73,33 @@ fn check_emscripten() {
         return;
     }
 
-    println_err!( "error: you don't have Emscripten installed!" );
-    println_err!( "" );
+    eprintln!( "error: you don't have Emscripten installed!" );
+    eprintln!( "" );
 
     if Path::new( "/usr/bin/pacman" ).exists() {
-        println_err!( "You can most likely install it like this:" );
-        println_err!( "  sudo pacman -S emscripten" );
+        eprintln!( "You can most likely install it like this:" );
+        eprintln!( "  sudo pacman -S emscripten" );
     } else if Path::new( "/usr/bin/apt-get" ).exists() {
-        println_err!( "You can most likely install it like this:" );
-        println_err!( "  sudo apt-get install emscripten" );
+        eprintln!( "You can most likely install it like this:" );
+        eprintln!( "  sudo apt-get install emscripten" );
     } else if cfg!( target_os = "linux" ) {
-        println_err!( "You can most likely find it in your distro's repositories." );
+        eprintln!( "You can most likely find it in your distro's repositories." );
     } else if cfg!( target_os = "windows" ) {
-        println_err!( "Download and install emscripten from the official site: http://kripken.github.io/emscripten-site/docs/getting_started/downloads.html" );
+        eprintln!( "Download and install emscripten from the official site: http://kripken.github.io/emscripten-site/docs/getting_started/downloads.html" );
     }
 
     if cfg!( unix ) {
         if cfg!( target_os = "linux" ) {
-            println_err!( "If not you can install it manually like this:" );
+            eprintln!( "If not you can install it manually like this:" );
         } else {
-            println_err!( "You can install it manually like this:" );
+            eprintln!( "You can install it manually like this:" );
         }
-        println_err!( "  curl -O https://s3.amazonaws.com/mozilla-games/emscripten/releases/emsdk-portable.tar.gz" );
-        println_err!( "  tar -xzf emsdk-portable.tar.gz" );
-        println_err!( "  source emsdk_portable/emsdk_env.sh" );
-        println_err!( "  emsdk update" );
-        println_err!( "  emsdk install sdk-incoming-64bit" );
-        println_err!( "  emsdk activate sdk-incoming-64bit" );
+        eprintln!( "  curl -O https://s3.amazonaws.com/mozilla-games/emscripten/releases/emsdk-portable.tar.gz" );
+        eprintln!( "  tar -xzf emsdk-portable.tar.gz" );
+        eprintln!( "  source emsdk_portable/emsdk_env.sh" );
+        eprintln!( "  emsdk update" );
+        eprintln!( "  emsdk install sdk-incoming-64bit" );
+        eprintln!( "  emsdk activate sdk-incoming-64bit" );
     }
 
     exit( 101 );

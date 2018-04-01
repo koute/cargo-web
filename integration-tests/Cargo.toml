@@ -5,3 +5,4 @@ authors = ["Jan Bujak <j@exia.io>"]
 
 [dependencies]
 lazy_static = "1"
+reqwest = "0.8"

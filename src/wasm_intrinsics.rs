@@ -18,6 +18,7 @@ const INTRINSICS: &'static [(&'static str, &'static [ValueType], Option< ValueTy
     ("log", &[F64], Some( F64 ), "return Math.log( $0 );"),
     ("log2", &[F64], Some( F64 ), "return Math.log2( $0 );"),
     ("log10", &[F64], Some( F64 ), "return Math.log10( $0 );"),
+    ("round", &[F64], Some( F64 ), "return Math.round( $0 );"),
 
     ("Math_tan", &[F64], Some( F64 ), "return Math.tan( $0 );"),
     ("Math_sinh", &[F64], Some( F64 ), "return Math.sinh( $0 );"),
@@ -41,6 +42,7 @@ const INTRINSICS: &'static [(&'static str, &'static [ValueType], Option< ValueTy
     ("logf", &[F32], Some( F32 ), "return Math.log( $0 );"),
     ("log2f", &[F32], Some( F32 ), "return Math.log2( $0 );"),
     ("log10f", &[F32], Some( F32 ), "return Math.log10( $0 );"),
+    ("roundf", &[F32], Some( F32 ), "return Math.round( $0 );"),
 
     ("fmodf", &[F32, F32], Some( F32 ), "return $0 % $1;"),
     ("powf", &[F32, F32], Some( F32 ), "return Math.pow( $0, $1 );"),

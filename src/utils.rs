@@ -1,19 +1,12 @@
 use std::process::Command;
 use std::path::Path;
 use std::fs::{self, File};
-use std::io::{self, Read, Write};
+use std::io::{self, BufReader, Read, Write};
 use std::env;
 use std::ffi::OsString;
 
 use libflate::gzip;
 use tar;
-
-macro_rules! println_err(
-    ($($arg:tt)*) => {{
-        use std::io::{Write, stderr};
-        writeln!( &mut stderr(), $($arg)* ).expect( "writeln to stderr failed" );
-    }}
-);
 
 pub struct ExecutionStatus {
     status: Option< i32 >
@@ -93,7 +86,8 @@ pub fn find_cmd< 'a >( cmds: &[ &'a str ] ) -> Option< &'a str > {
 pub fn unpack< I: AsRef< Path >, O: AsRef< Path > >( input_path: I, output_path: O ) -> Result< (), Box< io::Error > > {
     let output_path = output_path.as_ref();
     let file = fs::File::open( input_path )?;
-    let decoder = gzip::Decoder::new( file )?;
+    let reader = BufReader::new( file );
+    let decoder = gzip::Decoder::new( reader )?;
     let mut archive = tar::Archive::new( decoder );
     archive.unpack( output_path )?;
 

@@ -18,6 +18,7 @@ use utils::read_bytes;
 
 const DEFAULT_INDEX_HTML_TEMPLATE: &'static str = r#"
 <!DOCTYPE html>
+<html>
 <head>
     <meta charset="utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
@@ -167,6 +168,11 @@ impl Deployment {
         })
     }
 
+    pub fn js_url( &self ) -> &str {
+        let route = self.routes.iter().find( |route| route.can_be_deployed && route.key.ends_with( ".js" ) ).unwrap();
+        &route.key
+    }
+
     pub fn get_by_url( &self, mut url: &str ) -> Option< Artifact > {
         if url.starts_with( "/" ) {
             url = &url[ 1.. ];
@@ -176,12 +182,18 @@ impl Deployment {
             url = "index.html";
         }
 
-        // TODO: Support more mime types. Steal the `extension_to_mime_impl` from `rouille`'s `assets.rs`.
+        // TODO: Support more mime types. Use the mime_guess crate.
         let mime_type =
             if url.ends_with( ".js" ) { "application/javascript" }
+            else if url.ends_with( ".json" ) { "application/json" }
             else if url.ends_with( ".wasm" ) { "application/wasm" }
             else if url.ends_with( ".html" ) { "text/html" }
             else if url.ends_with( ".css" ) { "text/css" }
+            else if url.ends_with( ".svg" ) { "image/svg+xml" }
+            else if url.ends_with( ".png" ) { "image/png" }
+            else if url.ends_with( ".gif" ) { "image/gif" }
+            else if url.ends_with( ".jpeg" ) { "image/jpeg" }
+            else if url.ends_with( ".jpg" ) { "image/jpeg" }
             else { "application/octet-stream" };
 
         for route in &self.routes {
@@ -266,6 +278,13 @@ impl Deployment {
                         let relative_path = source_path.strip_prefix( source_dir ).unwrap();
                         let target_path = root_directory.join( relative_path );
                         if target_path.exists() {
+                            continue;
+                        }
+
+                        if source_path.is_dir() {
+                            fs::create_dir_all( &target_path )
+                                .map_err( |err| Error::CannotCreateFile( target_path.to_owned(), err ) )?; // TODO: Different error type?
+
                             continue;
                         }
 
