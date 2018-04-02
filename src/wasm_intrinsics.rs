@@ -30,7 +30,7 @@ const INTRINSICS: &'static [(&'static str, &'static [ValueType], Option< ValueTy
     ("Math_cbrt", &[F64], Some( F64 ), "return Math.cbrt( $0 );"),
     ("Math_log1p", &[F64], Some( F64 ), "return Math.log1p( $0 );"),
 
-    ("Math_atan2", &[F64, F64], Some( F64 ), "return Math.atan( $0, $1 );"),
+    ("Math_atan2", &[F64, F64], Some( F64 ), "return Math.atan2( $0, $1 );"),
     ("Math_hypot", &[F64, F64], Some( F64 ), "return Math.hypot( $0, $1 );"),
     ("fmod", &[F64, F64], Some( F64 ), "return $0 % $1;"),
     ("pow", &[F64, F64], Some( F64 ), "return Math.pow( $0, $1 );"),
