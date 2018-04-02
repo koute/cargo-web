@@ -12,6 +12,7 @@ and deploy client-side Web applications written in Rust.
 ## Patrons
 
 This software was brought to you thanks to these wonderful people:
+  * Daniel Norman
   * Ben Berman
   * Stephen Sugden
 
