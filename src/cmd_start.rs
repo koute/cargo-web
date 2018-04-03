@@ -62,7 +62,7 @@ fn auto_reload_code( hash: u32 ) -> String {
     let handlebars = Handlebars::new();
     let mut template_data = BTreeMap::new();
     template_data.insert( "current_build_hash", hash );
-    handlebars.template_render( TEMPLATE, &template_data ).unwrap()
+    handlebars.render_template( TEMPLATE, &template_data ).unwrap()
 }
 
 fn hash< T: Hash >( value: T ) -> u64 {

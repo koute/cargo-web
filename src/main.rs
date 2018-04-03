@@ -26,7 +26,7 @@ extern crate serde_derive;
 extern crate serde_json;
 extern crate handlebars;
 extern crate unicode_categories;
-extern crate ordermap;
+extern crate indexmap;
 extern crate websocket;
 extern crate regex;
 extern crate walkdir;

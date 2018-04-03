@@ -73,7 +73,7 @@ pub fn test_in_chromium(
     let mut template_data = BTreeMap::new();
     let arg_passthrough: Vec<_> = arg_passthrough.iter().map( |arg| arg.to_str().unwrap() ).collect();
     template_data.insert( "arguments", arg_passthrough );
-    let test_index = handlebars.template_render( DEFAULT_TEST_INDEX_HTML, &template_data ).unwrap();
+    let test_index = handlebars.render_template( DEFAULT_TEST_INDEX_HTML, &template_data ).unwrap();
     let app_wasm: Arc< Mutex< Option< Vec< u8 > > > > = Arc::new( Mutex::new( None ) );
     let wasm_url = Arc::new( Mutex::new( None ) );
 

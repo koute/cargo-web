@@ -4,7 +4,7 @@ use std::mem;
 use std::str;
 use std::iter;
 
-use ordermap::OrderMap;
+use indexmap::IndexMap;
 use parity_wasm::elements as pw;
 use parity_wasm::elements::Deserialize;
 
@@ -279,11 +279,11 @@ impl Data {
 
 #[derive(Clone, Debug)]
 pub struct Context {
-    pub types: OrderMap< TypeIndex, FnTy >,
-    pub functions: OrderMap< FunctionIndex, FunctionKind >,
-    pub tables: OrderMap< TableIndex, TableKind >,
-    pub memories: OrderMap< MemoryIndex, MemoryKind >,
-    pub globals: OrderMap< GlobalIndex, GlobalKind >,
+    pub types: IndexMap< TypeIndex, FnTy >,
+    pub functions: IndexMap< FunctionIndex, FunctionKind >,
+    pub tables: IndexMap< TableIndex, TableKind >,
+    pub memories: IndexMap< MemoryIndex, MemoryKind >,
+    pub globals: IndexMap< GlobalIndex, GlobalKind >,
     pub start: Option< FunctionIndex >,
     pub fn_pointer_tables: Option< FnPointerTable >,
     pub data: Vec< Data >,
@@ -377,7 +377,7 @@ struct Entities< T > {
     entries: Vec< (u32, T) >
 }
 
-fn preprocess_entities< T: ImportExport >( map: OrderMap< u32, T > ) -> Entities< T > {
+fn preprocess_entities< T: ImportExport >( map: IndexMap< u32, T > ) -> Entities< T > {
     let mut index_map = HashMap::with_capacity( map.len() );
     let (imports, definitions): (Vec< _ >, Vec< _ >) = map.into_iter().partition( |&(_, ref entity)| entity.is_imported() );
     let mut entries = Vec::new();

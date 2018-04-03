@@ -51,7 +51,7 @@ fn generate_index_html( filename: &str ) -> String {
     let handlebars = Handlebars::new();
     let mut template_data = BTreeMap::new();
     template_data.insert( "js_url", filename.to_owned() );
-    handlebars.template_render( DEFAULT_INDEX_HTML_TEMPLATE, &template_data ).unwrap()
+    handlebars.render_template( DEFAULT_INDEX_HTML_TEMPLATE, &template_data ).unwrap()
 }
 
 enum RouteKind {

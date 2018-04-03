@@ -143,12 +143,12 @@ pub fn generate_js( runtime: RuntimeKind, main_symbol: Option< String >, wasm_pa
         template_data.insert( "call_main", "".to_owned() );
     }
 
-    let loader = handlebars.template_render( LOADER_TEMPLATE, &template_data ).unwrap();
+    let loader = handlebars.render_template( LOADER_TEMPLATE, &template_data ).unwrap();
 
     match runtime {
         RuntimeKind::Standalone => {
             template_data.insert( "loader", loader );
-            handlebars.template_render( STANDALONE_TEMPLATE, &template_data ).unwrap()
+            handlebars.render_template( STANDALONE_TEMPLATE, &template_data ).unwrap()
         },
         RuntimeKind::OnlyLoader => {
             loader
