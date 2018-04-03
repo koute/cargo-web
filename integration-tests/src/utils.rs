@@ -190,3 +190,10 @@ pub fn assert_file_exists< P: AsRef< Path > >( path: P ) {
         panic!( "File {:?} doesn't exist", path );
     }
 }
+
+pub fn assert_file_missing< P: AsRef< Path > >( path: P ) {
+    let path = path.as_ref();
+    if path.exists() {
+        panic!( "File {:?} exists", path );
+    }
+}

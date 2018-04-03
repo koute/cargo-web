@@ -214,6 +214,12 @@ fn main() {
 
             run( &*CARGO_WEB, &["test"] ).assert_failure();
             run( &*CARGO_WEB, &["test", "-p", "child"] ).assert_success();
+
+            run( &*CARGO_WEB, &["deploy"] ).assert_failure();
+            run( &*CARGO_WEB, &["deploy", "-p", "child"] ).assert_success();
+
+            assert_file_missing( "child/target/deploy" );
+            assert_file_exists( "target/deploy" );
         });
     });
 }
