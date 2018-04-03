@@ -154,7 +154,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-web"
-version = "0.6.9"
+version = "0.6.10"
 dependencies = [
  "ansi_term 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "base-x 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
