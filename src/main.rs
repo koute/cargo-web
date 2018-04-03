@@ -329,7 +329,7 @@ fn main() {
         SubCommand::with_name( "deploy" )
             .about( "Deploys your project so that its ready to be served statically" );
 
-    let mut prepare_emscripten_subcommand =
+    let prepare_emscripten_subcommand =
         SubCommand::with_name( "prepare-emscripten" )
             .about( "Fetches and installs prebuilt Emscripten packages" );
 
@@ -357,7 +357,7 @@ fn main() {
         cmd_start::command_start( matches )
     } else if let Some( matches ) = matches.subcommand_matches( "deploy" ) {
         cmd_deploy::command_deploy( matches )
-    } else if let Some( matches ) = matches.subcommand_matches( "prepare-emscripten" ) {
+    } else if let Some( _ ) = matches.subcommand_matches( "prepare-emscripten" ) {
         cmd_prepare_emscripten::command_prepare_emscripten()
     } else {
         return;
