@@ -60,7 +60,7 @@ pub fn test_in_chromium(
         if cfg!( windows ) {
             &[ "chrome.exe" ][..]
         } else {
-            &[ "chromium", "google-chrome", "google-chrome-stable" ][..]
+            &[ "chromium", "chromium-browser", "google-chrome", "google-chrome-stable" ][..]
         };
 
     let chromium_executable = find_cmd( possible_commands ).ok_or_else( || {
