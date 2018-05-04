@@ -143,7 +143,7 @@ impl LastBuild {
     fn new( project: Project, package: CargoPackage, target: CargoTarget, counter: Counter ) -> Result< Self, Error > {
         let config = project.aggregate_configuration( Profile::Main )?;
         let result = project.build( &config, &target )?;
-        let deployment = Deployment::new( &package, &target, &result )?;
+        let deployment = Deployment::new( &package, &target, &result, None )?;
 
         Ok( LastBuild {
             counter,

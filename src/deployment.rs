@@ -54,6 +54,12 @@ fn generate_index_html( filename: &str ) -> String {
     handlebars.render_template( DEFAULT_INDEX_HTML_TEMPLATE, &template_data ).unwrap()
 }
 
+pub struct DeployWithServePath {
+    js_key: Option<String>,
+    wasm_file_name: Option<String>,
+    serve_path: String
+}
+
 enum RouteKind {
     Blob( Vec< u8 > ),
     StaticDirectory( PathBuf )
@@ -79,6 +85,101 @@ pub struct Artifact {
     pub kind: ArtifactKind
 }
 
+impl DeployWithServePath {
+    pub fn new(serve_path: &Option<String>) -> Result<Self, Error> {
+        use std::path::MAIN_SEPARATOR as SEP;
+
+        let mut serve_path = if let Some(ref path) = *serve_path {
+            let mut double_sep = SEP.to_string();
+            double_sep.push(SEP);
+
+            // As state in README.md
+            // serve-path is sub and relative to deploy-path
+            // It is not allow to contains `\\` or `..`
+            if path.contains( &double_sep ) || path.contains( ".." ) {
+                return Err( Error::ConfigurationError( format!("serve-path is invalid: {}", path) ) );
+            }
+
+            if path.starts_with( &SEP.to_string() ) {
+                path[1..].to_string()
+            } else {
+                path.clone()
+            }
+        } else {
+            "".to_string()
+        };
+
+        if serve_path.len() > 0 && !serve_path.ends_with( &SEP.to_string() ) {
+            serve_path.push( SEP );
+        }
+
+        Ok(Self {
+            js_key: None,
+            wasm_file_name: None,
+            serve_path
+        })
+    }
+
+    fn create_serve_path_for(&mut self, name: &str, ext: &::std::ffi::OsStr) -> String {
+        let with_path = PathBuf::from(&self.serve_path).join(name).to_string_lossy().to_string();
+        if ext == "js" {
+            self.js_key = Some( with_path.clone() );
+        } else if ext == "wasm" {
+            self.wasm_file_name = Some( name.to_string() );
+        }
+        with_path
+    }
+
+    fn insert_serve_path_to_js(&self, routes: &mut Vec<Route>) {
+        let js_key = if let Some(ref js_key) = self.js_key {
+            js_key
+        } else {
+            return;
+        };
+
+        let wasm_u8 = if let Some(ref wasm_file_name) = self.wasm_file_name {
+            wasm_file_name.as_bytes()
+        } else {
+            return;
+        };
+
+        let _buf = PathBuf::from( &self.serve_path ); // because of temporary value does not live long enough
+        let _lossy = _buf.to_string_lossy(); // because of temporary value does not live long enough
+        let serve_path_u8 = _lossy.as_bytes();
+
+        // Search backward for value in contents
+        fn search_start_index(contents: &[u8], value: &[u8], start_at: usize) -> Option<usize> {
+            for index in (0..start_at).rev() {
+                if contents[index..].starts_with(value) {
+                    return Some(index);
+                }
+            }
+            None
+        }
+
+        let js_route = routes.iter_mut().find(|r| r.key == *js_key).unwrap();
+        match js_route.kind {
+            RouteKind::Blob(ref mut contents) => {
+                contents.reserve( serve_path_u8.len() * 2 );
+
+                if let Some(start_index) 
+                    = search_start_index( &contents[..], wasm_u8, contents.len()-wasm_u8.len() )
+                {
+                    contents.splice( start_index..start_index, serve_path_u8.iter().cloned() ).collect::<Vec<u8>>();
+
+                    if let Some(start_index)
+                        = search_start_index( &contents[..], wasm_u8, start_index )
+                    {
+                        contents.splice( start_index..start_index, serve_path_u8.iter().cloned() ).collect::<Vec<u8>>();
+                    }
+
+                }
+            }
+            _ => unreachable!()
+        }
+    }
+}
+
 impl Artifact {
     pub fn map_text< F: FnOnce( String ) -> String >( self, callback: F ) -> io::Result< Self > {
         let mime_type = self.mime_type;
@@ -102,7 +203,13 @@ impl Artifact {
 }
 
 impl Deployment {
-    pub fn new( package: &CargoPackage, target: &CargoTarget, result: &CargoResult ) -> Result< Self, Error > {
+    pub fn new(
+            package: &CargoPackage,
+            target: &CargoTarget,
+            result: &CargoResult,
+            mut with_serve_path: Option<DeployWithServePath>
+        ) -> Result< Self, Error >
+    {
         let crate_static_path = package.crate_root.join( "static" );
         let target_static_path = match target.kind {
             TargetKind::Example => Some( target.source_directory.join( format!( "{}-static", target.name ) ) ),
@@ -115,8 +222,21 @@ impl Deployment {
         let mut routes = Vec::new();
         for path in result.artifacts() {
             let (is_js, key) = match path.extension() {
-                Some( ext ) if ext == "js" => (true, js_name.clone()),
-                Some( ext ) if ext == "wasm" => (false, path.file_name().unwrap().to_string_lossy().into_owned()),
+                Some( ext ) if ext == "js" => {
+                    if let Some(ref mut with_serve_path) = with_serve_path {
+                        (true, with_serve_path.create_serve_path_for( &js_name, ext ) )
+                    } else {
+                        (true, js_name.clone())
+                    }
+                },
+                Some( ext ) if ext == "wasm" => {
+                    if let Some(ref mut with_serve_path) = with_serve_path {
+                        let wasm_name = path.file_name().unwrap().to_string_lossy();
+                        (false, with_serve_path.create_serve_path_for( &wasm_name, ext ) )
+                    } else {
+                        (false, path.file_name().unwrap().to_string_lossy().into_owned())
+                    }
+                },
                 _ => continue
             };
 
@@ -141,6 +261,10 @@ impl Deployment {
                 kind: RouteKind::Blob( contents ),
                 can_be_deployed: true
             });
+        }
+
+        if let Some(with_serve_path) = with_serve_path{
+            with_serve_path.insert_serve_path_to_js(&mut routes);
         }
 
         if let Some( target_static_path ) = target_static_path {

@@ -283,6 +283,10 @@ impl Project {
             .unwrap_or( Backend::EmscriptenAsmJs )
     }
 
+    pub fn config_of_default_target( &self ) -> Option<&::config::PerTargetConfig> {
+        self.main_config.as_ref().unwrap().per_target.get(&self.backend())
+    }
+
     pub fn build_args( &self ) -> &BuildArgs {
         &self.build_args
     }

@@ -83,6 +83,17 @@ default-target = "wasm32-unknown-unknown"
 # order of appearance.
 prepend-js = "src/runtime.js"
 
+# deploy-path specifies the location where the files are copied when
+# running `cargo web deploy`. It can be an absolute path, or relative path
+# to the location of Cargo.toml. If specified, the folder must exist.
+# The default value of `deploy-path` is `target/deploy`.
+deploy-path = "path/to/deploy/folder/"
+
+# serve-path specifies the location (sub and relative to `deploy-path`) where
+# `.js` and `.wasm` files are output to.
+# The default value of `serve-path` is "/" (means the root of `deploy-path`)
+serve-path = "js/and/wasm/folder"
+
 [cargo-web]
 # Asserts the minimum required version of `cargo-web` necessary
 # to compile this crate; supported since 0.6.0.

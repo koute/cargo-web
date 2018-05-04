@@ -8,7 +8,7 @@ use cargo_shim::{
 };
 
 use build::BuildArgs;
-use deployment::Deployment;
+use deployment::{ Deployment, DeployWithServePath};
 use error::Error;
 
 pub fn command_deploy< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Error > {
@@ -25,8 +25,20 @@ pub fn command_deploy< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), E
     let target = targets[ 0 ];
     let result = project.build( &config, target )?;
 
-    let deployment = Deployment::new( package, target, &result )?;
-    let directory = project.target_directory().join( "deploy" );
+    let target_config = project.config_of_default_target().unwrap();
+    let deploy_options = DeployWithServePath::new( &target_config.serve_path )?;
+
+    let deployment = Deployment::new( package, target, &result, Some(deploy_options) )?;
+    let directory = if let Some(ref deploy_path) = target_config.deploy_path {
+        // Resolve deploy_path to the actual folder on filesystem, relative to source_directory
+        // The path must exist
+        target.source_directory.join( deploy_path ).canonicalize()
+            .map_err( |error| Error::ConfigurationError(
+                format!( "Deploy path '{}' is invalid: {}", deploy_path, error)
+            ))?
+    } else {
+        project.target_directory().join( "deploy" )
+    };
     if directory.exists() {
         let entries = fs::read_dir( &directory ).map_err( |error| Error::CannotRemoveDirectory( directory.clone(), error ) )?; // TODO: Another error?
         for entry in entries {
