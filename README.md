@@ -83,13 +83,15 @@ default-target = "wasm32-unknown-unknown"
 # order of appearance.
 prepend-js = "src/runtime.js"
 
-# deploy-path specifies the location where the files are copied when
+# `deploy-path` specifies the location where the files are copied when
 # running `cargo web deploy`. It can be an absolute path, or relative path
 # to the location of Cargo.toml. If specified, the folder must exist.
 # The default value of `deploy-path` is `target/deploy`.
+# Please remember that the **current content of `deploy-path` will be removed**
+# during the deployment.
 deploy-path = "path/to/deploy/folder/"
 
-# serve-path specifies the location (sub and relative to `deploy-path`) where
+# `serve-path` specifies the location (sub and relative to `deploy-path`) where
 # `.js` and `.wasm` files are output to.
 # The default value of `serve-path` is "/" (means the root of `deploy-path`)
 serve-path = "js/and/wasm/folder"
@@ -106,6 +108,11 @@ prepend-js = "src/emscripten_runtime.js"
 # This will enable Emscripten's SDL2 port. Consult Emscripten's documentation
 # for more details.
 link-args = ["-s", "USE_SDL=2"]
+
+# You can specify `deploy-path` and `serve-path` that are specific to a target.
+# (If this is specified, then the global `deploy-path` and `serve-path` is not allowed)
+deploy-path = "path/to/deploy/folder/"
+serve-path = "js/and/wasm/folder"
 
 # You can also specify the target by its full name.
 [target.wasm32-unknown-unknown]
