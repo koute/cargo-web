@@ -25,7 +25,10 @@ pub fn command_deploy< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), E
     let target = targets[ 0 ];
     let result = project.build( &config, target )?;
 
-    let target_config = project.config_of_default_target().unwrap();
+    let target_config = match project.config_of_default_target() {
+        Some(config) => config.clone(),
+        None => ::config::PerTargetConfig::default()
+    };
     let deploy_options = DeployWithServePath::new( &target_config.serve_path )?;
 
     let deployment = Deployment::new( package, target, &result, Some(deploy_options) )?;

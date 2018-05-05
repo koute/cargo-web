@@ -87,7 +87,8 @@ prepend-js = "src/runtime.js"
 # running `cargo web deploy`. It can be an absolute path, or relative path
 # to the location of Cargo.toml. If specified, the folder must exist.
 # The default value of `deploy-path` is `target/deploy`.
-# Please remember that the **current content of `deploy-path` will be removed**
+#
+# Please remember that the **current content of `deploy-path` will be REMOVED**
 # during the deployment.
 deploy-path = "path/to/deploy/folder/"
 
