@@ -284,7 +284,10 @@ impl Project {
     }
 
     pub fn config_of_default_target( &self ) -> Option<&::config::PerTargetConfig> {
-        self.main_config.as_ref().unwrap().per_target.get(&self.backend())
+        match self.main_config.as_ref() {
+            Some(config) => config.per_target.get(&self.backend()),
+            None => None
+        }
     }
 
     pub fn build_args( &self ) -> &BuildArgs {

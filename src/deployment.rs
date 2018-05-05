@@ -178,12 +178,16 @@ impl DeployWithServePath {
                 if let Some(start_index) 
                     = search_start_index( &contents[..], wasm_u8, contents.len()-wasm_u8.len() )
                 {
-                    contents.splice( start_index..start_index, serve_path_u8.iter().cloned() ).collect::<Vec<u8>>();
+                    let _removed: Vec<u8> = 
+                        contents.splice( start_index..start_index, serve_path_u8.iter().cloned() ).collect();
+                    assert_eq!(_removed.len(), 0);
 
                     if let Some(start_index)
                         = search_start_index( &contents[..], wasm_u8, start_index )
                     {
-                        contents.splice( start_index..start_index, serve_path_u8.iter().cloned() ).collect::<Vec<u8>>();
+                        let _removed: Vec<u8> =
+                            contents.splice( start_index..start_index, serve_path_u8.iter().cloned() ).collect();
+                        assert_eq!(_removed.len(), 0);
                     }
 
                 }
