@@ -57,7 +57,7 @@ fn generate_index_html( filename: &str ) -> String {
 pub struct DeployWithServePath {
     js_key: Option<String>,
     wasm_file_name: Option<String>,
-    serve_path: String
+    serve_path: Option<String>
 }
 
 enum RouteKind {
@@ -89,7 +89,7 @@ impl DeployWithServePath {
     pub fn new(serve_path: &Option<String>) -> Result<Self, Error> {
         use std::path::MAIN_SEPARATOR as SEP;
 
-        let mut serve_path = if let Some(ref path) = *serve_path {
+        let serve_path = if let Some(ref path) = *serve_path {
             let mut double_sep = SEP.to_string();
             double_sep.push(SEP);
 
@@ -100,18 +100,22 @@ impl DeployWithServePath {
                 return Err( Error::ConfigurationError( format!("serve-path is invalid: {}", path) ) );
             }
 
-            if path.starts_with( &SEP.to_string() ) {
-                path[1..].to_string()
+            let mut path = if path.starts_with( &SEP.to_string() ) {
+                path[1..].trim().to_string()
             } else {
-                path.clone()
+                path.trim().to_string()
+            };
+            if path.len() > 0 {
+                if !path.ends_with( &SEP.to_string() ) {
+                    path.push( SEP );
+                }
+                Some(path)
+            } else {
+                None
             }
         } else {
-            "".to_string()
+            None
         };
-
-        if serve_path.len() > 0 && !serve_path.ends_with( &SEP.to_string() ) {
-            serve_path.push( SEP );
-        }
 
         Ok(Self {
             js_key: None,
@@ -121,7 +125,11 @@ impl DeployWithServePath {
     }
 
     fn create_serve_path_for(&mut self, name: &str, ext: &::std::ffi::OsStr) -> String {
-        let with_path = PathBuf::from(&self.serve_path).join(name).to_string_lossy().to_string();
+        let serve_path = match self.serve_path {
+            Some(ref path) => path,
+            None => return name.to_string()
+        };
+        let with_path = PathBuf::from( serve_path ).join( name ).to_string_lossy().to_string();
         if ext == "js" {
             self.js_key = Some( with_path.clone() );
         } else if ext == "wasm" {
@@ -131,6 +139,11 @@ impl DeployWithServePath {
     }
 
     fn insert_serve_path_to_js(&self, routes: &mut Vec<Route>) {
+        let serve_path = match self.serve_path {
+            Some(ref path) => path,
+            None => return
+        };
+
         let js_key = if let Some(ref js_key) = self.js_key {
             js_key
         } else {
@@ -143,7 +156,7 @@ impl DeployWithServePath {
             return;
         };
 
-        let _buf = PathBuf::from( &self.serve_path ); // because of temporary value does not live long enough
+        let _buf = PathBuf::from( serve_path ); // because of temporary value does not live long enough
         let _lossy = _buf.to_string_lossy(); // because of temporary value does not live long enough
         let serve_path_u8 = _lossy.as_bytes();
 

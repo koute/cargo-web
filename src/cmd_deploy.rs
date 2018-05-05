@@ -33,9 +33,9 @@ pub fn command_deploy< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), E
 
     let deployment = Deployment::new( package, target, &result, Some(deploy_options) )?;
     let directory = if let Some(ref deploy_path) = target_config.deploy_path {
-        // Resolve deploy_path to the actual folder on filesystem, relative to source_directory
+        // Resolve deploy_path to the actual folder on filesystem, relative to crate_root
         // The path must exist
-        target.source_directory.join( deploy_path ).canonicalize()
+        package.crate_root.join( deploy_path ).canonicalize()
             .map_err( |error| Error::ConfigurationError(
                 format!( "Deploy path '{}' is invalid: {}", deploy_path, error)
             ))?
