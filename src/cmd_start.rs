@@ -310,6 +310,13 @@ pub fn command_start< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Er
     eprintln!( "" );
     eprintln!( "You can access the web server at `http://{}`.", &address );
 
+    if matches.is_present( "open" ) {
+        thread::spawn( move || {
+            thread::sleep( Duration::from_millis( 100 ) );
+            ::open::that( &format!( "http://{}", &address ) ).expect( "Failed to open browser" );
+        });
+    }
+
     server.run();
 
     Ok(())

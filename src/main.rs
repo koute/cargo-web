@@ -44,6 +44,8 @@ extern crate ansi_term;
 extern crate semver;
 extern crate memmap;
 
+extern crate open;
+
 use std::process::exit;
 use std::env;
 
@@ -318,6 +320,11 @@ fn main() {
                     .help( "Bind the server to this port, default 8000" )
                     .value_name( "PORT" )
                     .takes_value( true )
+            )
+            .arg(
+                Arg::with_name( "open" )
+                    .long( "open" )
+                    .help( "Open browser after server starts" )
             )
             .arg(
                 Arg::with_name( "auto-reload" )
