@@ -39,10 +39,10 @@ fn main() {
         "workspace",
         "conflicting-versions",
         "requires-old-cargo-web",
-        "requires-future-cargo-web-through-disabled-dep",
-        "requires-future-cargo-web-through-dev-dep",
-        "requires-future-cargo-web-through-dep-dev-dep",
-        "requires-future-cargo-web-through-build-dep",
+        "req-future-cargo-web-disabled-dep",
+        "req-future-cargo-web-dev-dep",
+        "req-future-cargo-web-dep-dev-dep",
+        "req-future-cargo-web-build-dep",
         "compiling-under-cargo-web-env-var",
         "depends-on-default-target-invalid"
     ] {
@@ -63,16 +63,16 @@ fn main() {
         });
     }
 
-    in_directory( "test-crates/requires-future-cargo-web-through-target-dep", || {
+    in_directory( "test-crates/req-future-cargo-web-target-dep", || {
         run( &*CARGO_WEB, &["build", "--target", "asmjs-unknown-emscripten"] ).assert_success();
         run( &*CARGO_WEB, &["build", "--target", "wasm32-unknown-emscripten"] ).assert_failure();
     });
 
     for name in &[
         "requires-future-cargo-web",
-        "requires-future-cargo-web-through-dep",
-        "requires-future-cargo-web-through-dep-dep",
-        "requires-future-cargo-web-through-dep-and-dev-dep"
+        "req-future-cargo-web-dep",
+        "req-future-cargo-web-dep-dep",
+        "req-future-cargo-web-dep-and-dev-dep"
     ] {
         in_directory( &format!( "test-crates/{}", name ), || {
             each_target( |target| {
@@ -81,7 +81,7 @@ fn main() {
         });
     }
 
-    in_directory( "test-crates/requires-future-cargo-web-through-dev-dep", || {
+    in_directory( "test-crates/req-future-cargo-web-dev-dep", || {
         each_target( |target| {
             run( &*CARGO_WEB, &["test", "--target", target] ).assert_failure();
         });

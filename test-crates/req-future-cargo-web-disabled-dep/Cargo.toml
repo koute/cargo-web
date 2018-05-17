@@ -1,5 +1,5 @@
 [package]
-name = "requires-future-cargo-web-through-disabled-dep"
+name = "req-future-cargo-web-disabled-dep"
 version = "0.1.0"
 authors = ["Jan Bujak <j@exia.io>"]
 

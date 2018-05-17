@@ -1,7 +1,7 @@
 [package]
-name = "requires-future-cargo-web-through-target-dep"
+name = "req-future-cargo-web-dev-dep"
 version = "0.1.0"
 authors = ["Jan Bujak <j@exia.io>"]
 
-[target.wasm32-unknown-emscripten.dependencies]
+[dev-dependencies]
 requires-future-cargo-web = { path = "../requires-future-cargo-web" }
