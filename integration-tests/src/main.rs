@@ -222,4 +222,14 @@ fn main() {
             assert_file_exists( "target/deploy" );
         });
     });
+
+    in_directory( "test-crates/req-future-cargo-web-cfg-dep", || {
+        run( &*CARGO_WEB, &["build", "--target", "wasm32-unknown-unknown"] ).assert_success();
+        run( &*CARGO_WEB, &["build", "--target", "wasm32-unknown-emscripten"] ).assert_failure();
+    });
+
+    in_directory( "test-crates/req-future-cargo-web-cfg-not-dep", || {
+        run( &*CARGO_WEB, &["build", "--target", "wasm32-unknown-unknown"] ).assert_failure();
+        run( &*CARGO_WEB, &["build", "--target", "wasm32-unknown-emscripten"] ).assert_success();
+    });
 }

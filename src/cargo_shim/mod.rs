@@ -116,10 +116,27 @@ pub enum CargoDependencyKind {
 }
 
 #[derive(Clone, PartialEq, Debug)]
+pub enum CargoDependencyTarget {
+    Target( String ),
+    Emscripten, // TODO: Remove these hardcodes.
+    NonEmscripten
+}
+
+impl CargoDependencyTarget {
+    fn matches( &self, triplet: &str ) -> bool {
+        match self {
+            CargoDependencyTarget::Target( ref target ) => target == triplet,
+            CargoDependencyTarget::Emscripten => triplet.ends_with( "-emscripten" ),
+            CargoDependencyTarget::NonEmscripten => !triplet.ends_with( "-emscripten" )
+        }
+    }
+}
+
+#[derive(Clone, PartialEq, Debug)]
 pub struct CargoDependency {
     pub name: String,
     pub kind: CargoDependencyKind,
-    pub target: Option< String >,
+    pub target: Option< CargoDependencyTarget >,
     pub resolved_to: Option< CargoPackageId >
 }
 
@@ -248,7 +265,16 @@ impl CargoProject {
                         let json: serde_json::Value = serde_json::from_str( &serde_json::to_string( &dependency ).unwrap() ).unwrap();
                         let target = match json.get( "target" ).unwrap() {
                             &serde_json::Value::Null => None,
-                            &serde_json::Value::String( ref target ) => Some( target.clone() ),
+                            &serde_json::Value::String( ref target ) => {
+                                let target = match target.replace( " ", "" ).as_str() {
+                                    // TODO: Do this properly.
+                                    "cfg(target_os=\"emscripten\")" => CargoDependencyTarget::Emscripten,
+                                    "cfg(not(target_os=\"emscripten\"))" => CargoDependencyTarget::NonEmscripten,
+                                    _ => CargoDependencyTarget::Target( target.clone() )
+                                };
+
+                                Some( target )
+                            },
                             _ => unreachable!()
                         };
 
@@ -346,7 +372,7 @@ impl CargoProject {
         while let Some( index ) = queue.pop() {
             for dependency in &entries[ index ].package.dependencies {
                 if let Some( ref required_triplet ) = dependency.target {
-                    if required_triplet != triplet {
+                    if !required_triplet.matches( triplet ) {
                         continue;
                     }
                 }
