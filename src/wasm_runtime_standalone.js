@@ -24,7 +24,7 @@ if( typeof Rust === "undefined" ) {
 
         return __initialize( mod, false );
     } else {
-        return fetch( "{{{wasm_filename}}}" )
+        return fetch( "{{{wasm_filename}}}", {credentials: "same-origin"} )
             .then( response => response.arrayBuffer() )
             .then( bytes => WebAssembly.compile( bytes ) )
             .then( mod => __initialize( mod, true ) );
