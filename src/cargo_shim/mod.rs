@@ -215,6 +215,8 @@ impl CargoProject {
             command.arg( "always" );
         }
 
+        debug!( "Launching: {:?}", command );
+
         let output = command.output().map_err( |err| Error::CannotLaunchCargo( err ) )?;
         if !output.status.success() {
             return Err( Error::CargoFailed( String::from_utf8_lossy( &output.stderr ).into_owned() ) );
