@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::sync::mpsc::channel;
 use std::sync::{Mutex, Arc};
-use std::time::Duration;
+use std::time::{Instant, Duration};
 use std::thread;
 use std::net::{self, ToSocketAddrs};
 use std::hash::Hash;
@@ -312,7 +312,15 @@ pub fn command_start< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Er
 
     if matches.is_present( "open" ) {
         thread::spawn( move || {
-            thread::sleep( Duration::from_millis( 100 ) );
+            // Wait for server to start
+            let start = Instant::now();
+            let check_url = format!( "http://{}/__cargo-web__/build_hash", &address );
+            let mut response = None;
+            while start.elapsed() < Duration::from_secs( 10 ) && response.is_none() {
+                thread::sleep( Duration::from_millis( 100 ) );
+                response = ::reqwest::get( &check_url ).ok();
+            }
+
             ::open::that( &format!( "http://{}", &address ) ).expect( "Failed to open browser" );
         });
     }
