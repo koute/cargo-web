@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["Jan Bujak <j@exia.io>"]
 
 [target.wasm32-unknown-emscripten.dependencies]
-prepend-js = { path = "../prepend-js" }
+prepend-js-lib = { path = "../prepend-js-lib" }
 
 [target.asmjs-unknown-emscripten.dependencies]
-prepend-js = { path = "../prepend-js" }
+prepend-js-lib = { path = "../prepend-js-lib" }

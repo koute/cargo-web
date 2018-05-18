@@ -4,4 +4,4 @@ version = "0.1.0"
 authors = ["Jan Bujak <j@exia.io>"]
 
 [dependencies]
-default-target-invalid = { path = "../default-target-invalid" }
+default-target-invalid-lib = { path = "../default-target-invalid-lib" }

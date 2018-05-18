@@ -1,0 +1,6 @@
+[package]
+name = "default-target-invalid-lib"
+version = "0.1.0"
+authors = ["Jan Bujak <j@exia.io>"]
+
+[dependencies]
