@@ -1,0 +1,7 @@
+[package]
+name = "req-future-cargo-web-cfg-dep"
+version = "0.1.0"
+authors = ["Jan Bujak <j@exia.io>"]
+
+[target.'cfg(target_os = "emscripten")'.dependencies]
+requires-future-cargo-web = { path = "../requires-future-cargo-web" }
