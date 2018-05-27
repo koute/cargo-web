@@ -128,7 +128,25 @@ fn add_no_cache_headers( response: Response ) -> Response {
 }
 
 pub fn response_from_file( mime_type: &str, fp: File ) -> FutureResponse {
-    let map = unsafe { Mmap::map( &fp ) }.expect( "mmap failed" );
+    if let Ok( metadata ) = fp.metadata() {
+        if metadata.len() == 0 {
+            // This is necessary since `Mmap::map` will return an error for empty files.
+            return response_from_data( mime_type, Vec::new() );
+        }
+    }
+
+    let map = match unsafe { Mmap::map( &fp ) } {
+        Ok( map ) => map,
+        Err( error ) => {
+            warn!( "Mmap failed: {}", error );
+            let status = StatusCode::InternalServerError;
+            let message = format!( "{}\n\n{}", status, error ).into_bytes();
+            return Box::new( future::ok(
+                sync_response_from_data( "text/plain", message ).with_status( status )
+            ));
+        }
+    };
+
     let length = map.len();
     let body: Body = map.into();
     let response = add_no_cache_headers( Response::new() )
