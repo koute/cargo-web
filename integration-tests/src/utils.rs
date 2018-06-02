@@ -4,6 +4,11 @@ use std::process::{Command, ExitStatus, Child};
 use std::ffi::{OsStr, OsString};
 use std::io::{self, Read};
 use std::fs::File;
+use std::thread;
+use std::time::{Duration, Instant};
+use reqwest;
+
+use CARGO_WEB;
 
 #[cfg(windows)]
 pub const RUSTC_EXE: &'static str = "rustc.exe";
@@ -176,6 +181,21 @@ pub fn read_to_string< P: AsRef< Path > >( path: P ) -> String {
     output
 }
 
+pub fn read_to_bytes< P: AsRef< Path > >( path: P ) -> Vec<u8> {
+    let path = path.as_ref();
+    let mut fp = match File::open( path ) {
+        Ok( fp ) => fp,
+        Err( error ) => panic!( "Cannot open {:?}: {}", path, error )
+    };
+
+    let mut output = Vec::new();
+    if let Err( error ) = fp.read_to_end( &mut output ) {
+        panic!( "Cannot read {:?}: {:?}", path, error );
+    }
+
+    output
+}
+
 pub fn assert_file_contains< P: AsRef< Path > >( path: P, pattern: &str ) {
     let path = path.as_ref();
     let contents = read_to_string( path );
@@ -196,4 +216,74 @@ pub fn assert_file_missing< P: AsRef< Path > >( path: P ) {
     if path.exists() {
         panic!( "File {:?} exists", path );
     }
+}
+
+pub fn assert_wasm_emscripten_js_file_content(mut response: reqwest::Response, serve_url: &str, local_filename: &str) {
+    let body_text = if serve_url != "" {
+        // Remove the inserted serve_url from response text because content
+        // load from disk is the original, that does not contain serve_url yet.
+        // While response text is served from memory, which have serve_url inserted.
+        response.text().unwrap().replace( serve_url, "" )
+    } else {
+        response.text().unwrap()
+    };
+    assert_eq!( body_text, read_to_string( local_filename ) );
+}
+
+pub fn assert_text_file_content(mut response: reqwest::Response, _: &str, local_filename: &str) {
+    assert_eq!( response.text().unwrap(), read_to_string( local_filename ) );
+}
+
+pub fn assert_binary_file_content(response: reqwest::Response, _: &str, local_filename: &str) {
+    use std::io::Read;
+    assert_eq!(
+        response.bytes().collect::<Result<Vec<u8>, ::std::io::Error>>().unwrap(),
+        read_to_bytes( local_filename )
+    );
+}
+
+// Extracted from `in_directory( "test-crates/static-files", || {`
+// TODO: Make call to this fn (in the original source, where this is extracted)
+pub fn cargo_web_start( release: bool, target: Option<&str> ) -> ChildHandle {
+    use reqwest::header::ContentType;
+    use reqwest::StatusCode;
+    
+    let mut args = if release { vec!["build", "--release"] } else { vec!["build"] };
+    if let Some(target) = target {
+        args.push("--target");
+        args.push(target);
+    }
+    run( &*CARGO_WEB, &args ).assert_success();
+    args[0] = "start";
+    let _child = run_in_the_background( &*CARGO_WEB, &args );
+
+    let start = Instant::now();
+    let mut response = None;
+    while start.elapsed() < Duration::from_secs( 10 ) && response.is_none() {
+        thread::sleep( Duration::from_millis( 100 ) );
+        response = reqwest::get( "http://localhost:8000" ).ok();
+    }
+
+    let response = response.unwrap();
+    assert_eq!( response.status(), StatusCode::Ok );
+    assert_eq!( *response.headers().get::< ContentType >().unwrap(), ContentType::html() );
+    _child
+}
+
+// Also extracted from `in_directory( "test-crates/static-files", || {`
+pub fn test_get_file<T>(filename: &str, fileext: &str, mimetype: &str, serve_url: Option<&str>, local_path: &str, assertor: T )
+where T: FnOnce(reqwest::Response, &str, &str)
+{
+    use std::str::FromStr;
+    use reqwest::header::ContentType;
+    use reqwest::StatusCode;
+    use reqwest::mime::Mime;
+
+    let serve_url = serve_url.map( |val| format!( "{}/", val) ).unwrap_or( "".to_string() );
+
+    let response = reqwest::get( &format!( "http://localhost:8000/{}{}.{}", serve_url.trim_left_matches("/"), filename, fileext ) ).unwrap();
+    assert_eq!( response.status(), StatusCode::Ok );
+    assert_eq!( *response.headers().get::< ContentType >().unwrap(), ContentType( Mime::from_str( mimetype ).unwrap() ) );
+
+    assertor( response, &serve_url, &format!( "{}/{}.{}", local_path, filename, fileext) );
 }

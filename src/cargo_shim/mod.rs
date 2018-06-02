@@ -425,7 +425,8 @@ pub struct BuildConfig {
     pub extra_rustflags: Vec< String >,
     pub extra_environment: Vec< (String, String) >,
     pub message_format: MessageFormat,
-    pub is_verbose: bool
+    pub is_verbose: bool,
+    pub serve_url: String,
 }
 
 fn profile_to_arg( profile: Profile ) -> &'static str {

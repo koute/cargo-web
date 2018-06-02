@@ -1,0 +1,4 @@
+# This must be "wasm-app" (the same as project "custom_serve_url),
+# because both of them same some test code.
+js-wasm-path = "wasm-app"
+# `serve-url` will be the same as `js-wasm-path`

@@ -26,7 +26,7 @@ use cargo_shim::{
     CargoTarget
 };
 
-use build::{BuildArgs, Project, PathKind};
+use build::{BuildArgs, Project, PathKind, Backend};
 use http_utils::{
     SimpleServer,
     response_from_data,
@@ -143,7 +143,18 @@ impl LastBuild {
     fn new( project: Project, package: CargoPackage, target: CargoTarget, counter: Counter ) -> Result< Self, Error > {
         let config = project.aggregate_configuration( Profile::Main )?;
         let result = project.build( &config, &target )?;
-        let deployment = Deployment::new( &package, &target, &result, None )?;
+        
+        //let js_wasm_path = project.js_wasm_path();
+        
+        // serve_url will be used in the place of js_wasm_path in cmd_start
+        // because cmd_start actually serve files from memory. So that, in case
+        // that serve_url is not the same as js_wasm_path, cargo web start
+        // fail to serve correctly
+
+        let serve_url = project.serve_url();
+        let is_emscripten_wasm = project.backend() == Backend::EmscriptenWebAssembly;
+        
+        let deployment = Deployment::new( &package, &target, &result, &serve_url, &serve_url, is_emscripten_wasm )?;
 
         Ok( LastBuild {
             counter,

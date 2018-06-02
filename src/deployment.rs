@@ -54,10 +54,50 @@ fn generate_index_html( filename: &str ) -> String {
     handlebars.render_template( DEFAULT_INDEX_HTML_TEMPLATE, &template_data ).unwrap()
 }
 
-pub struct DeployWithServePath {
-    js_key: Option<String>,
-    wasm_file_name: Option<String>,
-    serve_path: Option<String>
+fn insert_serve_path_to_js_contents( routes: &mut Vec<Route>, js_key: Option<String>, wasm_filename: Option<String>, serve_url: &str ) {
+    fn search_start_index(contents: &[u8], value: &[u8], start_at: usize) -> Option<usize> {
+        for index in (0..start_at).rev() {
+            if contents[index..].starts_with(value) {
+                return Some(index);
+            }
+        }
+        None
+    }
+
+    let js_contents = match js_key {
+        Some(js_key) => {
+            match routes.iter_mut().find(|r| r.key == js_key).unwrap().kind {
+                RouteKind::Blob(ref mut contents) => contents,
+                _ => return // or? unreachable!()
+            }
+        }
+        None => return // or? unreachable!()
+    };
+
+    let wasm_filename = match wasm_filename {
+        Some(ref s) => s.as_bytes(),
+        None => return // or? unreachable!()
+    };
+    let serve_url = serve_url.as_bytes();
+
+    js_contents.reserve( serve_url.len() * 2 );
+
+    if let Some(start_index) 
+        = search_start_index( &js_contents[..], wasm_filename, js_contents.len()-wasm_filename.len() )
+    {
+        let _removed: Vec<u8> = 
+            js_contents.splice( start_index..start_index, serve_url.iter().cloned() ).collect();
+        assert_eq!(_removed.len(), 0);
+
+        if let Some(start_index)
+            = search_start_index( &js_contents[..], wasm_filename, start_index )
+        {
+            let _removed: Vec<u8> =
+                js_contents.splice( start_index..start_index, serve_url.iter().cloned() ).collect();
+            assert_eq!(_removed.len(), 0);
+        }
+
+    }
 }
 
 enum RouteKind {
@@ -83,118 +123,6 @@ pub enum ArtifactKind {
 pub struct Artifact {
     pub mime_type: &'static str,
     pub kind: ArtifactKind
-}
-
-impl DeployWithServePath {
-    pub fn new(serve_path: &Option<String>) -> Result<Self, Error> {
-        use std::path::MAIN_SEPARATOR as SEP;
-
-        let serve_path = if let Some(ref path) = *serve_path {
-            let mut double_sep = SEP.to_string();
-            double_sep.push(SEP);
-
-            // As state in README.md
-            // serve-path is sub and relative to deploy-path
-            // It is not allow to contains `\\` or `..`
-            if path.contains( &double_sep ) || path.contains( ".." ) {
-                return Err( Error::ConfigurationError( format!("serve-path is invalid: {}", path) ) );
-            }
-
-            let mut path = if path.starts_with( &SEP.to_string() ) {
-                path[1..].trim().to_string()
-            } else {
-                path.trim().to_string()
-            };
-            if path.len() > 0 {
-                if !path.ends_with( &SEP.to_string() ) {
-                    path.push( SEP );
-                }
-                Some(path)
-            } else {
-                None
-            }
-        } else {
-            None
-        };
-
-        Ok(Self {
-            js_key: None,
-            wasm_file_name: None,
-            serve_path
-        })
-    }
-
-    fn create_serve_path_for(&mut self, name: &str, ext: &::std::ffi::OsStr) -> String {
-        let serve_path = match self.serve_path {
-            Some(ref path) => path,
-            None => return name.to_string()
-        };
-        let with_path = PathBuf::from( serve_path ).join( name ).to_string_lossy().to_string();
-        if ext == "js" {
-            self.js_key = Some( with_path.clone() );
-        } else if ext == "wasm" {
-            self.wasm_file_name = Some( name.to_string() );
-        }
-        with_path
-    }
-
-    fn insert_serve_path_to_js(&self, routes: &mut Vec<Route>) {
-        let serve_path = match self.serve_path {
-            Some(ref path) => path,
-            None => return
-        };
-
-        let js_key = if let Some(ref js_key) = self.js_key {
-            js_key
-        } else {
-            return;
-        };
-
-        let wasm_u8 = if let Some(ref wasm_file_name) = self.wasm_file_name {
-            wasm_file_name.as_bytes()
-        } else {
-            return;
-        };
-
-        let _buf = PathBuf::from( serve_path ); // because of temporary value does not live long enough
-        let _lossy = _buf.to_string_lossy(); // because of temporary value does not live long enough
-        let serve_path_u8 = _lossy.as_bytes();
-
-        // Search backward for value in contents
-        fn search_start_index(contents: &[u8], value: &[u8], start_at: usize) -> Option<usize> {
-            for index in (0..start_at).rev() {
-                if contents[index..].starts_with(value) {
-                    return Some(index);
-                }
-            }
-            None
-        }
-
-        let js_route = routes.iter_mut().find(|r| r.key == *js_key).unwrap();
-        match js_route.kind {
-            RouteKind::Blob(ref mut contents) => {
-                contents.reserve( serve_path_u8.len() * 2 );
-
-                if let Some(start_index) 
-                    = search_start_index( &contents[..], wasm_u8, contents.len()-wasm_u8.len() )
-                {
-                    let _removed: Vec<u8> = 
-                        contents.splice( start_index..start_index, serve_path_u8.iter().cloned() ).collect();
-                    assert_eq!(_removed.len(), 0);
-
-                    if let Some(start_index)
-                        = search_start_index( &contents[..], wasm_u8, start_index )
-                    {
-                        let _removed: Vec<u8> =
-                            contents.splice( start_index..start_index, serve_path_u8.iter().cloned() ).collect();
-                        assert_eq!(_removed.len(), 0);
-                    }
-
-                }
-            }
-            _ => unreachable!()
-        }
-    }
 }
 
 impl Artifact {
@@ -224,9 +152,17 @@ impl Deployment {
             package: &CargoPackage,
             target: &CargoTarget,
             result: &CargoResult,
-            mut with_serve_path: Option<DeployWithServePath>
+            js_wasm_path: &str,
+            serve_url: &str,        // For inserting into js file if is_emscripten_wasm
+            is_emscripten_wasm: bool,
         ) -> Result< Self, Error >
     {
+        // It must be '/' because it is for the web url
+        assert!( serve_url.ends_with("/"), "serve_url must end with /" );
+
+        // Remove the starting '/', if not it breaks `cargo web start`
+        let js_wasm_path = js_wasm_path.trim_left_matches('/');
+
         let crate_static_path = package.crate_root.join( "static" );
         let target_static_path = match target.kind {
             TargetKind::Example => Some( target.source_directory.join( format!( "{}-static", target.name ) ) ),
@@ -236,23 +172,25 @@ impl Deployment {
 
         let js_name = format!( "{}.js", target.name );
 
+        // These will be a pair of 
+        //    * Some(js_key) and
+        //    * Some(wasm_filename_only))
+        // They are used for hacking the .js file generated by emscripten.
+        let mut js_key: Option<String> = None;
+        let mut wasm_filename: Option<String> = None;
+
         let mut routes = Vec::new();
         for path in result.artifacts() {
             let (is_js, key) = match path.extension() {
                 Some( ext ) if ext == "js" => {
-                    if let Some(ref mut with_serve_path) = with_serve_path {
-                        (true, with_serve_path.create_serve_path_for( &js_name, ext ) )
-                    } else {
-                        (true, js_name.clone())
-                    }
+                    let key = format!( "{}{}", js_wasm_path, js_name );
+                    js_key = Some(key.clone());
+                    (true,  key)
                 },
                 Some( ext ) if ext == "wasm" => {
-                    if let Some(ref mut with_serve_path) = with_serve_path {
-                        let wasm_name = path.file_name().unwrap().to_string_lossy();
-                        (false, with_serve_path.create_serve_path_for( &wasm_name, ext ) )
-                    } else {
-                        (false, path.file_name().unwrap().to_string_lossy().into_owned())
-                    }
+                    let filename = path.file_name().unwrap().to_string_lossy();
+                    wasm_filename = Some(filename.to_string());
+                    (false, format!( "{}{}", js_wasm_path, filename))
                 },
                 _ => continue
             };
@@ -280,8 +218,9 @@ impl Deployment {
             });
         }
 
-        if let Some(with_serve_path) = with_serve_path{
-            with_serve_path.insert_serve_path_to_js(&mut routes);
+        if is_emscripten_wasm {
+            // hack the js contents
+            insert_serve_path_to_js_contents( &mut routes, js_key, wasm_filename, serve_url );
         }
 
         if let Some( target_static_path ) = target_static_path {

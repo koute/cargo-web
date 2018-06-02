@@ -3,3 +3,4 @@ test-crates/*/target
 test-crates/*/Cargo.lock
 integration-tests/target
 integration-tests/Cargo.lock
+custom_deploy_path_here/*

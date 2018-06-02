@@ -7,8 +7,11 @@ use cargo_shim::{
     TargetKind
 };
 
-use build::BuildArgs;
-use deployment::{ Deployment, DeployWithServePath};
+use build::{
+    BuildArgs,
+    Backend,
+};
+use deployment::Deployment;
 use error::Error;
 
 pub fn command_deploy< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Error > {
@@ -25,24 +28,13 @@ pub fn command_deploy< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), E
     let target = targets[ 0 ];
     let result = project.build( &config, target )?;
 
-    let target_config = match project.config_of_default_target() {
-        Some(config) => config.clone(),
-        None => ::config::PerTargetConfig::default()
-    };
-    let deploy_options = DeployWithServePath::new( &target_config.serve_path )?;
+    let js_wasm_path = project.js_wasm_path();
+    let serve_url = project.serve_url();
+    let is_emscripten_wasm = project.backend() == Backend::EmscriptenWebAssembly;
+    let deployment = Deployment::new( package, target, &result, &js_wasm_path, &serve_url, is_emscripten_wasm )?;
 
-    let deployment = Deployment::new( package, target, &result, Some(deploy_options) )?;
-    let directory = if let Some(ref deploy_path) = target_config.deploy_path {
-        // Resolve deploy_path to the actual folder on filesystem, relative to crate_root
-        // The path must exist
-        package.crate_root.join( deploy_path ).canonicalize()
-            .map_err( |error| Error::ConfigurationError(
-                format!( "Deploy path '{}' is invalid: {}", deploy_path, error)
-            ))?
-    } else {
-        project.target_directory().join( "deploy" )
-    };
-    if directory.exists() {
+    let (default, directory) = project.deploy_path()?;
+    if default && directory.exists() {
         let entries = fs::read_dir( &directory ).map_err( |error| Error::CannotRemoveDirectory( directory.clone(), error ) )?; // TODO: Another error?
         for entry in entries {
             let entry = entry.expect( "cannot unwrap directory entry" );
