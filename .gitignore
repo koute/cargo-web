@@ -3,6 +3,6 @@ test-crates/*/target
 test-crates/*/Cargo.lock
 integration-tests/target
 integration-tests/Cargo.lock
-test-crates/custom_deploy_path/custom_deploy_path_here/custom_deploy_path.js
-test-crates/custom_deploy_path/custom_deploy_path_here/custom_deploy_path.wasm
-test-crates/custom_deploy_path/custom_deploy_path_here/index.html
+test-crates/custom_deploy_path/custom_deploy_path_here/*
+!test-crates/custom_deploy_path/custom_deploy_path_here/README.md
+
