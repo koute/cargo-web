@@ -406,7 +406,7 @@ impl Project {
     fn prepare_build_config( &self, config: &AggregatedConfig, target: &CargoTarget ) -> BuildConfig {
         let package = self.package();
         let mut extra_paths = Vec::new();
-        let mut extra_rustflags = Vec::new();
+        let mut extra_rustflags = vec![ "--cfg".to_owned(), "web".to_owned() ];
         let mut extra_environment = Vec::new();
         let mut extra_emmaken_cflags = Vec::new();
 

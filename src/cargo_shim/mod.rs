@@ -119,7 +119,9 @@ pub enum CargoDependencyKind {
 pub enum CargoDependencyTarget {
     Target( String ),
     Emscripten, // TODO: Remove these hardcodes.
-    NonEmscripten
+    NonEmscripten,
+    Web,
+    NonWeb,
 }
 
 impl CargoDependencyTarget {
@@ -127,7 +129,9 @@ impl CargoDependencyTarget {
         match self {
             CargoDependencyTarget::Target( ref target ) => target == triplet,
             CargoDependencyTarget::Emscripten => triplet.ends_with( "-emscripten" ),
-            CargoDependencyTarget::NonEmscripten => !triplet.ends_with( "-emscripten" )
+            CargoDependencyTarget::NonEmscripten => !triplet.ends_with( "-emscripten" ),
+            CargoDependencyTarget::Web => true,
+            CargoDependencyTarget::NonWeb => false,
         }
     }
 }
@@ -272,6 +276,8 @@ impl CargoProject {
                                     // TODO: Do this properly.
                                     "cfg(target_os=\"emscripten\")" => CargoDependencyTarget::Emscripten,
                                     "cfg(not(target_os=\"emscripten\"))" => CargoDependencyTarget::NonEmscripten,
+                                    "cfg(web)" => CargoDependencyTarget::Web,
+                                    "cfg(not(web))" => CargoDependencyTarget::NonWeb,
                                     _ => CargoDependencyTarget::Target( target.clone() )
                                 };
 
