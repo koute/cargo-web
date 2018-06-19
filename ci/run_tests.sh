@@ -7,6 +7,7 @@ export REPOSITORY_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/.."
 export CARGO_WEB=$REPOSITORY_ROOT/target/debug/cargo-web
 
 TEST_SUBSET=${TEST_SUBSET:-0}
+CHECK_ONLY=${CHECK_ONLY:-0}
 
 ONLY_LOCAL=0
 for ARG in "$@"
@@ -34,6 +35,12 @@ set -e
 cd $REPOSITORY_ROOT
 
 echo "++ Is Rust from nightly: $IS_NIGHTLY"
+
+if [ "$CHECK_ONLY" == "1" ]; then
+    echo "++ Will only check whenever we compile!"
+    cargo check
+    exit 0
+fi
 
 cargo build
 
