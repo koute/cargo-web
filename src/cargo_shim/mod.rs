@@ -124,7 +124,7 @@ pub enum CargoDependencyTarget {
 
 impl CargoDependencyTarget {
     fn matches( &self, triplet: &str ) -> bool {
-        match self {
+        match *self {
             CargoDependencyTarget::Target( ref target ) => target == triplet,
             CargoDependencyTarget::Emscripten => triplet.ends_with( "-emscripten" ),
             CargoDependencyTarget::NonEmscripten => !triplet.ends_with( "-emscripten" )
