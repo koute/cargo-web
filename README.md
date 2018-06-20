@@ -13,7 +13,8 @@ and deploy client-side Web applications written in Rust.
 
 This software was brought to you thanks to these wonderful people:
   * Daniel Norman
-  * Ben Berman
+  * Edward Knyshov
+  * Johan Andersson
   * Stephen Sugden
 
 Thank you!
