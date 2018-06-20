@@ -3,7 +3,7 @@ use std::path::Path;
 use std::process::{Command, ExitStatus, Child};
 use std::ffi::{OsStr, OsString};
 use std::io::{self, Read};
-use std::fs::File;
+use std::fs::{File, OpenOptions};
 
 #[cfg(windows)]
 pub const RUSTC_EXE: &'static str = "rustc.exe";
@@ -195,5 +195,12 @@ pub fn assert_file_missing< P: AsRef< Path > >( path: P ) {
     let path = path.as_ref();
     if path.exists() {
         panic!( "File {:?} exists", path );
+    }
+}
+
+pub fn touch_file< P: AsRef< Path > >( path: P ) {
+    let path = path.as_ref();
+    if let Err( error ) = OpenOptions::new().append( true ).open( path ) {
+        panic!( "Cannot touch {:?}: {:?}", path, error );
     }
 }
