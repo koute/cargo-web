@@ -54,7 +54,7 @@ pub fn process_wasm_file< P: AsRef< Path > + ?Sized >( runtime: RuntimeKind, bui
     parity_wasm::serialize_to_file( path, module ).unwrap();
 
     let all_snippets: Vec< _ > = snippets.into_iter().chain( intrinsics.into_iter() ).collect();
-    let js = wasm_runtime::generate_js( runtime, main_symbol, path, prepend_js, &all_snippets, &exports );
+    let js = wasm_runtime::generate_js( runtime, main_symbol, path, &build.serve_url, prepend_js, &all_snippets, &exports );
     let mut fp = File::create( &js_path ).unwrap();
     fp.write_all( js.as_bytes() ).unwrap();
 

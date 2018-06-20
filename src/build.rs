@@ -283,6 +283,53 @@ impl Project {
             .unwrap_or( Backend::EmscriptenAsmJs )
     }
 
+    /// Return (true, path) if the path is default: `tartget/deploy`
+    /// Return (false, path) if the path is specify in Web.toml
+    /// Return Err if the specified path not exists
+    pub fn deploy_path( &self ) -> Result<(bool, PathBuf), Error> {
+        let deploy_path = self.main_config.as_ref()
+            .and_then( |main_config| main_config.per_target.get( &self.backend() ) )
+            .and_then( |target_config| target_config.deploy_path.as_ref() );
+        match deploy_path {
+            Some(deploy_path) => {
+                let path = self.package().crate_root.join(deploy_path).canonicalize().map_err(|error| {
+                    Error::ConfigurationError( format!( "Deploy path '{}' is invalid: {}", deploy_path, error) )
+                })?;
+                Ok(( false, path ))
+            }
+            None => Ok(( true, self.target_directory().join( "deploy" ) )) 
+        }
+    }
+
+    pub fn js_wasm_path( &self ) -> String {
+        let path = self.main_config.as_ref()
+            .and_then( |main_config| main_config.per_target.get( &self.backend() ) )
+            .and_then( |target_config| target_config.js_wasm_path.as_ref());
+        match path {
+            Some(ref path) => {
+                if !path.ends_with( ::std::path::MAIN_SEPARATOR ) {
+                    format!("{}{}", path, ::std::path::MAIN_SEPARATOR)
+                } else {
+                    (*path).clone()
+                }
+            }
+            None => "/".to_string()
+        }
+    }
+
+    pub fn serve_url( &self ) -> String {
+        let serve_url = self.main_config.as_ref()
+            .and_then( |main_config| main_config.per_target.get( &self.backend() ) )
+            .and_then( |target_config| target_config.serve_url.clone() )
+            .unwrap_or( self.js_wasm_path() ); // It will be the same as `js_wasm_path` if `serve-path` is None
+
+        let mut serve_url = serve_url.replace("\\", "/"); // url use '/' only?
+        if !serve_url.ends_with("/") {
+            serve_url.push('/');
+        }
+        serve_url
+    }
+
     pub fn build_args( &self ) -> &BuildArgs {
         &self.build_args
     }
@@ -518,7 +565,8 @@ impl Project {
             extra_rustflags,
             extra_environment,
             message_format: self.build_args.message_format,
-            is_verbose: self.build_args.is_verbose
+            is_verbose: self.build_args.is_verbose,
+            serve_url: self.serve_url(),
         }
     }
 

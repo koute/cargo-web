@@ -32,6 +32,8 @@ fn main() {
 
     cd( &*REPOSITORY_ROOT );
 
+    test_custom_deploy_path_serve_url();
+
     for name in &[
         "rlib",
         "dev-depends-on-dylib",
@@ -183,6 +185,8 @@ fn main() {
         use reqwest::StatusCode;
         use reqwest::mime::Mime;
 
+        // If everything OK, this portion of code can be replaced
+        // by a call to `fn cargo_web_start`
         run( &*CARGO_WEB, &["build"] ).assert_success();
         let _child = run_in_the_background( &*CARGO_WEB, &["start"] );
         let start = Instant::now();
@@ -195,6 +199,7 @@ fn main() {
         let response = response.unwrap();
         assert_eq!( response.status(), StatusCode::Ok );
         assert_eq!( *response.headers().get::< ContentType >().unwrap(), ContentType::html() );
+        // End of `fn cargo_web_start` extraction
 
         let mut response = reqwest::get( "http://localhost:8000/subdirectory/dummy.json" ).unwrap();
         assert_eq!( response.status(), StatusCode::Ok );
@@ -231,5 +236,97 @@ fn main() {
     in_directory( "test-crates/req-future-cargo-web-cfg-not-dep", || {
         run( &*CARGO_WEB, &["build", "--target", "wasm32-unknown-unknown"] ).assert_failure();
         run( &*CARGO_WEB, &["build", "--target", "wasm32-unknown-emscripten"] ).assert_success();
+    });
+}
+
+fn test_custom_deploy_path_serve_url() {
+    test_custom_serve_url("custom_serve_url");
+    test_deploy_path("custom_serve_url", "target/deploy/", "");
+
+    test_custom_serve_url("custom_js_wasm_path");
+    test_deploy_path("custom_js_wasm_path", "target/deploy/", "wasm-app/");
+
+    test_deploy_path("custom_deploy_path", "custom_deploy_path_here/", "");
+
+    in_directory("test-crates/custom_deploy_path_invalid", || {
+        run( &*CARGO_WEB, &["deploy", "--target", "asmjs-unknown-emscripten"] ).assert_failure();
+        run( &*CARGO_WEB, &["deploy", "--target", "wasm32-unknown-emscripten"] ).assert_failure();
+        run( &*CARGO_WEB, &["deploy", "--target", "wasm32-unknown-unknown"] ).assert_failure();
+    });
+}
+
+fn test_custom_serve_url(project_name: &str){
+    in_directory( &format!( "test-crates/{}", project_name ), || {
+        {
+            let _child = cargo_web_start( false, Some("asmjs-unknown-emscripten") );
+            test_get_file(
+                project_name,
+                "js",
+                "application/javascript",
+                Some("wasm-app"),
+                "target/asmjs-unknown-emscripten/debug",
+                assert_text_file_content
+            );
+        }
+        {
+            let _child = cargo_web_start( false, Some("wasm32-unknown-emscripten") );
+            test_get_file(
+                project_name,
+                "js",
+                "application/javascript",
+                Some("wasm-app"),
+                "target/wasm32-unknown-emscripten/debug",
+                assert_wasm_emscripten_js_file_content
+            );
+            test_get_file(
+                project_name,
+                "wasm",
+                "application/wasm",
+                Some("wasm-app"),
+                "target/wasm32-unknown-emscripten/debug",
+                assert_binary_file_content
+            );
+        }
+        if *IS_NIGHTLY {
+            // Currently wasm32-unknown-unknown was forced to build in release mode
+            // Explicitly add --release here to avoid breakage in the future
+            let _child = cargo_web_start( true, Some("wasm32-unknown-unknown") );
+            test_get_file(
+                project_name,
+                "js",
+                "application/javascript",
+                Some("wasm-app"),
+                "target/wasm32-unknown-unknown/release",
+                assert_text_file_content
+            );
+            test_get_file(
+                project_name,
+                "wasm",
+                "application/wasm",
+                Some("wasm-app"),
+                "target/wasm32-unknown-unknown/release",
+                assert_binary_file_content
+            );
+        }
+    });
+}
+
+fn test_deploy_path(project_name: &str, deploy_path: &str, js_wasm_path: &str) {
+    in_directory( &format!( "test-crates/{}", project_name ), || {
+        run( &*CARGO_WEB, &["deploy", "--target", "asmjs-unknown-emscripten"] ).assert_success();
+        assert_file_exists( &format!("{}{}", deploy_path, "index.html") );
+        assert_file_exists( &format!("{}{}{}.js", deploy_path, js_wasm_path, project_name) );
+
+        run( &*CARGO_WEB, &["deploy", "--target", "wasm32-unknown-emscripten"] ).assert_success();
+        assert_file_exists( &format!("{}{}", deploy_path, "index.html") );
+        assert_file_exists( &format!("{}{}{}.js", deploy_path, js_wasm_path, project_name) );
+        assert_file_exists( &format!("{}{}{}.wasm", deploy_path, js_wasm_path, project_name) );
+
+        if *IS_NIGHTLY {
+            run( &*CARGO_WEB, &["deploy", "--target", "wasm32-unknown-unknown"] ).assert_success();
+            assert_file_exists( &format!("{}{}", deploy_path, "index.html") );
+            assert_file_exists( &format!("{}{}{}.js", deploy_path, js_wasm_path, project_name) );
+            assert_file_exists( &format!("{}{}{}.wasm", deploy_path, js_wasm_path, project_name) );
+        }
     });
 }

@@ -29,10 +29,53 @@ fn from_string_or_array_of_strings( path_in_toml: &str, config: &Config, prepend
     }
 }
 
+// deploy-path can be relative or absolute
+fn is_valid_deploy_path( _path: &str ) -> Result< (), Error > {
+    // Currently, deploy-path is not checked here
+    // Can deploy-path can be check for validity here?
+    Ok(())
+}
+
+// js-wasm-path is relative to deploy-path.
+// It is not allow to contains '..' or `//` or `\\`.
+// It can start with `/` (but treated as sub of deploy-path).
+fn is_valid_js_wasm_path( path: &str ) -> Result< (), Error > {
+    use std::path::MAIN_SEPARATOR as SEP;
+
+    let double_sep = format!("{0}{0}", SEP);
+    if path.contains( &double_sep ) || path.contains( ".." ) {
+        return Err( Error::ConfigurationError( format!("js-wasm-path is invalid: {}", path) ) );
+    }
+    Ok(())
+}
+
+// serve-url is the url from which the browser can get `.js` and `.wasm` file.
+// It is not allow to contains '..' or `//` or `\\`.
+// It can start with `/`.
+//
+// Is there differences in validity of js-wasm-path vs serve-url??? (I don't know yet)
+fn is_valid_serve_url( path: &str ) -> Result< (), Error > {
+    use std::path::MAIN_SEPARATOR as SEP;
+
+    let double_sep = format!("{0}{0}", SEP);
+    if path.contains( &double_sep ) || path.contains( ".." ) {
+        return Err( Error::ConfigurationError( format!("serve-url is invalid: {}", path) ) );
+    }
+    Ok(())
+}
+
+
 #[derive(Clone, Debug, Default)]
 pub struct PerTargetConfig {
     pub link_args: Option< Vec< String > >,
-    pub prepend_js: Option< Vec< String > >
+    pub prepend_js: Option< Vec< String > >,
+    // Location, can be an absolute path or relative to location of Cargo.toml,
+    // where you want to copy all things from `/static/*`
+    pub deploy_path: Option< String >,
+    // Location, relative to `deploy_path`, to output `.js` and `.wasm`
+    pub js_wasm_path: Option< String >,
+    // The url that `.js` and `.wasm` files are served by server
+    pub serve_url: Option< String >,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -95,6 +138,46 @@ fn add_prepend_js( config: &mut Config, backend: Backend, prepend_js: Vec< Strin
     return Err( format!( "{}: you can't have multiple 'prepend-js' defined for a single target", config.source() ).into() );
 }
 
+macro_rules! create_add_string_fn {
+    ($fname:ident, $field_ident:ident, $path_checker:ident) => {
+        fn $fname(
+                &mut self,
+                backends: &[Backend],
+                $field_ident: toml::Value,
+                path_in_toml: &str
+            ) -> Result< (), Error > {
+            let string_value = $field_ident.try_into().map(|val: String| val.trim().to_string()).map_err(|_|
+                format!( "{}: '{}' is not a string", self.source(), path_in_toml)
+            )?;
+
+            $path_checker(&string_value)?;
+
+            // Manually iter over backends via `loop` to avoid error on borrowing immutably and
+            // mutably `self` in the same scope.
+            // `loop` will break with `true` if it found multiple value for a single key on a single target
+            // otherwise it return false
+            let mut iter = backends.iter();
+            let error = loop {
+                if let Some(backend) = iter.next(){
+                    let per_target = self.per_target.entry( *backend ).or_insert( Default::default() );
+                    if per_target.$field_ident.is_none() {
+                        per_target.$field_ident = Some( string_value.clone() );
+                    }else{
+                        break true;
+                    }
+                }else{
+                    break false;
+                }
+            };
+            if error {
+                Err( format!( "{}: you can't have multiple '{}' defined for a single target", self.source(), stringify!($field_ident)).into())
+            }else{
+                Ok(())
+            }
+        }
+    }
+}
+
 const ALL_BACKENDS: &'static [Backend] = &[
     Backend::EmscriptenAsmJs,
     Backend::EmscriptenWebAssembly,
@@ -102,6 +185,79 @@ const ALL_BACKENDS: &'static [Backend] = &[
 ];
 
 impl Config {
+    create_add_string_fn!(add_deploy_path, deploy_path, is_valid_deploy_path);
+    create_add_string_fn!(add_js_wasm_path, js_wasm_path, is_valid_js_wasm_path);
+    create_add_string_fn!(add_serve_url, serve_url, is_valid_serve_url);
+
+    fn collect_target_config(
+            &mut self,
+            toplevel_value: toml::Value,
+            warnings: &mut Vec<Warning>,
+            is_main_crate: bool,
+        ) -> Result< (), Error > 
+    {
+        let mut config = self;
+        let target_table: toml::value::Table =
+            toplevel_value.try_into()
+            .map_err( |_| format!( "{}: 'target' should be a section", config.source() ) )?;
+
+        for (target_key, target_value) in target_table {
+            let backends = match target_key.as_str() {
+                "wasm32-unknown-unknown" => &[Backend::WebAssembly][..],
+                "wasm32-unknown-emscripten" => &[Backend::EmscriptenWebAssembly][..],
+                "asmjs-unknown-emscripten" => &[Backend::EmscriptenAsmJs][..],
+                "emscripten" => &[Backend::EmscriptenWebAssembly, Backend::EmscriptenAsmJs][..],
+                target_key => {
+                    warnings.push( Warning::UnknownKey( format!( "target.{}", target_key ) ) );
+                    continue;
+                }
+            };
+
+            let target_subtable: toml::value::Table =
+                target_value.try_into()
+                .map_err( |_| format!( "{}: 'target.{}' should be a section", config.source(), target_key ) )?;
+
+            for (per_target_key, per_target_value) in target_subtable {
+                let path_in_toml = format!( "target.{}.{}", target_key, per_target_key );
+                match per_target_key.as_str() {
+                    "link-args" => {
+                        let link_args: Vec< String > =
+                            per_target_value.try_into().map_err( |_|
+                                format!(
+                                    "{}: '{}' is not an array of strings",
+                                    config.source(),
+                                    path_in_toml
+                                )
+                            )?;
+
+                        for backend in backends.iter().cloned() {
+                            add_link_args( &mut config, backend, link_args.clone() )?;
+                        }
+                    },
+                    "prepend-js" => {
+                        let per_target_value = from_string_or_array_of_strings( &path_in_toml, &config, per_target_value )?;
+                        for backend in backends.iter().cloned() {
+                            add_prepend_js( &mut config, backend, per_target_value.clone() )?;
+                        }
+                    },
+                    "deploy-path" => if is_main_crate {
+                        config.add_deploy_path(backends, per_target_value, &path_in_toml)?;
+                    },
+                    "js-wasm-path" => if is_main_crate {
+                        config.add_js_wasm_path(backends, per_target_value, &path_in_toml)?;
+                    },
+                    "serve-url" => if is_main_crate {
+                        config.add_serve_url(backends, per_target_value, &path_in_toml)?;
+                    },
+                    _ => {
+                        warnings.push( Warning::UnknownKey( path_in_toml ) );
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
     pub fn load_from_file< P >(
             path: P,
             crate_name: Option< String >,
@@ -127,7 +283,12 @@ impl Config {
 
         debug!( "Loading {:?}...", path );
 
-        let raw: toml::Value = toml::from_str( config_toml.as_str() ).unwrap();
+        let raw: toml::Value = match toml::from_str( config_toml.as_str() ) {
+            Ok(value) => value,
+            Err(error) => return Err( Error::ConfigurationError(
+                format!( "Failed to parse Web.toml: {}", error )
+            ))
+        };
         let mut warnings = Vec::new();
 
         // TODO: This is getting way too long. Split it into multiple functions.
@@ -199,57 +360,16 @@ impl Config {
                                 }
                             }
                         },
-                        "target" => {
-                            let target_table: toml::value::Table =
-                                toplevel_value.try_into()
-                                .map_err( |_| format!( "{}: 'target' should be a section", config.source() ) )?;
-
-                            for (target_key, target_value) in target_table {
-                                let backends = match target_key.as_str() {
-                                    "wasm32-unknown-unknown" => &[Backend::WebAssembly][..],
-                                    "wasm32-unknown-emscripten" => &[Backend::EmscriptenWebAssembly][..],
-                                    "asmjs-unknown-emscripten" => &[Backend::EmscriptenAsmJs][..],
-                                    "emscripten" => &[Backend::EmscriptenWebAssembly, Backend::EmscriptenAsmJs][..],
-                                    target_key => {
-                                        warnings.push( Warning::UnknownKey( format!( "target.{}", target_key ) ) );
-                                        continue;
-                                    }
-                                };
-
-                                let target_subtable: toml::value::Table =
-                                    target_value.try_into()
-                                    .map_err( |_| format!( "{}: 'target.{}' should be a section", config.source(), target_key ) )?;
-
-                                for (per_target_key, per_target_value) in target_subtable {
-                                    let path_in_toml = format!( "target.{}.{}", target_key, per_target_key );
-                                    match per_target_key.as_str() {
-                                        "link-args" => {
-                                            let link_args: Vec< String > =
-                                                per_target_value.try_into().map_err( |_|
-                                                    format!(
-                                                        "{}: '{}' is not an array of strings",
-                                                        config.source(),
-                                                        path_in_toml
-                                                    )
-                                                )?;
-
-                                            for backend in backends.iter().cloned() {
-                                                add_link_args( &mut config, backend, link_args.clone() )?;
-                                            }
-                                        },
-                                        "prepend-js" => {
-                                            let per_target_value = from_string_or_array_of_strings( &path_in_toml, &config, per_target_value )?;
-                                            for backend in backends.iter().cloned() {
-                                                add_prepend_js( &mut config, backend, per_target_value.clone() )?;
-                                            }
-                                        },
-                                        _ => {
-                                            warnings.push( Warning::UnknownKey( path_in_toml ) );
-                                        }
-                                    }
-                                }
-                            }
+                        "deploy-path" => if is_main_crate {
+                            config.add_deploy_path(ALL_BACKENDS, toplevel_value, "deploy-path")?;
                         },
+                        "js-wasm-path" => if is_main_crate {
+                            config.add_js_wasm_path(ALL_BACKENDS, toplevel_value, "js-wasm-path")?;
+                        },
+                        "serve-url" => if is_main_crate {
+                            config.add_serve_url(ALL_BACKENDS, toplevel_value, "serve-url")?;
+                        },
+                        "target" => config.collect_target_config(toplevel_value, &mut warnings, is_main_crate)?,
                         toplevel_key => {
                             warnings.push( Warning::UnknownKey( toplevel_key.into() ) );
                         }

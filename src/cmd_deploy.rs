@@ -7,7 +7,10 @@ use cargo_shim::{
     TargetKind
 };
 
-use build::BuildArgs;
+use build::{
+    BuildArgs,
+    Backend,
+};
 use deployment::Deployment;
 use error::Error;
 
@@ -25,9 +28,13 @@ pub fn command_deploy< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), E
     let target = targets[ 0 ];
     let result = project.build( &config, target )?;
 
-    let deployment = Deployment::new( package, target, &result )?;
-    let directory = project.target_directory().join( "deploy" );
-    if directory.exists() {
+    let js_wasm_path = project.js_wasm_path();
+    let serve_url = project.serve_url();
+    let is_emscripten_wasm = project.backend() == Backend::EmscriptenWebAssembly;
+    let deployment = Deployment::new( package, target, &result, &js_wasm_path, &serve_url, is_emscripten_wasm )?;
+
+    let (default, directory) = project.deploy_path()?;
+    if default && directory.exists() {
         let entries = fs::read_dir( &directory ).map_err( |error| Error::CannotRemoveDirectory( directory.clone(), error ) )?; // TODO: Another error?
         for entry in entries {
             let entry = entry.expect( "cannot unwrap directory entry" );

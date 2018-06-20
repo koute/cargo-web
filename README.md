@@ -115,6 +115,66 @@ A few restrictions concerning the `Web.toml`:
 
 [`Cargo.toml`]: https://doc.rust-lang.org/cargo/reference/manifest.html
 
+### Support for custom `deploy-path`, `serve-url`
+In `Web.toml`, you can specify `deploy-path`, `js-wasm-path` and `serve-url`.
+
+```toml
+# The default value of `deploy-path` is `target/deploy`.
+# If specified, the folder must exist.
+deploy-path = "path/to/deploy/folder/"
+
+# The default value of `js-wasm-path` is "/" (means the root of `deploy-path`)
+js-wasm-path = "js/and/wasm/folder/inside/deploy/path"
+
+# [Optional] If ommitted, the value of `serve-url` will be the same as `js-wasm-path`
+serve-url = "url/to/retrieve/js/and/wasm/files"
+
+[target.wasm32-unknown-unknown]
+# If you specify these parameters for a specific target then global `deploy-path`,
+# `js-wasm-path` and `serve-url` are not allowed.
+deploy-path = "path/to/deploy/folder/"
+js-wasm-path = "js/and/wasm/folder/inside/deploy/path"
+serve-url = "url/to/retrieve/js/and/wasm/files"
+```
+
+`deploy-path` specifies the location where the files are copied when
+running `cargo web deploy`. It can be an absolute path, or relative 
+to the location of Cargo.toml. Please remember that any file that have
+the same path with files that are being deployed will be **overwritten**.
+
+`js-wasm-path` specifies the location (sub and relative to `deploy-path`)
+where`.js` and `.wasm` files are output to.
+
+`serve-url` specifies the url from which the server serves 
+`.js` and `.wasm` files. `serve-url` is useful when you your
+`deploy-path` is just a sub-folder in your website static folder such as:
+```
+  /all-static-files-at-webroot  // your server serves CONTENTS of this folder at webroot
+    /files-from-other-sources
+      /deploy-path-of-cargo-web // cargo web deploy here (static/*, index.html)
+        /js-wasm-files          // but .js/.wasm are deployed here
+```
+In this example, your config must be:
+```toml
+deploy-path="path/to/deploy-path-of-cargo-web"
+js-wasm-path="/js-wasm-files"
+
+serve-url="/deploy-path-of-cargo-web/js-wasm-files"
+# or if you have a specific route when serving static files:
+serve-url="/static-route/deploy-path-of-cargo-web/js-wasm-files"
+```
+If you have your wasm-app files and other static files serve like
+the above example. Please notes:
+* An `index.html` must be provided in `crate-root/static` and have it point to
+the right `url` of `.js` file for browsers to be able to load it.
+
+#### Known issue on using `js-wasm-path`/`serve-url`
+
+When you change the value of `js-wasm-path`/`serve-url`, but there is no change
+that triggers the rebuilding of your Rust source code, then `serve-url`
+may NOT be updated properly in `.js` file. Therefore, the `.js` may fail to
+load the `.wasm` file.
+
 ## Static files
 
 Any static files you'd like to have served when running `cargo web start` or deployed

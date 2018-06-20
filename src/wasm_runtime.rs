@@ -73,8 +73,11 @@ fn join< T: Display, I: IntoIterator< Item = T > >( separator: &str, iter: I ) -
     output
 }
 
-pub fn generate_js( runtime: RuntimeKind, main_symbol: Option< String >, wasm_path: &Path, prepend_js: &str, snippets: &[JsSnippet], exports: &[JsExport] ) -> String {
-    let filename = wasm_path.file_name().unwrap().to_str().unwrap();
+pub fn generate_js( runtime: RuntimeKind, main_symbol: Option< String >, wasm_path: &Path, serve_path: &str, prepend_js: &str, snippets: &[JsSnippet], exports: &[JsExport] ) -> String {
+    // It must be '/' because it is for the web url
+    assert!( serve_path.ends_with("/"), "serve-path must end with /" );
+
+    let filename = format!( "{}{}", serve_path, wasm_path.file_name().unwrap().to_str().unwrap());
     let module_name = to_js_identifier( wasm_path.file_stem().unwrap().to_str().unwrap() );
 
     let mut snippets_js = String::new();

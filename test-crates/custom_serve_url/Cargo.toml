@@ -1,0 +1,6 @@
+[package]
+name = "custom_serve_url"
+version = "0.1.0"
+authors = ["Limira <20672976+limira@users.noreply.github.com>"]
+
+[dependencies]
