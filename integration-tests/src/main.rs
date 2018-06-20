@@ -205,6 +205,30 @@ fn main() {
         assert_eq!( response.status(), StatusCode::Ok );
         assert_eq!( *response.headers().get::< ContentType >().unwrap(), ContentType( Mime::from_str( "application/javascript" ).unwrap() ) );
         assert_eq!( response.text().unwrap(), read_to_string( "target/asmjs-unknown-emscripten/debug/static-files.js" ) );
+
+        // TODO: Move this to its own test?
+        let mut response = reqwest::get( "http://localhost:8000/__cargo-web__/build_hash" ).unwrap();
+        assert_eq!( response.status(), StatusCode::Ok );
+        let build_hash = response.text().unwrap();
+
+        let mut response = reqwest::get( "http://localhost:8000/__cargo-web__/build_hash" ).unwrap();
+        assert_eq!( response.status(), StatusCode::Ok );
+        assert_eq!( response.text().unwrap(), build_hash ); // Hash didn't change.
+
+        touch_file( "src/main.rs" );
+
+        let start = Instant::now();
+        let mut found = false;
+        while start.elapsed() < Duration::from_secs( 10 ) && !found {
+            thread::sleep( Duration::from_millis( 100 ) );
+            let mut response = reqwest::get( "http://localhost:8000" ).unwrap();
+            assert_eq!( response.status(), StatusCode::Ok );
+
+            let new_build_hash = response.text().unwrap();
+            found = new_build_hash != build_hash;
+        }
+
+        assert!( found, "Touching a source file didn't change the build hash!" );
     });
 
     in_directory( "test-crates/virtual-manifest", || {
