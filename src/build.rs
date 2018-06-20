@@ -34,6 +34,12 @@ pub enum PathKind {
     Directory
 }
 
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum ShouldTriggerRebuild {
+    Yes,
+    No
+}
+
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
 pub enum Backend {
     EmscriptenWebAssembly,
@@ -522,18 +528,41 @@ impl Project {
         }
     }
 
-    pub fn paths_to_watch( &self, target: &CargoTarget ) -> Vec< (PathBuf, PathKind) > {
+    pub fn static_paths( package: &CargoPackage, target: &CargoTarget ) -> Vec< PathBuf > {
+        let crate_static_path = package.crate_root.join( "static" );
+        let target_static_path = match target.kind {
+            TargetKind::Example => Some( target.source_directory.join( format!( "{}-static", target.name ) ) ),
+            TargetKind::Bin => Some( target.source_directory.join( "static" ) ),
+            _ => None
+        };
+
+        let mut output = Vec::new();
+        if let Some( target_static_path ) = target_static_path {
+            output.push( target_static_path );
+        }
+        output.push( crate_static_path );
+        output
+    }
+
+    pub fn paths_to_watch( &self, target: &CargoTarget ) -> Vec< (PathBuf, PathKind, ShouldTriggerRebuild) > {
         // TODO: `Web.toml` and `prepend-js` support.
         let mut paths = Vec::new();
-        paths.push( (target.source_directory.clone(), PathKind::Directory) );
+        paths.push( (target.source_directory.clone(), PathKind::Directory, ShouldTriggerRebuild::Yes) );
 
         let packages = self.used_packages( Profile::Main );
         for package in packages {
-            paths.push( (package.manifest_path.clone(), PathKind::File) );
+            paths.push( (package.manifest_path.clone(), PathKind::File, ShouldTriggerRebuild::Yes) );
             if let Some( lib_target ) = package.targets.iter().find( |target| target.kind == TargetKind::Lib || target.kind == TargetKind::CDyLib ) {
-                paths.push( (lib_target.source_directory.clone(), PathKind::Directory) );
+                paths.push( (lib_target.source_directory.clone(), PathKind::Directory, ShouldTriggerRebuild::Yes) );
             }
         }
+
+        let main_package = self.package();
+        paths.extend(
+            Project::static_paths( main_package, target )
+                .into_iter()
+                .map( |path| (path, PathKind::Directory, ShouldTriggerRebuild::No) )
+        );
 
         paths
     }
@@ -611,7 +640,12 @@ impl Project {
 
         if self.build_args.message_format == MessageFormat::Json {
             let mut paths = Vec::new();
-            for (path, kind) in self.paths_to_watch( target ) {
+            for (path, kind, trigger_rebuild) in self.paths_to_watch( target ) {
+                if trigger_rebuild == ShouldTriggerRebuild::No {
+                    // TODO: Emit these too maybe?
+                    continue;
+                }
+
                 match kind {
                     PathKind::File => {
                         paths.push( json!({ "path": path.to_string_lossy() }) );

@@ -6,6 +6,7 @@ use std::thread;
 use std::net::{self, ToSocketAddrs};
 use std::hash::Hash;
 use std::time::{SystemTime, UNIX_EPOCH};
+use std::path::{Path, PathBuf};
 
 use notify::{
     RecommendedWatcher,
@@ -21,12 +22,11 @@ use hyper::StatusCode;
 
 use cargo_shim::{
     Profile,
-    CargoPackage,
     TargetKind,
     CargoTarget
 };
 
-use build::{BuildArgs, Project, PathKind};
+use build::{BuildArgs, Project, PathKind, ShouldTriggerRebuild};
 use http_utils::{
     SimpleServer,
     response_from_data,
@@ -119,8 +119,7 @@ struct LastBuild {
     target: CargoTarget
 }
 
-fn select_package_and_target( project: &Project ) -> Result< (CargoPackage, CargoTarget), Error > {
-    let package = project.package().clone();
+fn select_target( project: &Project ) -> Result< CargoTarget, Error > {
     let target = {
         let targets = project.target_or_select( |target| {
             target.kind == TargetKind::Bin ||
@@ -136,14 +135,14 @@ fn select_package_and_target( project: &Project ) -> Result< (CargoPackage, Carg
         targets[ 0 ].clone()
     };
 
-    Ok( (package, target) )
+    Ok( target )
 }
 
 impl LastBuild {
-    fn new( project: Project, package: CargoPackage, target: CargoTarget, counter: Counter ) -> Result< Self, Error > {
+    fn new( project: Project, target: CargoTarget, counter: Counter ) -> Result< Self, Error > {
         let config = project.aggregate_configuration( Profile::Main )?;
         let result = project.build( &config, &target )?;
-        let deployment = Deployment::new( &package, &target, &result )?;
+        let deployment = Deployment::new( project.package(), &target, &result )?;
 
         Ok( LastBuild {
             counter,
@@ -158,6 +157,22 @@ impl LastBuild {
     }
 }
 
+fn should_rebuild( paths_to_watch: &[(PathBuf, PathKind, ShouldTriggerRebuild)], path: &Path ) -> bool {
+    paths_to_watch.iter()
+        .filter( |&(_, _, should_rebuild)| *should_rebuild == ShouldTriggerRebuild::Yes )
+        .any( |(root, _, _)| path.starts_with( root ) )
+}
+
+fn watch_paths( watcher: &mut RecommendedWatcher, paths_to_watch: &[(PathBuf, PathKind, ShouldTriggerRebuild)] ) {
+    for &(ref path, ref mode, _) in paths_to_watch {
+        // TODO: Handle paths that currently don't exist which *will* be created.
+        match watcher.watch( &path, (*mode).into() ) {
+            Ok( _ ) => trace!( "Watching {:?} ({:?})", path, mode ),
+            Err( error ) => trace!( "Failed to watch {:?} ({:?}): {:?}", path, mode, error )
+        }
+    }
+}
+
 fn monitor_for_changes_and_rebuild(
     last_build: Arc< Mutex< LastBuild > >
 ) -> Arc< Mutex< RecommendedWatcher > > {
@@ -169,10 +184,7 @@ fn monitor_for_changes_and_rebuild(
         let paths_to_watch = last_build.project.paths_to_watch( &last_build.target );
         debug!( "Found paths to watch: {:#?}", paths_to_watch );
 
-        for &(ref path, ref mode) in &paths_to_watch {
-            watcher.watch( &path, (*mode).into() ).unwrap()
-        }
-
+        watch_paths( &mut watcher, &paths_to_watch );
         paths_to_watch.clone()
     };
 
@@ -184,13 +196,25 @@ fn monitor_for_changes_and_rebuild(
         let mut last_paths_to_watch = last_paths_to_watch;
 
         while let Ok( event ) = rx.recv() {
-            match event {
-                DebouncedEvent::Create( _ ) |
-                DebouncedEvent::Remove( _ ) |
-                DebouncedEvent::Rename( _, _ ) |
-                DebouncedEvent::Write( _ ) => {},
+            trace!( "Watch event: {:?}", event );
+            let should_rebuild = match event {
+                DebouncedEvent::Create( ref path ) => should_rebuild( &last_paths_to_watch, path ),
+                DebouncedEvent::Remove( ref path ) => should_rebuild( &last_paths_to_watch, path ),
+                DebouncedEvent::Rename( ref old_path, ref new_path ) => {
+                    should_rebuild( &last_paths_to_watch, old_path ) ||
+                    should_rebuild( &last_paths_to_watch, new_path )
+                },
+                DebouncedEvent::Write( ref path ) => should_rebuild( &last_paths_to_watch, path ),
                 _ => continue
             };
+
+            if !should_rebuild {
+                trace!( "Nothing of consequence changed; bumping build counter without rebuilding" );
+                let mut last_build = last_build.lock().unwrap();
+                let counter = last_build.counter.next();
+                last_build.counter = counter;
+                continue;
+            }
 
             eprintln!( "==== Triggering `cargo build` ====" );
             let (counter, build_args) = {
@@ -201,25 +225,23 @@ fn monitor_for_changes_and_rebuild(
             };
 
             if let Ok( project ) = build_args.load_project() {
-                if let Ok( (package, target) ) = select_package_and_target( &project ) {
+                if let Ok( target ) = select_target( &project ) {
                     let mut new_paths_to_watch = project.paths_to_watch( &target );
 
                     if new_paths_to_watch != last_paths_to_watch {
                         debug!( "Paths to watch have changed; new paths to watch: {:#?}", new_paths_to_watch );
                         if let Some( watcher ) = weak_watcher.upgrade() {
                             let mut watcher = watcher.lock().expect( "watcher was poisoned" );
-                            for (path, _) in last_paths_to_watch {
+                            for (path, _, _) in last_paths_to_watch {
                                 let _ = watcher.unwatch( path );
                             }
 
-                            for &(ref path, ref mode) in &new_paths_to_watch {
-                                watcher.watch( &path, (*mode).into() ).unwrap()
-                            }
+                            watch_paths( &mut watcher, &new_paths_to_watch );
                         }
                         last_paths_to_watch = new_paths_to_watch;
                     }
 
-                    if let Ok( new_build ) = LastBuild::new( project, package, target, counter ) {
+                    if let Ok( new_build ) = LastBuild::new( project, target, counter ) {
                         *last_build.lock().unwrap() = new_build;
                     }
                 }
@@ -242,8 +264,8 @@ pub fn command_start< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Er
     let project = build_args.load_project()?;
 
     let last_build = {
-        let (package, target) = select_package_and_target( &project )?;
-        LastBuild::new( project, package, target, Counter::new() )?
+        let target = select_target( &project )?;
+        LastBuild::new( project, target, Counter::new() )?
     };
 
     let last_build = Arc::new( Mutex::new( last_build ) );
