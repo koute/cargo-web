@@ -159,8 +159,8 @@ impl LastBuild {
 
 fn should_rebuild( paths_to_watch: &[(PathBuf, PathKind, ShouldTriggerRebuild)], path: &Path ) -> bool {
     paths_to_watch.iter()
-        .filter( |&(_, _, should_rebuild)| *should_rebuild == ShouldTriggerRebuild::Yes )
-        .any( |(root, _, _)| path.starts_with( root ) )
+        .filter( |&&(_, _, should_rebuild)| should_rebuild == ShouldTriggerRebuild::Yes )
+        .any( |&(ref root, _, _)| path.starts_with( root ) )
 }
 
 fn watch_paths( watcher: &mut RecommendedWatcher, paths_to_watch: &[(PathBuf, PathKind, ShouldTriggerRebuild)] ) {
