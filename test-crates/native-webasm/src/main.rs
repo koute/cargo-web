@@ -29,6 +29,7 @@ fn run( input: f64 ) -> f64 {
     out *= input.acosh();
     out *= input.atanh();
     out *= input.round();
+    out *= input.mul_add( 2.0, 3.0 );
 
     out *= (10.2_f32 % (input as f32)) as f64;
     out *= (input as f32).sin() as f64;
@@ -55,6 +56,7 @@ fn run( input: f64 ) -> f64 {
     out *= (input as f32).acosh() as f64;
     out *= (input as f32).atanh() as f64;
     out *= (input as f32).round() as f64;
+    out *= (input as f32).mul_add( 2.0, 3.0 ) as f64;
 
     out
 }

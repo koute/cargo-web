@@ -34,6 +34,7 @@ const INTRINSICS: &'static [(&'static str, &'static [ValueType], Option< ValueTy
     ("Math_hypot", &[F64, F64], Some( F64 ), "return Math.hypot( $0, $1 );"),
     ("fmod", &[F64, F64], Some( F64 ), "return $0 % $1;"),
     ("pow", &[F64, F64], Some( F64 ), "return Math.pow( $0, $1 );"),
+    ("fma", &[F64, F64, F64], Some( F64 ), "return $0 * $1 + $2;" ),
 
     ("sinf", &[F32], Some( F32 ), "return Math.sin( $0 );"),
     ("cosf", &[F32], Some( F32 ), "return Math.cos( $0 );"),
@@ -46,6 +47,7 @@ const INTRINSICS: &'static [(&'static str, &'static [ValueType], Option< ValueTy
 
     ("fmodf", &[F32, F32], Some( F32 ), "return $0 % $1;"),
     ("powf", &[F32, F32], Some( F32 ), "return Math.pow( $0, $1 );"),
+    ("fmaf", &[F32, F32, F32], Some( F32 ), "return $0 * $1 + $2;" ),
 ];
 
 pub fn process( ctx: &mut Context ) -> Vec< JsSnippet > {
