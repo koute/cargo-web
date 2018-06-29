@@ -37,9 +37,21 @@ fn test_in_nodejs(
         Error::EnvironmentError( "node.js not found; please install it!".into() )
     })?;
 
-    let artifact = build.artifacts().iter()
-        .find( |artifact| artifact.extension().map( |ext| ext == "js" ).unwrap_or( false ) )
-        .expect( "internal error: no .js file found" );
+    let js_files: Vec< _ > =
+        build.artifacts()
+        .iter()
+        .filter( |artifact| artifact.extension().map( |ext| ext == "js" ).unwrap_or( false ) )
+        .collect();
+
+    if js_files.is_empty() {
+        panic!( "internal error: no .js file found" );
+    }
+
+    let artifact = if let Some( artifact ) = js_files.iter().find( |artifact| !artifact.iter().any( |chunk| chunk == "deps" ) ) {
+        artifact
+    } else {
+        js_files[ 0 ]
+    };
 
     let test_args = iter::once( artifact.as_os_str() )
         .chain( arg_passthrough.iter().cloned() );

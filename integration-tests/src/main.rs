@@ -256,4 +256,22 @@ fn main() {
         run( &*CARGO_WEB, &["build", "--target", "wasm32-unknown-unknown"] ).assert_failure();
         run( &*CARGO_WEB, &["build", "--target", "wasm32-unknown-emscripten"] ).assert_success();
     });
+
+    in_directory( "test-crates/failing-test", || {
+        each_target( |target| {
+            run( &*CARGO_WEB, &["test", "--target", target, "--nodejs"] ).assert_failure();
+        });
+    });
+
+    in_directory( "test-crates/failing-integration-test", || {
+        each_target( |target| {
+            run( &*CARGO_WEB, &["test", "--target", target, "--nodejs"] ).assert_failure();
+        });
+    });
+
+    if *IS_NIGHTLY {
+        in_directory( "test-crates/failing-integration-test-crate-types", || {
+            run( &*CARGO_WEB, &["test", "--target", "wasm32-unknown-unknown", "--nodejs"] ).assert_failure();
+        });
+    }
 }
