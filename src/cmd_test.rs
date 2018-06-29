@@ -56,8 +56,14 @@ fn test_in_nodejs(
         env::set_current_dir( artifact.parent().unwrap() ).unwrap();
     }
 
-    let status = Command::new( nodejs_name ).args( test_args ).run();
+    let mut command = Command::new( nodejs_name );
+    command.args( test_args );
+
+    debug!( "Launching: {:?}", command );
+
+    let status = command.run();
     *any_failure = *any_failure || !status.is_ok();
+    debug!( "Status: {:?}", status );
 
     env::set_current_dir( previous_cwd ).unwrap();
 

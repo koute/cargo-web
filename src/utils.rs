@@ -8,6 +8,7 @@ use std::ffi::OsString;
 use libflate::gzip;
 use tar;
 
+#[derive(Debug)]
 pub struct ExecutionStatus {
     status: Option< i32 >
 }
