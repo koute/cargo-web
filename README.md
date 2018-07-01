@@ -14,6 +14,7 @@ and deploy client-side Web applications written in Rust.
 This software was brought to you thanks to these wonderful people:
   * Daniel Norman
   * Edward Knyshov
+  * Ferran Pujol Camins
   * Johan Andersson
   * Stephen Sugden
 
