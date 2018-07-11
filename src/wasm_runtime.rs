@@ -58,7 +58,8 @@ fn to_js_identifier( string: &str ) -> String {
     ).collect()
 }
 
-static LOADER_TEMPLATE: &str = include_str!( "wasm_runtime_loader.js" );
+static FACTORY_TEMPLATE: &str = include_str!( "wasm_runtime_factory.js" );
+static ONLY_LOADER_TEMPLATE: &str = include_str!( "wasm_runtime_only_loader.js" );
 static STANDALONE_TEMPLATE: &str = include_str!( "wasm_runtime_standalone.js" );
 
 fn join< T: Display, I: IntoIterator< Item = T > >( separator: &str, iter: I ) -> String {
@@ -131,27 +132,28 @@ pub fn generate_js( runtime: RuntimeKind, main_symbol: Option< String >, wasm_pa
 
     let handlebars = Handlebars::new();
     let mut template_data = BTreeMap::new();
-    template_data.insert( "wasm_filename", filename.to_owned() );
-    template_data.insert( "module_name", module_name );
     template_data.insert( "snippets", snippets_js.trim().to_owned() );
     template_data.insert( "exports", exports_code.trim().to_owned() );
     template_data.insert( "prepend_js", prepend_js.to_owned() );
-
     if let Some( main_symbol ) = main_symbol {
         template_data.insert( "call_main", format!( "Module.instance.exports.{}();", main_symbol ) );
     } else {
         template_data.insert( "call_main", "".to_owned() );
     }
 
-    let loader = handlebars.render_template( LOADER_TEMPLATE, &template_data ).unwrap();
+    let factory = handlebars.render_template( FACTORY_TEMPLATE, &template_data ).unwrap();
+    template_data.clear();
+    template_data.insert( "factory", factory );
+    template_data.insert( "wasm_filename", filename.to_owned() );
+    template_data.insert( "module_name", module_name );
 
     match runtime {
         RuntimeKind::Standalone => {
-            template_data.insert( "loader", loader );
             handlebars.render_template( STANDALONE_TEMPLATE, &template_data ).unwrap()
         },
         RuntimeKind::OnlyLoader => {
-            loader
+            // TODO: Get rid of this.
+            handlebars.render_template( ONLY_LOADER_TEMPLATE, &template_data ).unwrap()
         }
     }
 }
