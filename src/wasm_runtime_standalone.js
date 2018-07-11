@@ -13,7 +13,7 @@ if( typeof Rust === "undefined" ) {
         Rust.{{{module_name}}} = factory();
     }
 }( this, function() {
-    (function( module_factory ) {
+    return (function( module_factory ) {
         var instance = module_factory();
 
         if( typeof window === "undefined" && typeof process === "object" ) {
