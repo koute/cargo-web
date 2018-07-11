@@ -51,6 +51,24 @@ pub fn process_wasm_file< P: AsRef< Path > + ?Sized >( runtime: RuntimeKind, bui
     wasm_hook_grow::process( &mut ctx );
     module = ctx.into_module();
 
+    // At least on Linux when a `.wasm` file is built it's
+    // hard-linked from two places:
+    //    1) target/wasm32-unknown-unknown/release/$name.wasm
+    //    2) target/wasm32-unknown-unknown/release/deps/$name.wasm
+    //
+    // If you trigger a `cargo build` in a case where your project
+    // doesn't need to be rebuilt it will just recreate
+    // the `deps/$name.wasm` -> `$name.wasm` hard-link
+    // and report that the file was rebuilt. (Even though it wasn't!)
+    //
+    // This wouldn't normally be a problem, however since we
+    // modify the `.wasm` file we end up modifying *both* of
+    // them which breaks any subsequent builds.
+    //
+    // So we forcefully remove the `$name.wasm` here before
+    // overwriting it to get rid of the hard-link.
+    let _ = fs::remove_file( path );
+
     parity_wasm::serialize_to_file( path, module ).unwrap();
 
     let all_snippets: Vec< _ > = snippets.into_iter().chain( intrinsics.into_iter() ).collect();
