@@ -54,11 +54,14 @@ fn main() {
     }
 
     for name in &[
+        "crate-with-tests",
         "crate-with-integration-tests"
     ] {
         in_directory( &format!( "test-crates/{}", name ), || {
             each_target( |target| {
-                run( &*CARGO_WEB, &["test", "--nodejs", "--target", target] ).assert_success();
+                for _ in 0..2 { // Make sure they can be ran multiple times.
+                    run( &*CARGO_WEB, &["test", "--nodejs", "--target", target] ).assert_success();
+                }
             });
         });
     }
