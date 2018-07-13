@@ -643,7 +643,7 @@ impl Context {
                     } else if section.name() == "linking" || section.name().starts_with( ".debug_" ) {
                         // TODO: Support this section.
                     } else {
-                        panic!( "unsupported custom section: '{}'", section.name() );
+                        eprintln!( "warning: unsupported custom section: '{}', please report this!", section.name() );
                     }
                 },
                 pw::Section::Unparsed { .. } => { unimplemented!() },
