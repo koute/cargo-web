@@ -1,9 +1,11 @@
 use std::path::{Path, PathBuf};
 use std::fs::{self, File};
-use std::io::Write;
+use std::io::{self, Read, Write};
 
+use sha1::Sha1;
 use parity_wasm;
 use cargo_shim::BuildConfig;
+use serde_json;
 
 use wasm_gc;
 
@@ -16,6 +18,28 @@ use wasm_intrinsics;
 use wasm_runtime::{self, RuntimeKind};
 use wasm_js_export;
 
+#[derive(Serialize, Deserialize)]
+struct Metadata {
+    wasm_hash: String
+}
+
+fn get_sha1sum< P: AsRef< Path > >( path: P ) -> io::Result< String > {
+    let path = path.as_ref();
+    let mut fp = File::open( path )?;
+    let mut hasher = Sha1::new();
+
+    let mut buffer = Vec::new();
+    buffer.resize( 1024 * 1024, 0 );
+    loop {
+        match fp.read( &mut buffer )? {
+            0 => break,
+            count => hasher.update( &buffer[ 0..count ] )
+        }
+    }
+
+    Ok( format!( "{}", hasher.digest() ) )
+}
+
 pub fn process_wasm_file< P: AsRef< Path > + ?Sized >( runtime: RuntimeKind, build: &BuildConfig, prepend_js: &str, artifact: &P ) -> Option< PathBuf > {
     if !build.triplet.as_ref().map( |triplet| triplet == "wasm32-unknown-unknown" ).unwrap_or( false ) {
         return None;
@@ -26,12 +50,17 @@ pub fn process_wasm_file< P: AsRef< Path > + ?Sized >( runtime: RuntimeKind, bui
         return None;
     }
 
+    let wasm_hash = get_sha1sum( path ).expect( "cannot calculate sha1sum of the `.wasm` file" );
+    debug!( "Hash of {:?}: {}", path, wasm_hash );
+
     let js_path = path.with_extension( "js" );
-    if js_path.exists() {
-        let js_mtime = fs::metadata( &js_path ).unwrap().modified().unwrap();
-        let wasm_mtime = fs::metadata( path ).unwrap().modified().unwrap();
-        if js_mtime >= wasm_mtime {
-            // We've already ran; nothing to do here.
+    let metadata_path = path.with_extension( "cargoweb-metadata" );
+    if js_path.exists() && metadata_path.exists() {
+        // TODO: This is just a quick workaround. We should always regenerate the `.js` file.
+        let fp = File::open( &metadata_path ).expect( "cannot open the metadata file" );
+        let metadata: Metadata = serde_json::from_reader( fp ).expect( "cannot deserialize metadata; delete your `target` directory" );
+        if metadata.wasm_hash == wasm_hash {
+            debug!( "Skipping `.js` generation and `.wasm` processing!" );
             return Some( js_path );
         }
     }
@@ -75,6 +104,12 @@ pub fn process_wasm_file< P: AsRef< Path > + ?Sized >( runtime: RuntimeKind, bui
     let js = wasm_runtime::generate_js( runtime, main_symbol, path, prepend_js, &all_snippets, &exports );
     let mut fp = File::create( &js_path ).unwrap();
     fp.write_all( js.as_bytes() ).unwrap();
+
+    let new_wasm_hash = get_sha1sum( path ).expect( "cannot calculate sha1sum of the `.wasm` file" );
+    debug!( "New hash of {:?}: {}", path, new_wasm_hash );
+
+    let fp = File::create( &metadata_path ).unwrap();
+    serde_json::to_writer( fp, &Metadata { wasm_hash: new_wasm_hash } ).unwrap();
 
     eprintln!( "    Finished processing of {:?}!", path.file_name().unwrap() );
     Some( js_path )
