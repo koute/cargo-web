@@ -311,6 +311,13 @@ impl Project {
         }))
     }
 
+    pub fn index_on_404(&self) -> bool {
+        self.main_config
+            .as_ref()
+            .map(|config: &Config| config.index_on_404 )
+            .unwrap_or(false)
+    }
+
     fn used_packages( &self, profile: Profile ) -> Vec< &CargoPackage > {
         let main_package = self.package();
         let mut packages = self.project.used_packages(

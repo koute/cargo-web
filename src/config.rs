@@ -42,7 +42,9 @@ pub struct Config {
 
     pub minimum_cargo_web_version: Option< Version >,
     pub per_target: HashMap< Backend, PerTargetConfig >,
-    pub default_target: Option< Backend >
+    pub default_target: Option< Backend >,
+    /// Serve index.html instead of 404 when a file can not be found.
+    pub index_on_404: bool
 }
 
 impl Config {
@@ -250,6 +252,9 @@ impl Config {
                                 }
                             }
                         },
+                        "index-on-404" => {
+                            config.index_on_404 = toplevel_value.try_into().map_err( |_| format!( "{}: 'index-on-404' is not a bool", config.source() ) )?;
+                        }
                         toplevel_key => {
                             warnings.push( Warning::UnknownKey( toplevel_key.into() ) );
                         }

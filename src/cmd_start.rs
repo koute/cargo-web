@@ -263,6 +263,8 @@ pub fn command_start< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Er
     let build_args = BuildArgs::new( matches )?;
     let project = build_args.load_project()?;
 
+    let index_on_404: bool = project.index_on_404();
+
     let last_build = {
         let target = select_target( &project )?;
         LastBuild::new( project, target, Counter::new() )?
@@ -279,6 +281,7 @@ pub fn command_start< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Er
     let _watcher = monitor_for_changes_and_rebuild( last_build.clone() );
 
     let address = address_or_default( matches );
+
     let server = SimpleServer::new(&address, move |request| {
         let path = request.path();
         let last_build = last_build.lock().unwrap();
@@ -314,7 +317,22 @@ pub fn command_start< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Er
                 }
             }
         } else {
-            response_from_status(StatusCode::NotFound)
+            if index_on_404 {
+                if let Some( mut artifact ) = last_build.deployment.get_by_url("/index.html") {
+                     match artifact.kind {
+                        ArtifactKind::Data( data ) => {
+                            return response_from_data(artifact.mime_type, data);
+                        },
+                        ArtifactKind::File( fp ) => {
+                            return response_from_file(artifact.mime_type, fp);
+                        }
+                    }
+                } else {
+                    response_from_status(StatusCode::NotFound)
+                }
+            } else {
+                response_from_status(StatusCode::NotFound)
+            }
         }
     });
 
