@@ -263,7 +263,7 @@ pub fn command_start< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Er
     let build_args = BuildArgs::new( matches )?;
     let project = build_args.load_project()?;
 
-    let index_on_404: bool = project.index_on_404();
+    let path_404: Option<String> = project.path_404();
 
     let last_build = {
         let target = select_target( &project )?;
@@ -292,7 +292,16 @@ pub fn command_start< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Er
         }
 
         debug!( "Received a request for {:?}", path );
-        if let Some( mut artifact ) = last_build.deployment.get_by_url(&path) {
+
+        let mut artifact = last_build.deployment.get_by_url( &path );
+        if artifact.is_none() {
+            if let Some( ref not_found_path ) = path_404 {
+                println!("Artifact could not be found, but should try to get user specified path instead");
+                artifact = last_build.deployment.get_by_url( &not_found_path )
+            }
+        }
+        
+        if let Some( mut artifact ) = artifact {
             if auto_reload && (path == "/" || path == "/index.html") {
                 let result = artifact.map_text( |text| {
                     let injected_code = auto_reload_code( last_build.get_build_hash() );
@@ -317,22 +326,7 @@ pub fn command_start< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Er
                 }
             }
         } else {
-            if index_on_404 {
-                if let Some( mut artifact ) = last_build.deployment.get_by_url("/index.html") {
-                     match artifact.kind {
-                        ArtifactKind::Data( data ) => {
-                            return response_from_data(artifact.mime_type, data);
-                        },
-                        ArtifactKind::File( fp ) => {
-                            return response_from_file(artifact.mime_type, fp);
-                        }
-                    }
-                } else {
-                    response_from_status(StatusCode::NotFound)
-                }
-            } else {
-                response_from_status(StatusCode::NotFound)
-            }
+            response_from_status(StatusCode::NotFound)
         }
     });
 

@@ -311,11 +311,11 @@ impl Project {
         }))
     }
 
-    pub fn index_on_404(&self) -> bool {
+    pub fn path_404(&self) -> Option<String> {
         self.main_config
             .as_ref()
-            .map(|config: &Config| config.index_on_404 )
-            .unwrap_or(false)
+            .map(|config: &Config| config.path_404.clone() )
+            .unwrap_or(None)
     }
 
     fn used_packages( &self, profile: Profile ) -> Vec< &CargoPackage > {
