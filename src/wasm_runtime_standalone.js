@@ -19,13 +19,13 @@ if( typeof Rust === "undefined" ) {
         if( typeof window === "undefined" && typeof process === "object" ) {
             var fs = require( "fs" );
             var path = require( "path" );
-            var wasm_path = path.join( __dirname, "{{{wasm_filename}}}" );
+            var wasm_path = path.join( __dirname, "/{{{wasm_filename}}}" );
             var buffer = fs.readFileSync( wasm_path );
             var mod = new WebAssembly.Module( buffer );
             var wasm_instance = new WebAssembly.Instance( mod, instance.imports );
             return instance.initialize( wasm_instance );
         } else {
-            return fetch( "{{{wasm_filename}}}", {credentials: "same-origin"} )
+            return fetch( "/{{{wasm_filename}}}", {credentials: "same-origin"} )
                 .then( function( response ) { return response.arrayBuffer(); } )
                 .then( function( bytes ) { return WebAssembly.compile( bytes ); } )
                 .then( function( mod ) { return WebAssembly.instantiate( mod, instance.imports ) } )
