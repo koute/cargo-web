@@ -42,7 +42,7 @@ const DEFAULT_INDEX_HTML_TEMPLATE: &'static str = r#"
     </script>
 </head>
 <body>
-    <script src="{{{js_url}}}"></script>
+    <script src="/{{{js_url}}}"></script>
 </body>
 </html>
 "#;
