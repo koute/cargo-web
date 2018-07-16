@@ -263,7 +263,7 @@ pub fn command_start< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Er
     let build_args = BuildArgs::new( matches )?;
     let project = build_args.load_project()?;
 
-    let path_404: Option<String> = project.path_404();
+    let path_404 = project.path_404();
 
     let last_build = {
         let target = select_target( &project )?;
@@ -296,7 +296,6 @@ pub fn command_start< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Er
         let mut artifact = last_build.deployment.get_by_url( &path );
         if artifact.is_none() {
             if let Some( ref not_found_path ) = path_404 {
-                println!("Artifact could not be found, but should try to get user specified path instead");
                 artifact = last_build.deployment.get_by_url( &not_found_path )
             }
         }
