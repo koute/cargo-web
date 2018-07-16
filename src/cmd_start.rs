@@ -296,7 +296,7 @@ pub fn command_start< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Er
         let mut artifact = last_build.deployment.get_by_url( &path );
         if artifact.is_none() {
             if let Some( ref not_found_path ) = path_404 {
-                debug!( "{} not found; serving {} instead", path, path_404 );
+                debug!( "{} not found; serving {} instead", path, not_found_path );
                 artifact = last_build.deployment.get_by_url( &not_found_path )
             }
         }
