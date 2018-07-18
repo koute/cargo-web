@@ -36,7 +36,8 @@ struct Snippet {
     name: String,
     code: String,
     ty: FnTy,
-    function_index: FunctionIndex
+    function_index: FunctionIndex,
+    offset: i32
 }
 
 pub fn process_and_extract( ctx: &mut Context ) -> Vec< JsSnippet > {
@@ -102,7 +103,15 @@ pub fn process_and_extract( ctx: &mut Context ) -> Vec< JsSnippet > {
         if let Some( &snippet_index ) = snippet_index_by_hash.get( &code_hash ) {
             let snippet: &Snippet = &snippets[ snippet_index ];
             if snippet.ty != ty {
-                panic!( "internal error: same snippet of JS (by value) is used with two different shims; please report this!" );
+                panic!(
+                    "internal error: same snippet of JS (by value) is used with two different shims; please report this!\nfn 1: {:?}\nfn 2: {:?}\nhash: {}\noffset 1: {}\noffset 2: {}\nsnippet:\n\"{}\"",
+                    ty,
+                    snippet.ty,
+                    code_hash,
+                    snippet.offset,
+                    offset,
+                    snippet.code
+                );
             }
 
             snippet_index_by_offset.insert( offset, snippet_index );
@@ -111,7 +120,8 @@ pub fn process_and_extract( ctx: &mut Context ) -> Vec< JsSnippet > {
                 name: format!( "__extjs_{}", code_hash ),
                 code,
                 ty,
-                function_index: 0xFFFFFFFF
+                function_index: 0xFFFFFFFF,
+                offset
             };
 
             snippet_index_by_offset.insert( offset, snippets.len() );
