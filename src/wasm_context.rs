@@ -583,6 +583,14 @@ impl Context {
                 },
                 pw::Section::Data( mut section ) => {
                     for mut entry in take( section.entries_mut() ) {
+                        if ctx.data.last().map( |last_data| {
+                            last_data.offset == entry.offset().code() && last_data.value.is_empty()
+                        }).unwrap_or( false ) {
+                            // Workaround for a `rustc`/LLVM bug where a duplicate empty data
+                            // entries are generated.
+                            ctx.data.pop();
+                        }
+
                         ctx.data.push( Data {
                             offset: take( entry.offset_mut().code_mut() ),
                             value: take( entry.value_mut() )
