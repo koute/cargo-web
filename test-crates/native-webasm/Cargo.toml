@@ -4,5 +4,4 @@ version = "0.1.0"
 authors = ["Jan Bujak <j@exia.io>"]
 
 [dependencies.stdweb]
-git = "https://github.com/koute/stdweb.git"
-rev = "7785f81"
+version = "0.4"
