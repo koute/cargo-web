@@ -91,7 +91,7 @@ pub fn test_in_chromium(
                 response_from_data( "application/javascript", data.into_bytes() )
             } else {
                 match *server_wasm_url.lock().unwrap() {
-                    Some( ref server_wasm_url ) if path == *server_wasm_url => {
+                    Some( ref server_wasm_url ) if path.ends_with(server_wasm_url) => {
                         let data = server_app_wasm.lock().unwrap().as_ref().unwrap().clone();
                         response_from_data( "application/wasm", data )
                     },
