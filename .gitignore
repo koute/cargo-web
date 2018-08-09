@@ -4,3 +4,5 @@ test-crates/*/Cargo.lock
 integration-tests/target
 integration-tests/Cargo.lock
 rls
+/.idea
+/*.iml
