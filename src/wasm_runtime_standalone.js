@@ -25,10 +25,18 @@ if( typeof Rust === "undefined" ) {
             var wasm_instance = new WebAssembly.Instance( mod, instance.imports );
             return instance.initialize( wasm_instance );
         } else {
-            return fetch( "{{{wasm_filename}}}", {credentials: "same-origin"} )
-                .then( function( response ) { return response.arrayBuffer(); } )
-                .then( function( bytes ) { return WebAssembly.compile( bytes ); } )
-                .then( function( mod ) { return WebAssembly.instantiate( mod, instance.imports ) } )
+            var file = fetch( "{{{wasm_filename}}}", {credentials: "same-origin"} );
+
+            var wasm_instance = ( typeof WebAssembly.instantiateStreaming === "function"
+                ? WebAssembly.instantiateStreaming( file, instance.imports )
+                    .then( function( result ) { return result.instance; } )
+
+                : file
+                    .then( function( response ) { return response.arrayBuffer(); } )
+                    .then( function( bytes ) { return WebAssembly.compile( bytes ); } )
+                    .then( function( mod ) { return WebAssembly.instantiate( mod, instance.imports ) } ) );
+
+            return wasm_instance
                 .then( function( wasm_instance ) {
                     var exports = instance.initialize( wasm_instance );
                     console.log( "Finished loading Rust wasm module '{{{module_name}}}'" );
