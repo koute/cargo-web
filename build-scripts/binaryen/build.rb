@@ -4,6 +4,7 @@ run "tar -xf binaryen-#{VERSION}.tgz"
 run "mv binaryen-#{VERSION} binaryen"
 
 run "install -d #{DESTDIR}/binaryen"
+run "ln -sf /usr/bin/python3 #{TMP_ROOT}/usr/local/bin/python"
 
 chdir( "binaryen" ) do
     run "sed -i 's/-Werror/-Wno-error/g' CMakeLists.txt"
