@@ -1,13 +1,13 @@
 #!/usr/bin/false
 
 NAME = "binaryen"
-VERSION = "1.37.27"
+VERSION = "1.38.11"
 RELEASE = "1"
 
 FILES = [
     [
         "https://github.com/WebAssembly/binaryen/archive/#{VERSION}.tar.gz",
-        "5f9de1a142eab5e575b7ad663ea37cb81b0eb816e454339594beab23e1c8197a",
+        "414a3dd59876d86095aa91970dc1b2a8a3aafacc7e38388768b8bae4b320bd00",
         "binaryen-#{VERSION}.tgz"
     ]
 ]
