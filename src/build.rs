@@ -417,6 +417,14 @@ impl Project {
         let mut extra_environment = Vec::new();
         let mut extra_emmaken_cflags = Vec::new();
 
+        let vanilla_emscripten_build =
+            env::var( "CARGO_WEB_VANILLA_EMSCRIPTEN_BUILD" ).map( |value| value == "1" ).unwrap_or( false ) &&
+            self.backend().is_emscripten();
+
+        if vanilla_emscripten_build {
+            info!( "Vanilla Emscripten build mode enabled (this is only for testing!)" );
+        }
+
         if self.backend().is_emscripten() {
             if let Some( emscripten ) = initialize_emscripten( self.build_args.use_system_emscripten, self.backend().is_emscripten_wasm() ) {
                 extra_paths.push( emscripten.emscripten_path.clone() );
@@ -436,45 +444,49 @@ impl Project {
             // When compiling tests we want the exit runtime,
             // when compiling for the Web we don't want it
             // since that's more efficient.
-            let exit_runtime = config.profile == Profile::Main;
+            let no_exit_runtime = config.profile == Profile::Main && !vanilla_emscripten_build;
 
             extra_rustflags.push( "-C".to_owned() );
             extra_rustflags.push( "link-arg=-s".to_owned() );
             extra_rustflags.push( "-C".to_owned() );
-            extra_rustflags.push( format!( "link-arg=NO_EXIT_RUNTIME={}", exit_runtime as u32 ) );
+            extra_rustflags.push( format!( "link-arg=NO_EXIT_RUNTIME={}", no_exit_runtime as u32 ) );
 
-            // This will allow the initially preallocated chunk
-            // of memory to grow. On asm.js this has a performance
-            // impact which is why we don't turn it on by default there,
-            // however according to the Emscripten documentation the WASM
-            // backend doesn't have that problem, so we enable it there.
-            //
-            // See more here:
-            //   https://kripken.github.io/emscripten-site/docs/optimizing/Optimizing-Code.html#memory-growth
-            let allow_memory_growth = self.backend().is_emscripten_wasm();
+            if !vanilla_emscripten_build {
+                // This will allow the initially preallocated chunk
+                // of memory to grow. On asm.js this has a performance
+                // impact which is why we don't turn it on by default there,
+                // however according to the Emscripten documentation the WASM
+                // backend doesn't have that problem, so we enable it there.
+                //
+                // See more here:
+                //   https://kripken.github.io/emscripten-site/docs/optimizing/Optimizing-Code.html#memory-growth
+                let allow_memory_growth = self.backend().is_emscripten_wasm();
 
-            extra_rustflags.push( "-C".to_owned() );
-            extra_rustflags.push( "link-arg=-s".to_owned() );
-            extra_rustflags.push( "-C".to_owned() );
-            extra_rustflags.push( format!( "link-arg=ALLOW_MEMORY_GROWTH={}", allow_memory_growth as u32 ) );
+                extra_rustflags.push( "-C".to_owned() );
+                extra_rustflags.push( "link-arg=-s".to_owned() );
+                extra_rustflags.push( "-C".to_owned() );
+                extra_rustflags.push( format!( "link-arg=ALLOW_MEMORY_GROWTH={}", allow_memory_growth as u32 ) );
 
-            for &(ref path, _) in &config.prepend_js {
-                let path_str = path.to_str().expect( "invalid 'prepend-js' path" );
-                extra_emmaken_cflags.push( "--pre-js" );
-                extra_emmaken_cflags.push( path_str );
+                for &(ref path, _) in &config.prepend_js {
+                    let path_str = path.to_str().expect( "invalid 'prepend-js' path" );
+                    extra_emmaken_cflags.push( "--pre-js" );
+                    extra_emmaken_cflags.push( path_str );
+                }
             }
         }
 
-        for arg in &config.link_args {
-            if arg.contains( " " ) {
-                // Not sure how to handle spaces, as `-C link-arg="{}"` doesn't work.
-                eprintln!( "error: you have a space in one of the entries in `link-args` in your `Web.toml`;" );
-                eprintln!( "       this is currently unsupported - aborting!" );
-                exit( 101 );
-            }
+        if !vanilla_emscripten_build {
+            for arg in &config.link_args {
+                if arg.contains( " " ) {
+                    // Not sure how to handle spaces, as `-C link-arg="{}"` doesn't work.
+                    eprintln!( "error: you have a space in one of the entries in `link-args` in your `Web.toml`;" );
+                    eprintln!( "       this is currently unsupported - aborting!" );
+                    exit( 101 );
+                }
 
-            extra_rustflags.push( "-C".to_owned() );
-            extra_rustflags.push( format!( "link-arg={}", arg ) );
+                extra_rustflags.push( "-C".to_owned() );
+                extra_rustflags.push( format!( "link-arg={}", arg ) );
+            }
         }
 
         if self.backend().is_native_wasm() && self.build_args.build_type == BuildType::Debug {
@@ -500,7 +512,7 @@ impl Project {
             build_type
         };
 
-        if !extra_emmaken_cflags.is_empty() {
+        if !extra_emmaken_cflags.is_empty() && !vanilla_emscripten_build {
             // We need to do this through EMMAKEN_CFLAGS since Rust can't handle linker args with spaces.
             // https://github.com/rust-lang/rust/issues/30947
             let emmaken_cflags: Vec< _ > = extra_emmaken_cflags.into_iter().map( |flag| format!( "\"{}\"", flag ) ).collect();
@@ -512,7 +524,10 @@ impl Project {
             extra_environment.push( ("EMMAKEN_CFLAGS".to_owned(), emmaken_cflags) );
         }
 
-        extra_environment.push( ("COMPILING_UNDER_CARGO_WEB".to_owned(), "1".to_owned()) );
+        if !vanilla_emscripten_build {
+            extra_environment.push( ("COMPILING_UNDER_CARGO_WEB".to_owned(), "1".to_owned()) );
+        }
+
         BuildConfig {
             build_target: target_to_build_target( target, config.profile ),
             build_type,
