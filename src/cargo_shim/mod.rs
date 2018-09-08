@@ -453,7 +453,8 @@ pub struct BuildConfig {
     pub extra_rustflags: Vec< String >,
     pub extra_environment: Vec< (String, String) >,
     pub message_format: MessageFormat,
-    pub is_verbose: bool
+    pub is_verbose: bool,
+    pub use_color: bool
 }
 
 fn profile_to_arg( profile: Profile ) -> &'static str {
@@ -482,7 +483,7 @@ impl BuildConfig {
         command.arg( "--message-format" );
         command.arg( "json" );
 
-        if cfg!( unix ) {
+        if cfg!( unix ) && self.use_color {
             command.arg( "--color" );
             command.arg( "always" );
         }
@@ -673,7 +674,7 @@ impl BuildConfig {
                 match output {
                     CargoOutput::Message( message ) => {
                         match self.message_format {
-                            MessageFormat::Human => diagnostic_formatter::print( &message ),
+                            MessageFormat::Human => diagnostic_formatter::print( self.use_color, &message ),
                             MessageFormat::Json => {
                                 println!( "{}", serde_json::to_string( &message.to_json_value() ).unwrap() );
                             }

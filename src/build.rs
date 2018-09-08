@@ -19,6 +19,7 @@ use cargo_shim::{
 use semver::Version;
 use serde_json;
 use walkdir::WalkDir;
+use isatty;
 
 use config::Config;
 use emscripten::initialize_emscripten;
@@ -540,7 +541,8 @@ impl Project {
             extra_rustflags,
             extra_environment,
             message_format: self.build_args.message_format,
-            is_verbose: self.build_args.is_verbose
+            is_verbose: self.build_args.is_verbose,
+            use_color: isatty::stdout_isatty() && isatty::stderr_isatty()
         }
     }
 
