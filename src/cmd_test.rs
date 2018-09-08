@@ -88,7 +88,7 @@ pub fn command_test< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Err
 
     let use_nodejs = matches.is_present( "nodejs" );
     let no_run = matches.is_present( "no-run" );
-    if project.backend().is_native_wasm() && !use_nodejs {
+    if project.backend().is_native_wasm() && !use_nodejs && !no_run {
         return Err( Error::ConfigurationError( "running tests for the native wasm target is currently only supported with `--nodejs`".into() ) );
     }
 
