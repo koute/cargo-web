@@ -195,6 +195,119 @@ fn print_diagnostic< W: Write >( use_color: bool, diag: &Diagnostic, fp: &mut W 
     Ok(())
 }
 
+fn color_header( output: &mut String, header: &str, line: &str ) -> bool {
+    if line.starts_with( header ) && line[ header.len().. ].chars().next() == Some( ':' ) {
+        let color = level_color( header );
+        writeln!(
+            output,
+            "{}{}{}:{}",
+            color.prefix(),
+            header,
+            color.suffix(),
+            &line[ header.len() + 1.. ]
+        );
+        true
+    } else {
+        false
+    }
+}
+
+fn skip_spaces( p: &mut &str ) {
+    while p.chars().next() == Some( ' ' ) {
+        *p = &p[ 1.. ];
+    }
+}
+
+fn skip_pattern( p: &mut &str, pattern: &str ) -> bool {
+    if p.starts_with( pattern ) {
+        *p = &p[ pattern.len().. ];
+        true
+    } else {
+        false
+    }
+}
+
+fn skip_numbers( p: &mut &str ) {
+    while p.chars().next().map( |ch| ch >= '0' && ch <= '9' ).unwrap_or( false ) {
+        *p = &p[ 1.. ];
+    }
+}
+
+fn color_arrow( output: &mut String, line: &str ) -> bool {
+    let mut p = line;
+    skip_spaces( &mut p );
+    if skip_pattern( &mut p, "-->" ) {
+        let color = Color::Blue.bold();
+        let split_at = line.len() - p.len();
+        writeln!(
+            output,
+            "{}{}{}{}",
+            color.prefix(),
+            &line[ 0..split_at ],
+            color.suffix(),
+            &line[ split_at.. ]
+        );
+        return true;
+    }
+
+    false
+}
+
+fn color_line_number_column( output: &mut String, line: &str ) -> bool {
+    let mut p = line;
+    skip_spaces( &mut p );
+    skip_numbers( &mut p );
+    skip_spaces( &mut p );
+    if skip_pattern( &mut p, "|" ) {
+        let color = Color::Blue.bold();
+        let split_at = line.len() - p.len();
+        writeln!(
+            output,
+            "{}{}{}{}",
+            color.prefix(),
+            &line[ 0..split_at ],
+            color.suffix(),
+            &line[ split_at.. ]
+        );
+        return true;
+    }
+    false
+}
+
+fn simple_coloring( message: &str ) -> String {
+    if message.is_empty() {
+        return String::new();
+    }
+
+    let mut output = String::new();
+    for line in message.lines() {
+        if color_header( &mut output, "note", line ) {
+            continue;
+        }
+        if color_header( &mut output, "warning", line ) {
+            continue;
+        }
+        if color_header( &mut output, "error", line ) {
+            continue;
+        }
+        if color_arrow( &mut output, line ) {
+            continue;
+        }
+        if color_line_number_column( &mut output, line ) {
+            continue;
+        }
+
+        output.push_str( line );
+        output.push_str( "\n" );
+    }
+
+    if !message.ends_with( "\n" ) {
+        output.pop();
+    }
+
+    output
+}
+
 pub fn print( use_color: bool, message: &Message ) {
     let diag = &message.message;
 
@@ -224,10 +337,13 @@ pub fn print( use_color: bool, message: &Message ) {
                 println!( "}}" );
                 panic!( "We can't property print this!" );
             } else {
-                // Just give up and print the ugly colorless message.
-                // TODO: Get rid of this later when/if we'll be able
-                //       to print out everything rustc throws at us.
-                eprint!( "{}", original );
+                // Just give up and print out a message colored with heuristics.
+                if use_color {
+                    eprint!( "{}", simple_coloring( original ) );
+                } else {
+                    eprint!( "{}", original );
+                }
+
                 return;
             }
         }
