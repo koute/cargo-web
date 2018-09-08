@@ -56,7 +56,7 @@ if [[ "$TEST_SUBSET" == 0 || "$TEST_SUBSET" == 1 ]]; then
     echo ""
 
     cd integration-tests
-    cargo run
+    cargo test
     cd ..
 
     echo "++ Basic test crate tests passed!"

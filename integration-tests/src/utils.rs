@@ -1,21 +1,12 @@
 use std::env;
 use std::path::Path;
-use std::process::{Command, ExitStatus, Child};
+use std::process::{Command, ExitStatus, Child, Stdio};
 use std::ffi::{OsStr, OsString};
-use std::io::{self, Read};
+use std::io::{self, Read, BufRead, BufReader};
 use std::fs::{File, OpenOptions};
-
-#[cfg(windows)]
-pub const RUSTC_EXE: &'static str = "rustc.exe";
-
-#[cfg(not(windows))]
-pub const RUSTC_EXE: &'static str = "rustc";
-
-lazy_static! {
-    pub static ref IS_NIGHTLY: bool = {
-        run_and_capture( RUSTC_EXE, &["--version"][..] ).stdout.contains( "nightly" )
-    };
-}
+use std::thread;
+use std::sync::{Mutex, Arc};
+use std::mem;
 
 pub fn get_var( name: &str ) -> String {
     match env::var( name ) {
@@ -24,33 +15,9 @@ pub fn get_var( name: &str ) -> String {
     }
 }
 
-pub fn cd< P: AsRef< Path > >( path: P ) {
-    let path = path.as_ref();
-
-    if let Ok( cwd ) = env::current_dir() {
-        if path.canonicalize().unwrap() == cwd.canonicalize().unwrap() {
-            return;
-        }
-    }
-
-    eprintln!( "> cd {}", path.to_string_lossy() );
-    match env::set_current_dir( &path ) {
-        Ok(()) => {},
-        Err( error ) => panic!( "Cannot change current directory to {:?}: {:?}", path, error )
-    }
-}
-
-pub fn in_directory< P: AsRef< Path >, R, F: FnOnce() -> R >( path: P, callback: F ) -> R {
-    let cwd = env::current_dir().unwrap();
-    cd( path );
-    let result = callback();
-    cd( cwd );
-
-    result
-}
-
-fn run_internal< R, I, E, S, F >( executable: E, args: I, callback: F ) -> R
+fn run_internal< R, I, C, E, S, F >( cwd: C, executable: E, args: I, callback: F ) -> R
     where I: IntoIterator< Item = S >,
+          C: AsRef< Path >,
           E: AsRef< OsStr >,
           S: AsRef< OsStr >,
           F: FnOnce( Command ) -> Result< R, io::Error >
@@ -68,6 +35,7 @@ fn run_internal< R, I, E, S, F >( executable: E, args: I, callback: F ) -> R
 
     let mut cmd = Command::new( executable );
     cmd.args( args );
+    cmd.current_dir( cwd );
 
     match callback( cmd ) {
         Ok( value ) => {
@@ -76,29 +44,6 @@ fn run_internal< R, I, E, S, F >( executable: E, args: I, callback: F ) -> R
         Err( error ) => {
             panic!( "Failed to launch `{}`: {:?}", executable.to_string_lossy(), error );
         }
-    }
-}
-
-pub struct Output {
-    pub status: ExitStatus,
-    pub stdout: String,
-    pub stderr: String
-}
-
-pub fn run_and_capture< I, E, S >( executable: E, args: I ) -> Output
-    where I: IntoIterator< Item = S >,
-          E: AsRef< OsStr >,
-          S: AsRef< OsStr >
-{
-    let output = run_internal( executable, args, |mut cmd| cmd.output() );
-    if !output.status.success() {
-        panic!( "Command exited with a status of {:?}!", output.status.code() );
-    }
-
-    Output {
-        status: output.status,
-        stdout: String::from_utf8_lossy( &output.stdout ).into_owned(),
-        stderr: String::from_utf8_lossy( &output.stderr ).into_owned()
     }
 }
 
@@ -121,31 +66,89 @@ impl CommandResult {
     }
 }
 
-pub fn run< E, S >( executable: E, args: &[S] ) -> CommandResult
-    where E: AsRef< OsStr >,
-          S: AsRef< OsStr >
-{
-    let status = run_internal( executable, args, |mut cmd| cmd.status() );
-    CommandResult {
-        status
-    }
+fn print_stream< T: Read + Send + 'static >( fp: T, output: Arc< Mutex< String > > ) -> thread::JoinHandle< () > {
+    let fp = BufReader::new( fp );
+    thread::spawn( move || {
+        for line in fp.lines() {
+            let line = match line {
+                Ok( line ) => line,
+                Err( _ ) => break
+            };
+
+            let mut output = output.lock().unwrap();
+            output.push_str( &line );
+            output.push_str( "\n" );
+        }
+    })
 }
 
 pub struct ChildHandle {
+    output: Arc< Mutex< String > >,
+    stdout_join: Option< thread::JoinHandle< () > >,
+    stderr_join: Option< thread::JoinHandle< () > >,
     child: Child
+}
+
+impl ChildHandle {
+    pub fn wait( mut self ) -> CommandResult {
+        let status = self.child.wait().unwrap();
+        self.flush_output();
+
+        CommandResult { status }
+    }
+
+    fn flush_output( &mut self ) {
+        if let Some( stdout_join ) = self.stdout_join.take() {
+            let _ = stdout_join.join();
+        }
+
+        if let Some( stderr_join ) = self.stderr_join.take() {
+            let _ = stderr_join.join();
+        }
+
+        let mut output = String::new();
+        mem::swap( &mut output, &mut self.output.lock().unwrap() );
+        print!( "{}", output );
+    }
 }
 
 impl Drop for ChildHandle {
     fn drop( &mut self ) {
         let _ = self.child.kill();
+        self.flush_output();
     }
 }
 
-pub fn run_in_the_background< E, S >( executable: E, args: &[S] ) -> ChildHandle
-    where E: AsRef< OsStr >,
+pub fn run_in_the_background< C, E, S >( cwd: C, executable: E, args: &[S] ) -> ChildHandle
+    where C: AsRef< Path >,
+          E: AsRef< OsStr >,
           S: AsRef< OsStr >
 {
-    run_internal( executable, args, |mut cmd| cmd.spawn().map( |child| ChildHandle { child } ) )
+    run_internal( cwd, executable, args, |mut cmd| {
+        let output = Arc::new( Mutex::new( String::new() ) );
+        cmd.stdin( Stdio::null() );
+        cmd.stdout( Stdio::piped() );
+        cmd.stderr( Stdio::piped() );
+
+        let mut child = cmd.spawn()?;
+        let stdout_join = print_stream( child.stdout.take().unwrap(), output.clone() );
+        let stderr_join = print_stream( child.stderr.take().unwrap(), output.clone() );
+
+        Ok( ChildHandle {
+            output,
+            stdout_join: Some( stdout_join ),
+            stderr_join: Some( stderr_join ),
+            child
+        })
+    })
+}
+
+pub fn run< C, E, S >( cwd: C, executable: E, args: &[S] ) -> CommandResult
+    where C: AsRef< Path >,
+          E: AsRef< OsStr >,
+          S: AsRef< OsStr >
+{
+    run_in_the_background( cwd, executable, args ).wait()
 }
 
 pub fn has_cmd( cmd: &str ) -> bool {

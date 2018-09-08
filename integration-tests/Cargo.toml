@@ -6,3 +6,10 @@ authors = ["Jan Bujak <j@exia.io>"]
 [dependencies]
 lazy_static = "1"
 reqwest = "0.8"
+
+[build-dependencies]
+rustc_version = "0.2"
+
+[features]
+default = []
+test_wasm32_unknown_unknown = []
