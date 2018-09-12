@@ -4,7 +4,6 @@ use std::io::{self, Read, Write};
 use std::fs;
 use std::env;
 
-use app_dirs;
 use pbr;
 use sha2;
 use reqwest::{
@@ -25,10 +24,7 @@ use utils::{
     unpack
 };
 
-const APP_INFO: app_dirs::AppInfo = app_dirs::AppInfo {
-    name: "cargo-web",
-    author: "Jan Bujak"
-};
+use app_info;
 
 pub struct PrebuiltPackage {
     pub url: &'static str,
@@ -61,7 +57,7 @@ pub fn download_package( package: &PrebuiltPackage ) -> PathBuf {
     let url = Url::parse( package.url ).unwrap();
     let package_filename = url.path_segments().unwrap().last().unwrap().to_owned();
 
-    let unpack_path = app_dirs::app_dir( app_dirs::AppDataType::UserData, &APP_INFO, package.name )
+    let unpack_path = app_info::app_dir( app_info::AppDataType::UserData, &app_info::APP_INFO, package.name )
         .unwrap()
         .join( package.arch );
     let version_path = unpack_path.join( ".version" );

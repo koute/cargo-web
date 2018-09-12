@@ -64,6 +64,7 @@ mod cargo_shim;
 
 #[macro_use]
 mod utils;
+mod app_info;
 mod http_utils;
 mod config;
 mod package;
