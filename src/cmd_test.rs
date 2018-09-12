@@ -15,9 +15,14 @@ use build::{BuildArgs, Backend};
 use error::Error;
 use utils::{
     CommandExt,
-    find_cmd
+    find_cmd,
+    read,
+    write
 };
 use test_chromium::test_in_chromium;
+use app_info;
+
+pub const TEST_RUNNER: &'static str = include_str!( "test_runner.js" );
 
 fn test_in_nodejs(
     backend: Backend,
@@ -37,6 +42,12 @@ fn test_in_nodejs(
         Error::EnvironmentError( "node.js not found; please install it!".into() )
     })?;
 
+    let cache_path = app_info::app_dir( app_info::AppDataType::UserCache, &app_info::APP_INFO, "bin" ).unwrap();
+    let runner_path = cache_path.join( "test_runner.js" );
+    if !runner_path.exists() || read( &runner_path ).expect( "cannot read test runner" ) != TEST_RUNNER {
+        write( &runner_path, &TEST_RUNNER ).expect( "cannot write test runner" );
+    }
+
     let js_files: Vec< _ > =
         build.artifacts()
         .iter()
@@ -53,7 +64,9 @@ fn test_in_nodejs(
         js_files[ 0 ]
     };
 
-    let test_args = iter::once( artifact.as_os_str() )
+    let test_args = iter::once( runner_path.as_os_str() )
+        .chain( iter::once( OsStr::new( backend.triplet() ) ) )
+        .chain( iter::once( artifact.as_os_str() ) )
         .chain( arg_passthrough.iter().cloned() );
 
     let previous_cwd = env::current_dir().unwrap();
@@ -88,9 +101,6 @@ pub fn command_test< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Err
 
     let use_nodejs = matches.is_present( "nodejs" );
     let no_run = matches.is_present( "no-run" );
-    if project.backend().is_native_wasm() && !use_nodejs && !no_run {
-        return Err( Error::ConfigurationError( "running tests for the native wasm target is currently only supported with `--nodejs`".into() ) );
-    }
 
     let arg_passthrough = matches.values_of_os( "passthrough" )
         .map_or( vec![], |args| args.collect() );

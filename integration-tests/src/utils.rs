@@ -49,7 +49,8 @@ fn run_internal< R, I, C, E, S, F >( cwd: C, executable: E, args: I, callback: F
 
 #[must_use]
 pub struct CommandResult {
-    status: ExitStatus
+    status: ExitStatus,
+    output: String
 }
 
 impl CommandResult {
@@ -63,6 +64,10 @@ impl CommandResult {
         if self.status.success() {
             panic!( "Command unexpectedly succeeded!" );
         }
+    }
+
+    pub fn output( &self ) -> &str {
+        &self.output
     }
 }
 
@@ -92,12 +97,15 @@ pub struct ChildHandle {
 impl ChildHandle {
     pub fn wait( mut self ) -> CommandResult {
         let status = self.child.wait().unwrap();
-        self.flush_output();
+        let output = self.flush_output();
 
-        CommandResult { status }
+        CommandResult {
+            status,
+            output
+        }
     }
 
-    fn flush_output( &mut self ) {
+    fn flush_output( &mut self ) -> String {
         if let Some( stdout_join ) = self.stdout_join.take() {
             let _ = stdout_join.join();
         }
@@ -109,6 +117,8 @@ impl ChildHandle {
         let mut output = String::new();
         mem::swap( &mut output, &mut self.output.lock().unwrap() );
         print!( "{}", output );
+
+        output
     }
 }
 

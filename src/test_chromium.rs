@@ -30,6 +30,7 @@ use http_utils::{
     response_from_data
 };
 use chrome_devtools::{Connection, Reply, ReplyError, ConsoleApiCalledBody, ExceptionThrownBody};
+use cmd_test::TEST_RUNNER;
 
 const DEFAULT_TEST_INDEX_HTML: &'static str = r#"
 <!DOCTYPE html>
@@ -41,8 +42,10 @@ const DEFAULT_TEST_INDEX_HTML: &'static str = r#"
         var __cargo_web = {};
         var Module = {};
         __cargo_web.status = new Promise( function( resolve ) { Module['onExit'] = resolve; } );
+        __cargo_web.target = "{{{ target }}}";
         Module['arguments'] = [{{#each arguments}} "{{{ this }}}", {{/each}}];
     </script>
+    <script src="/__cargo-web__/test_runner.js"></script>
 </head>
 <body>
     <script src="js/app.js"></script>
@@ -70,9 +73,10 @@ pub fn test_in_chromium(
     let app_js = Arc::new( Mutex::new( String::new() ) );
     let server_app_js = app_js.clone();
     let handlebars = Handlebars::new();
-    let mut template_data = BTreeMap::new();
+    let mut template_data: BTreeMap< &str, Value > = BTreeMap::new();
     let arg_passthrough: Vec<_> = arg_passthrough.iter().map( |arg| arg.to_str().unwrap() ).collect();
-    template_data.insert( "arguments", arg_passthrough );
+    template_data.insert( "arguments", arg_passthrough.into() );
+    template_data.insert( "target", backend.triplet().into() );
     let test_index = handlebars.render_template( DEFAULT_TEST_INDEX_HTML, &template_data ).unwrap();
     let app_wasm: Arc< Mutex< Option< Vec< u8 > > > > = Arc::new( Mutex::new( None ) );
     let wasm_url = Arc::new( Mutex::new( None ) );
@@ -89,6 +93,8 @@ pub fn test_in_chromium(
             } else if path == "/js/app.js" {
                 let data = server_app_js.lock().unwrap().clone();
                 response_from_data( "application/javascript", data.into_bytes() )
+            } else if path == "/__cargo-web__/test_runner.js" {
+                response_from_data( "application/javascript", TEST_RUNNER.as_bytes().to_vec() )
             } else {
                 match *server_wasm_url.lock().unwrap() {
                     Some( ref server_wasm_url ) if path == *server_wasm_url => {

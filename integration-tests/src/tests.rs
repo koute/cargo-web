@@ -232,6 +232,103 @@ macro_rules! common_tests { (($($attr:tt)*) $namespace:ident, $target:expr) => {
         assert_tests_build( $target, "failing-integration-test-crate-types" );
         assert_tests_fail( $target, "failing-integration-test-crate-types" );
     }
+
+    $($attr)*
+    #[test]
+    fn async_normal_test_with_nodejs() {
+        let crate_name = "async-tests";
+        assert_tests_build( $target, crate_name );
+        let result = run( crate_path( crate_name ), &*CARGO_WEB, &["test", "--nodejs", "--target", $target.to_str(), "--", "normal_test"] );
+        assert!( !result.output().contains( "async test(s)" ) );
+        if $target != Wasm32UnknownUnknown {
+            // Normal tests don't output anything on this target.
+            assert!( result.output().contains( "test normal_test ... ok" ) );
+            assert!( result.output().contains( "test result (async): ok. 0 passed; 0 failed" ) );
+        }
+        result.assert_success();
+    }
+
+    $($attr)*
+    #[test]
+    fn async_test_ok_with_nodejs() {
+        let crate_name = "async-tests";
+        assert_tests_build( $target, crate_name );
+        let result = run( crate_path( crate_name ), &*CARGO_WEB, &["test", "--nodejs", "--target", $target.to_str(), "--", "ok"] );
+        assert!( result.output().contains( "running 1 async test(s)" ) );
+        assert!( result.output().contains( "test ok ... ok" ) );
+        assert!( result.output().contains( "test result (async): ok. 1 passed; 0 failed" ) );
+        result.assert_success();
+    }
+
+    #[test]
+    fn async_test_panic_with_nodejs() {
+        let crate_name = "async-tests";
+        assert_tests_build( $target, crate_name );
+        let result = run( crate_path( crate_name ), &*CARGO_WEB, &["test", "--nodejs", "--target", $target.to_str(), "--", "panic"] );
+        assert!( result.output().contains( "running 1 async test(s)" ) );
+        assert!( result.output().contains( "test panic ... FAILED" ) );
+        assert!( result.output().contains( "test result (async): FAILED. 0 passed; 1 failed" ) );
+        result.assert_failure();
+    }
+
+    #[test]
+    fn async_test_timeout_with_nodejs() {
+        let crate_name = "async-tests";
+        assert_tests_build( $target, crate_name );
+        let result = run( crate_path( crate_name ), &*CARGO_WEB, &["test", "--nodejs", "--target", $target.to_str(), "--", "timeout"] );
+        assert!( result.output().contains( "running 1 async test(s)" ) );
+        assert!( result.output().contains( "test timeout ... FAILED" ) );
+        assert!( result.output().contains( "test result (async): FAILED. 0 passed; 1 failed" ) );
+        result.assert_failure();
+    }
+
+    $($attr)*
+    #[test]
+    fn async_normal_test_with_chromium() {
+        let crate_name = "async-tests";
+        assert_tests_build( $target, crate_name );
+        let result = run( crate_path( crate_name ), &*CARGO_WEB, &["test", "--target", $target.to_str(), "--", "normal_test"] );
+        assert!( !result.output().contains( "async test(s)" ) );
+        if $target != Wasm32UnknownUnknown {
+            assert!( result.output().contains( "test normal_test ... ok" ) );
+            assert!( result.output().contains( "test result (async): ok. 0 passed; 0 failed" ) );
+        }
+        result.assert_success();
+    }
+
+    $($attr)*
+    #[test]
+    fn async_test_ok_with_chromium() {
+        let crate_name = "async-tests";
+        assert_tests_build( $target, crate_name );
+        let result = run( crate_path( crate_name ), &*CARGO_WEB, &["test", "--target", $target.to_str(), "--", "ok"] );
+        assert!( result.output().contains( "running 1 async test(s)" ) );
+        assert!( result.output().contains( "test ok ... ok" ) );
+        assert!( result.output().contains( "test result (async): ok. 1 passed; 0 failed" ) );
+        result.assert_success();
+    }
+
+    #[test]
+    fn async_test_panic_with_chromium() {
+        let crate_name = "async-tests";
+        assert_tests_build( $target, crate_name );
+        let result = run( crate_path( crate_name ), &*CARGO_WEB, &["test", "--target", $target.to_str(), "--", "panic"] );
+        assert!( result.output().contains( "running 1 async test(s)" ) );
+        assert!( result.output().contains( "test panic ... FAILED" ) );
+        assert!( result.output().contains( "test result (async): FAILED. 0 passed; 1 failed" ) );
+        result.assert_failure();
+    }
+
+    #[test]
+    fn async_test_timeout_with_chromium() {
+        let crate_name = "async-tests";
+        assert_tests_build( $target, crate_name );
+        let result = run( crate_path( crate_name ), &*CARGO_WEB, &["test", "--target", $target.to_str(), "--", "timeout"] );
+        assert!( result.output().contains( "running 1 async test(s)" ) );
+        assert!( result.output().contains( "test timeout ... FAILED" ) );
+        assert!( result.output().contains( "test result (async): FAILED. 0 passed; 1 failed" ) );
+        result.assert_failure();
+    }
 }}}
 
 common_tests!( () asmjs_unknown_emscripten, Target::AsmjsUnknownEmscripten );
