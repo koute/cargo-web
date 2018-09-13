@@ -195,7 +195,7 @@ fn print_diagnostic< W: Write >( use_color: bool, diag: &Diagnostic, fp: &mut W 
     Ok(())
 }
 
-fn color_header( output: &mut String, header: &str, line: &str ) -> bool {
+fn color_header( output: &mut String, header: &str, line: &str ) -> Result< bool, fmt::Error > {
     if line.starts_with( header ) && line[ header.len().. ].chars().next() == Some( ':' ) {
         let color = level_color( header );
         writeln!(
@@ -205,10 +205,10 @@ fn color_header( output: &mut String, header: &str, line: &str ) -> bool {
             header,
             color.suffix(),
             &line[ header.len() + 1.. ]
-        );
-        true
+        )?;
+        Ok( true )
     } else {
-        false
+        Ok( false )
     }
 }
 
@@ -233,7 +233,7 @@ fn skip_numbers( p: &mut &str ) {
     }
 }
 
-fn color_arrow( output: &mut String, line: &str ) -> bool {
+fn color_arrow( output: &mut String, line: &str ) -> Result< bool, fmt::Error > {
     let mut p = line;
     skip_spaces( &mut p );
     if skip_pattern( &mut p, "-->" ) {
@@ -246,14 +246,14 @@ fn color_arrow( output: &mut String, line: &str ) -> bool {
             &line[ 0..split_at ],
             color.suffix(),
             &line[ split_at.. ]
-        );
-        return true;
+        )?;
+        return Ok( true );
     }
 
-    false
+    Ok( false )
 }
 
-fn color_line_number_column( output: &mut String, line: &str ) -> bool {
+fn color_line_number_column( output: &mut String, line: &str ) -> Result< bool, fmt::Error > {
     let mut p = line;
     skip_spaces( &mut p );
     skip_numbers( &mut p );
@@ -269,31 +269,31 @@ fn color_line_number_column( output: &mut String, line: &str ) -> bool {
             color.suffix(),
             &line[ split_at.. ]
         );
-        return true;
+        return Ok( true );
     }
-    false
+    Ok( false )
 }
 
-fn simple_coloring( message: &str ) -> String {
+fn simple_coloring( message: &str ) -> Result< String, fmt::Error > {
     if message.is_empty() {
-        return String::new();
+        return Ok( String::new() );
     }
 
     let mut output = String::new();
     for line in message.lines() {
-        if color_header( &mut output, "note", line ) {
+        if color_header( &mut output, "note", line )? {
             continue;
         }
-        if color_header( &mut output, "warning", line ) {
+        if color_header( &mut output, "warning", line )? {
             continue;
         }
-        if color_header( &mut output, "error", line ) {
+        if color_header( &mut output, "error", line )? {
             continue;
         }
-        if color_arrow( &mut output, line ) {
+        if color_arrow( &mut output, line )? {
             continue;
         }
-        if color_line_number_column( &mut output, line ) {
+        if color_line_number_column( &mut output, line )? {
             continue;
         }
 
@@ -305,7 +305,7 @@ fn simple_coloring( message: &str ) -> String {
         output.pop();
     }
 
-    output
+    Ok( output )
 }
 
 pub fn print( use_color: bool, message: &Message ) {
@@ -339,7 +339,7 @@ pub fn print( use_color: bool, message: &Message ) {
             } else {
                 // Just give up and print out a message colored with heuristics.
                 if use_color {
-                    eprint!( "{}", simple_coloring( original ) );
+                    eprint!( "{}", simple_coloring( original ).expect( "coloring failed" ) );
                 } else {
                     eprint!( "{}", original );
                 }
