@@ -260,6 +260,7 @@ macro_rules! common_tests { (($($attr:tt)*) $namespace:ident, $target:expr) => {
         result.assert_success();
     }
 
+    $($attr)*
     #[test]
     fn async_test_panic_with_nodejs() {
         let crate_name = "async-tests";
@@ -271,6 +272,7 @@ macro_rules! common_tests { (($($attr:tt)*) $namespace:ident, $target:expr) => {
         result.assert_failure();
     }
 
+    $($attr)*
     #[test]
     fn async_test_timeout_with_nodejs() {
         let crate_name = "async-tests";
@@ -308,6 +310,7 @@ macro_rules! common_tests { (($($attr:tt)*) $namespace:ident, $target:expr) => {
         result.assert_success();
     }
 
+    $($attr)*
     #[test]
     fn async_test_panic_with_chromium() {
         let crate_name = "async-tests";
@@ -319,6 +322,7 @@ macro_rules! common_tests { (($($attr:tt)*) $namespace:ident, $target:expr) => {
         result.assert_failure();
     }
 
+    $($attr)*
     #[test]
     fn async_test_timeout_with_chromium() {
         let crate_name = "async-tests";
