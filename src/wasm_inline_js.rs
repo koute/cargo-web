@@ -23,12 +23,12 @@ fn hash( string: &str ) -> String {
 pub struct JsSnippet {
     pub name: String,
     pub code: String,
-    pub ty: FnTy
+    pub arg_count: usize
 }
 
 impl JsSnippet {
     pub fn arg_count( &self ) -> usize {
-        self.ty.params.len()
+        self.arg_count
     }
 }
 
@@ -46,6 +46,17 @@ pub fn process_and_extract( ctx: &mut Context ) -> Vec< JsSnippet > {
     let mut snippet_index_by_offset = HashMap::new();
     let mut snippet_index_by_hash: HashMap< String, usize > = HashMap::new();
     let mut snippets = Vec::new();
+    let mut output = Vec::new();
+
+    for snippet in ctx.js_snippets.drain( .. ) {
+        let snippet = JsSnippet {
+            name: snippet.name,
+            code: snippet.code,
+            arg_count: snippet.arg_count
+        };
+
+        output.push( snippet );
+    }
 
     for (&function_index, function) in &ctx.functions {
         if let &FunctionKind::Import { type_index, ref import, .. } = function {
@@ -237,11 +248,13 @@ pub fn process_and_extract( ctx: &mut Context ) -> Vec< JsSnippet > {
         *opcodes = new_opcodes;
     });
 
-    snippets.into_iter().map( |snippet| {
+    output.extend( snippets.into_iter().map( |snippet| {
         JsSnippet {
             name: snippet.name,
             code: snippet.code,
-            ty: snippet.ty
+            arg_count: snippet.ty.params.len()
         }
-    }).collect()
+    }));
+
+    output
 }

@@ -7,6 +7,14 @@ use std::iter;
 use indexmap::IndexMap;
 use parity_wasm::elements as pw;
 use parity_wasm::elements::Deserialize;
+use serde_json;
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct Snippet {
+    pub name: String,
+    pub code: String,
+    pub arg_count: usize
+}
 
 trait IterExt: Iterator + Sized {
     fn enumerate_u32( self ) -> iter::Map< iter::Enumerate< Self >, fn( (usize, Self::Item) ) -> (u32, Self::Item) > {
@@ -289,6 +297,7 @@ pub struct Context {
     pub data: Vec< Data >,
     pub module_name: Option< String >,
     pub source_mapping_url: Option< String >,
+    pub js_snippets: Vec< Snippet >,
     next_function_index: u32,
     next_type_index: u32
 }
@@ -413,6 +422,7 @@ impl Context {
             data: Default::default(),
             module_name: Default::default(),
             source_mapping_url: Default::default(),
+            js_snippets: Default::default(),
             next_function_index: 0,
             next_type_index: 0
         }
@@ -650,6 +660,12 @@ impl Context {
                         ctx.source_mapping_url = Some( url.to_owned() );
                     } else if section.name() == "linking" || section.name().starts_with( ".debug_" ) {
                         // TODO: Support this section.
+                    } else if section.name() == "cargo-web-js" {
+                        let payload = take( section.payload_mut() );
+                        let stream = serde_json::Deserializer::from_slice( &payload ).into_iter::< Snippet >();
+                        for snippet in stream {
+                            ctx.js_snippets.push( snippet.expect( "failed to deserialize js snippet" ) );
+                        }
                     } else {
                         eprintln!( "warning: unsupported custom section: '{}', please report this!", section.name() );
                     }

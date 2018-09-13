@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use wasm_inline_js::JsSnippet;
 use wasm_context::{
-    FnTy,
     FunctionKind,
     Context,
     ValueType
@@ -59,14 +58,11 @@ pub fn process( ctx: &mut Context ) -> Vec< JsSnippet > {
     for function in ctx.functions.values() {
         match function {
             &FunctionKind::Import { ref import, .. } if import.module == "env" => {
-                if let Some( &(args, return_type, code) ) = intrinsics.get( import.field.as_str() ) {
+                if let Some( &(args, _return_type, code) ) = intrinsics.get( import.field.as_str() ) {
                     snippets.push( JsSnippet {
                         name: import.field.clone(),
                         code: code.to_owned(),
-                        ty: FnTy {
-                            params: args.iter().cloned().collect(),
-                            return_type
-                        }
+                        arg_count: args.len()
                     });
                 }
             },
