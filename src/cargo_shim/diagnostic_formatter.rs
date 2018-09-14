@@ -196,20 +196,25 @@ fn print_diagnostic< W: Write >( use_color: bool, diag: &Diagnostic, fp: &mut W 
 }
 
 fn color_header( output: &mut String, header: &str, line: &str ) -> Result< bool, fmt::Error > {
-    if line.starts_with( header ) && line[ header.len().. ].chars().next() == Some( ':' ) {
-        let color = level_color( header );
-        writeln!(
-            output,
-            "{}{}{}:{}",
-            color.prefix(),
-            header,
-            color.suffix(),
-            &line[ header.len() + 1.. ]
-        )?;
-        Ok( true )
-    } else {
-        Ok( false )
+    if !line.starts_with( header ) {
+        return Ok( false );
     }
+
+    let index = match line.char_indices().skip_while( |(_, ch)| *ch != ':' ).next().map( |(index, _)| index ) {
+        Some( index ) => index,
+        None => return Ok( false )
+    };
+
+    let color = level_color( header );
+    writeln!(
+        output,
+        "{}{}{}:{}",
+        color.prefix(),
+        &line[ ..index ],
+        color.suffix(),
+        &line[ index + 1.. ]
+    )?;
+    Ok( true )
 }
 
 fn skip_spaces( p: &mut &str ) {
