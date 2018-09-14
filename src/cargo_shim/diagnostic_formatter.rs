@@ -268,7 +268,7 @@ fn color_line_number_column( output: &mut String, line: &str ) -> Result< bool, 
             &line[ 0..split_at ],
             color.suffix(),
             &line[ split_at.. ]
-        );
+        )?;
         return Ok( true );
     }
     Ok( false )
