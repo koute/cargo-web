@@ -159,6 +159,14 @@ addons:
   chrome: stable
 ```
 
+## Changelog
+   * `0.6.16`
+      * The runtime for `wasm32-unknown-unknown` now uses `WebAssembly.instantiateStreaming` when available
+      * Running tests under headless Chromium is now supported for the `wasm32-unknown-unknown` target
+      * Color codes are no longer emitted when the output of `cargo-web` is redirected
+      * Improved coloring; a lot more messages should now be colored
+      * Initial experimental support for asynchronous tests
+
 ## License
 
 Licensed under either of
