@@ -200,7 +200,7 @@ fn color_header( output: &mut String, header: &str, line: &str ) -> Result< bool
         return Ok( false );
     }
 
-    let index = match line.char_indices().skip_while( |(_, ch)| *ch != ':' ).next().map( |(index, _)| index ) {
+    let index = match line.char_indices().skip_while( |&(_, ch)| ch != ':' ).next().map( |(index, _)| index ) {
         Some( index ) => index,
         None => return Ok( false )
     };
