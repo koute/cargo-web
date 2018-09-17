@@ -16,8 +16,8 @@ use cargo_shim::{
 use error::Error;
 use utils::read_bytes;
 
-const DEFAULT_INDEX_HTML_TEMPLATE: &'static str = r#"
-<!DOCTYPE html>
+// Note: newlines before the DOCTYPE break GitHub pages
+const DEFAULT_INDEX_HTML_TEMPLATE: &'static str = r#"<!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8" />
@@ -44,8 +44,7 @@ const DEFAULT_INDEX_HTML_TEMPLATE: &'static str = r#"
 <body>
     <script src="{{{js_url}}}"></script>
 </body>
-</html>
-"#;
+</html>"#;
 
 fn generate_index_html( filename: &str ) -> String {
     let handlebars = Handlebars::new();
