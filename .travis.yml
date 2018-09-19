@@ -43,7 +43,7 @@ jobs:
   include:
     - <<: *test
       os: linux
-      rust: 1.24.1
+      rust: 1.25.0
       env: CHECK_ONLY=1
     - <<: *test
       os: linux
