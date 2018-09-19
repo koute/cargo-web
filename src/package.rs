@@ -40,15 +40,15 @@ fn create_client() -> ReqResult<Client> {
     let mut builder = Client::builder();
     match env::var("HTTPS_PROXY") {
         Err(_) => {},
-        Ok(proxy) => { builder.proxy(Proxy::https(&proxy).unwrap()); }
+        Ok(proxy) => { builder = builder.proxy(Proxy::https(&proxy).unwrap()); }
     };
     match env::var("HTTP_PROXY") {
         Err(_) => {},
-        Ok(proxy) => { builder.proxy(Proxy::http(&proxy).unwrap()); }
+        Ok(proxy) => { builder = builder.proxy(Proxy::http(&proxy).unwrap()); }
     };
     match env::var("ALL_PROXY") {
         Err(_) => {},
-        Ok(proxy) => { builder.proxy(Proxy::all(&proxy).unwrap()); }
+        Ok(proxy) => { builder = builder.proxy(Proxy::all(&proxy).unwrap()); }
     };
     builder.build()
 }
@@ -77,7 +77,7 @@ pub fn download_package( package: &PrebuiltPackage ) -> PathBuf {
     eprintln!( "Downloading {}...", package_filename );
     let client = create_client().unwrap();
     let mut response = client.get( url )
-        .header( header::Connection::close() )
+        .header( header::CONNECTION, "close" )
         .send()
         .unwrap();
 
@@ -85,8 +85,10 @@ pub fn download_package( package: &PrebuiltPackage ) -> PathBuf {
     let dlpath = tmpdir.path().join( &package_filename );
     let mut fp = fs::File::create( &dlpath ).unwrap();
 
-    let length: Option< header::ContentLength > = response.headers().get().cloned();
-    let length = length.map( |length| length.0 ).unwrap_or( package.size );
+    let length = response.headers().get( header::CONTENT_LENGTH )
+        .and_then( |len| len.to_str().ok() )
+        .and_then( |len| len.parse().ok() )
+        .unwrap_or( package.size );
     let mut pb = pbr::ProgressBar::new( length );
     pb.set_units( pbr::Units::Bytes );
 
