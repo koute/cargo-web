@@ -37,7 +37,7 @@ pub struct PrebuiltPackage {
 
 // Creates a new client, supporting configuration from operating system variables if available.
 fn create_client() -> ReqResult<Client> {
-    let mut builder = Client::builder();
+    let mut builder = Client::builder().danger_accept_invalid_certs( true );
     match env::var("HTTPS_PROXY") {
         Err(_) => {},
         Ok(proxy) => { builder = builder.proxy(Proxy::https(&proxy).unwrap()); }
