@@ -451,10 +451,8 @@ fn prepend_js_includable_only_once() {
 #[test]
 fn static_files() {
     let cwd = crate_path( "static-files" );
-    use std::str::FromStr;
-    use reqwest::header::ContentType;
+    use reqwest::header::CONTENT_TYPE;
     use reqwest::StatusCode;
-    use reqwest::mime::Mime;
 
     run( &cwd, &*CARGO_WEB, &["build"] ).assert_success();
     let _child = run_in_the_background( &cwd, &*CARGO_WEB, &["start"] );
@@ -466,26 +464,26 @@ fn static_files() {
     }
 
     let response = response.unwrap();
-    assert_eq!( response.status(), StatusCode::Ok );
-    assert_eq!( *response.headers().get::< ContentType >().unwrap(), ContentType::html() );
+    assert_eq!( response.status(), StatusCode::OK );
+    assert_eq!( *response.headers().get(CONTENT_TYPE).unwrap(), "text/html" );
 
     let mut response = reqwest::get( "http://localhost:8000/subdirectory/dummy.json" ).unwrap();
-    assert_eq!( response.status(), StatusCode::Ok );
-    assert_eq!( *response.headers().get::< ContentType >().unwrap(), ContentType::json() );
+    assert_eq!( response.status(), StatusCode::OK );
+    assert_eq!( *response.headers().get(CONTENT_TYPE).unwrap(), "application/json" );
     assert_eq!( response.text().unwrap(), "{}" );
 
     let mut response = reqwest::get( "http://localhost:8000/static-files.js" ).unwrap();
-    assert_eq!( response.status(), StatusCode::Ok );
-    assert_eq!( *response.headers().get::< ContentType >().unwrap(), ContentType( Mime::from_str( "application/javascript" ).unwrap() ) );
+    assert_eq!( response.status(), StatusCode::OK );
+    assert_eq!( *response.headers().get(CONTENT_TYPE).unwrap(), "application/javascript" );
     assert_eq!( response.text().unwrap(), read_to_string( cwd.join( "target/asmjs-unknown-emscripten/debug/static-files.js" ) ) );
 
     // TODO: Move this to its own test?
     let mut response = reqwest::get( "http://localhost:8000/__cargo-web__/build_hash" ).unwrap();
-    assert_eq!( response.status(), StatusCode::Ok );
+    assert_eq!( response.status(), StatusCode::OK );
     let build_hash = response.text().unwrap();
 
     let mut response = reqwest::get( "http://localhost:8000/__cargo-web__/build_hash" ).unwrap();
-    assert_eq!( response.status(), StatusCode::Ok );
+    assert_eq!( response.status(), StatusCode::OK );
     assert_eq!( response.text().unwrap(), build_hash ); // Hash didn't change.
 
     touch_file( cwd.join( "src/main.rs" ) );
@@ -495,7 +493,7 @@ fn static_files() {
     while start.elapsed() < Duration::from_secs( 10 ) && !found {
         thread::sleep( Duration::from_millis( 100 ) );
         let mut response = reqwest::get( "http://localhost:8000" ).unwrap();
-        assert_eq!( response.status(), StatusCode::Ok );
+        assert_eq!( response.status(), StatusCode::OK );
 
         let new_build_hash = response.text().unwrap();
         found = new_build_hash != build_hash;

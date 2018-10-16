@@ -5,7 +5,7 @@ authors = ["Jan Bujak <j@exia.io>"]
 
 [dependencies]
 lazy_static = "1"
-reqwest = "0.8"
+reqwest = "0.9"
 
 [build-dependencies]
 rustc_version = "0.2"
