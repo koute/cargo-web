@@ -160,6 +160,11 @@ addons:
 ```
 
 ## Changelog
+   * `0.6.18`
+      * Default `index.html` doesn't have a newline before its doctype anymore
+   * `0.6.17`
+      * OpenSSL is now vendored; this should fix the compilation in some environments
+      * Minimum required Rust version is now `1.25.0`
    * `0.6.16`
       * The runtime for `wasm32-unknown-unknown` now uses `WebAssembly.instantiateStreaming` when available
       * Running tests under headless Chromium is now supported for the `wasm32-unknown-unknown` target
