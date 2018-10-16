@@ -45,7 +45,7 @@ extern crate semver;
 extern crate memmap;
 
 extern crate open;
-extern crate isatty;
+extern crate atty;
 
 use std::process::exit;
 use std::env;

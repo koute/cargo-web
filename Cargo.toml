@@ -37,7 +37,7 @@ regex = "1"
 walkdir = "2"
 base-x = "0.2"
 memmap = "0.7"
-isatty = "0.1"
+atty = "0.2"
 
 parity-wasm = "0.19"
 log = "0.4"
