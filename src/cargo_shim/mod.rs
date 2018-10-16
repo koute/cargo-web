@@ -56,9 +56,9 @@ pub struct CargoPackageId( PackageId );
 // TODO: Fix this upstream.
 impl PartialEq for CargoPackageId {
     fn eq( &self, rhs: &CargoPackageId ) -> bool {
-        self.0.name == rhs.0.name &&
-        self.0.version == rhs.0.version &&
-        self.0.url == rhs.0.url
+        self.0.name() == rhs.0.name() &&
+        self.0.version() == rhs.0.version() &&
+        self.0.url() == rhs.0.url()
     }
 }
 
@@ -66,9 +66,9 @@ impl Eq for CargoPackageId {}
 
 impl Hash for CargoPackageId {
     fn hash< H: Hasher >( &self, state: &mut H ) {
-        self.0.name.hash( state );
-        self.0.version.hash( state );
-        self.0.url.hash( state );
+        self.0.name().hash( state );
+        self.0.version().hash( state );
+        self.0.url().hash( state );
     }
 }
 
@@ -227,14 +227,14 @@ impl CargoProject {
 
         let mut workspace_members = HashSet::new();
         for member in metadata.workspace_members {
-            workspace_members.insert( member.name );
+            workspace_members.insert( member.name().to_owned() );
         }
 
         let mut project = CargoProject {
             target_directory: metadata.target_directory,
             packages: metadata.packages.into_iter().map( |package| {
                 let manifest_path: PathBuf = package.manifest_path.into();
-                let is_workspace_member = workspace_members.contains( &package.name );
+                let is_workspace_member = workspace_members.contains( &*package.name );
                 CargoPackage {
                     id: CargoPackageId::new( &package.id ).expect( "unparsable package id" ),
                     name: package.name,
@@ -309,7 +309,7 @@ impl CargoProject {
                 let dependency_id = CargoPackageId::new( &dependency_id ).expect( "unparsable dependency package id" );
 
                 let mut dependency_found = false;
-                for dependency in package.dependencies.iter_mut().filter( |dep| dep.name == dependency_id.name ) {
+                for dependency in package.dependencies.iter_mut().filter( |dep| dep.name == dependency_id.name() ) {
                     assert!( dependency.resolved_to.is_none(), "duplicate dependency" );
                     dependency.resolved_to = Some( dependency_id.clone() );
                     dependency_found = true;
