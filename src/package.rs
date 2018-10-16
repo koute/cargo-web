@@ -17,6 +17,7 @@ use reqwest::{
 use tempdir::TempDir;
 
 use digest::Digest;
+use digest::generic_array::functional::FunctionalSequence;
 
 use utils::{
     read,
