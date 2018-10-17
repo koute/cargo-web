@@ -5,7 +5,7 @@ use wasm_context::{
     FnTy,
     Import,
     Export,
-    Opcode,
+    Instruction,
     Context
 };
 
@@ -21,10 +21,10 @@ pub fn process( ctx: &mut Context ) {
         name: Some( "__web_on_grow".to_owned() )
     });
 
-    ctx.patch_code( |opcodes| {
-        let should_process = opcodes.iter().any( |opcode| {
-            match opcode {
-                &Opcode::GrowMemory( _ ) => true,
+    ctx.patch_code( |instructions| {
+        let should_process = instructions.iter().any( |instruction| {
+            match instruction {
+                &Instruction::GrowMemory( _ ) => true,
                 _ => false
             }
         });
@@ -33,22 +33,22 @@ pub fn process( ctx: &mut Context ) {
             return;
         }
 
-        let mut new_opcodes = Vec::with_capacity( opcodes.len() );
-        let mut old_opcodes = Vec::new();
-        mem::swap( opcodes, &mut old_opcodes );
+        let mut new_instructions = Vec::with_capacity( instructions.len() );
+        let mut old_instructions = Vec::new();
+        mem::swap( instructions, &mut old_instructions );
 
-        for opcode in old_opcodes {
-            let should_insert = match &opcode {
-                &Opcode::GrowMemory( _ ) => true,
+        for instruction in old_instructions {
+            let should_insert = match &instruction {
+                &Instruction::GrowMemory( _ ) => true,
                 &_ => false
             };
 
-            new_opcodes.push( opcode );
+            new_instructions.push( instruction );
             if should_insert {
-                new_opcodes.push( Opcode::Call( on_grow_function_index ) );
+                new_instructions.push( Instruction::Call( on_grow_function_index ) );
             }
         }
 
-        *opcodes = new_opcodes;
+        *instructions = new_instructions;
     });
 }

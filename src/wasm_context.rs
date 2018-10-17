@@ -31,7 +31,7 @@ pub type MemoryIndex = u32;
 pub type GlobalIndex = u32;
 
 pub use parity_wasm::elements::ValueType;
-pub use parity_wasm::elements::Opcode;
+pub use parity_wasm::elements::Instruction;
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct FnTy {
@@ -103,7 +103,7 @@ pub enum FunctionKind {
         type_index: TypeIndex,
         name: Option< String >,
         locals: Vec< Local >,
-        opcodes: Vec< Opcode >
+        instructions: Vec< Instruction >
     }
 }
 
@@ -233,7 +233,7 @@ pub enum GlobalKind {
     Definition {
         export: Export,
         global_type: GlobalType,
-        initializer: Vec< Opcode >
+        initializer: Vec< Instruction >
     }
 }
 
@@ -263,12 +263,12 @@ impl ImportExport for GlobalKind {
 #[derive(Clone, PartialEq, Debug)]
 pub struct FnPointerTable {
     members: Vec< FunctionIndex >,
-    offset: Vec< Opcode >
+    offset: Vec< Instruction >
 }
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct Data {
-    pub offset: Vec< Opcode >,
+    pub offset: Vec< Instruction >,
     pub value: Vec< u8 >
 }
 
@@ -279,7 +279,7 @@ impl Data {
         }
 
         match (&self.offset[ 0 ], &self.offset[ 1 ]) {
-            (&Opcode::I32Const( offset ), &Opcode::End) => Some( offset ),
+            (&Instruction::I32Const( offset ), &Instruction::End) => Some( offset ),
             _ => None
         }
     }
@@ -581,7 +581,7 @@ impl Context {
                                         name: None
                                     }
                                 }).collect(),
-                            opcodes: take( body.code_mut().elements_mut() )
+                            instructions: take( body.code_mut().elements_mut() )
                         });
                         ctx.next_function_index += 1;
                     }
@@ -670,6 +670,11 @@ impl Context {
                         eprintln!( "warning: unsupported custom section: '{}', please report this!", section.name() );
                     }
                 },
+                pw::Section::Name(_) => {
+                    // Section::Name is only emitted when calling module.parse_names()
+                    unreachable!()
+                },
+                pw::Section::Reloc(_) |
                 pw::Section::Unparsed { .. } => { unimplemented!() },
             }
         }
@@ -712,22 +717,22 @@ impl Context {
     }
 
     pub fn into_module( self ) -> pw::Module {
-        fn process_opcodes(
+        fn process_instructions(
             function_index_map: &HashMap< FunctionIndex, FunctionIndex >,
             type_index_map: &HashMap< TypeIndex, TypeIndex >,
             global_index_map: &HashMap< GlobalIndex, GlobalIndex >,
-            opcodes: &mut Vec< Opcode >
+            instructions: &mut Vec< Instruction >
         ) {
-            for opcode in opcodes {
-                match opcode {
-                    &mut Opcode::Call( ref mut index ) => {
+            for instruction in instructions {
+                match instruction {
+                    &mut Instruction::Call( ref mut index ) => {
                         *index = function_index_map.get( &index ).cloned().unwrap();
                     },
-                    &mut Opcode::CallIndirect( ref mut index, _ ) => {
+                    &mut Instruction::CallIndirect( ref mut index, _ ) => {
                         *index = type_index_map.get( &index ).cloned().unwrap();
                     },
-                    &mut Opcode::GetGlobal( ref mut index ) |
-                    &mut Opcode::SetGlobal( ref mut index ) => {
+                    &mut Instruction::GetGlobal( ref mut index ) |
+                    &mut Instruction::SetGlobal( ref mut index ) => {
                         *index = global_index_map.get( &index ).cloned().unwrap();
                     },
                     _ => {}
@@ -779,7 +784,7 @@ impl Context {
 
                     export
                 },
-                FunctionKind::Definition { name, type_index, locals, mut opcodes, export } => {
+                FunctionKind::Definition { name, type_index, locals, mut instructions, export } => {
                     let type_index = type_map.get( &type_index ).cloned().unwrap();
                     let mut local_names = Vec::new();
                     let locals = locals.into_iter().enumerate_u32().map( |(local_index, local)| {
@@ -789,7 +794,7 @@ impl Context {
                         pw::Local::new( local.count, local.ty )
                     }).collect();
 
-                    process_opcodes( &functions.index_map, &type_map, &globals.index_map, &mut opcodes );
+                    process_instructions( &functions.index_map, &type_map, &globals.index_map, &mut instructions );
 
                     if let Some( name ) = name {
                         function_names.push( (new_index, name) );
@@ -798,7 +803,7 @@ impl Context {
                         function_variable_names.push( (new_index, local_names) );
                     }
                     section_functions.push( pw::Func::new( type_index ) );
-                    section_code.push( pw::FuncBody::new( locals, pw::Opcodes::new( opcodes ) ) );
+                    section_code.push( pw::FuncBody::new( locals, pw::Instructions::new( instructions ) ) );
 
                     export
                 }
@@ -864,7 +869,7 @@ impl Context {
                     export
                 },
                 GlobalKind::Definition { global_type, mut initializer, export } => {
-                    process_opcodes( &functions.index_map, &type_map, &globals.index_map, &mut initializer );
+                    process_instructions( &functions.index_map, &type_map, &globals.index_map, &mut initializer );
 
                     let global_type = pw::GlobalType::new( global_type.ty, global_type.is_mutable );
                     let entry = pw::GlobalEntry::new( global_type, pw::InitExpr::new( initializer ) );
@@ -880,7 +885,7 @@ impl Context {
         }
 
         for mut pointer_table in self.fn_pointer_tables {
-            process_opcodes( &functions.index_map, &type_map, &globals.index_map, &mut pointer_table.offset );
+            process_instructions( &functions.index_map, &type_map, &globals.index_map, &mut pointer_table.offset );
             for function_index in &mut pointer_table.members {
                 *function_index = functions.index_map.get( &function_index ).cloned().unwrap();
             }
@@ -981,17 +986,17 @@ impl Context {
         type_index
     }
 
-    pub fn patch_code< F >( &mut self, mut callback: F ) where F: for <'r> FnMut( &'r mut Vec< Opcode > ) {
+    pub fn patch_code< F >( &mut self, mut callback: F ) where F: for <'r> FnMut( &'r mut Vec< Instruction > ) {
         for function in self.functions.values_mut() {
             match function {
-                &mut FunctionKind::Definition { ref mut opcodes, .. } => {
-                    callback( opcodes );
+                &mut FunctionKind::Definition { ref mut instructions, .. } => {
+                    callback( instructions );
                 },
                 _ => {}
             }
         }
 
-        // TODO: Other places where opcodes are used.
+        // TODO: Other places where instructions are used.
     }
 }
 
@@ -1011,7 +1016,7 @@ fn test_serialization_deserialization() {
                 name: Some( "v1".to_owned() )
             }
         ],
-        opcodes: vec![]
+        instructions: vec![]
     });
 
     let new_ctx = Context::from_module( ctx.clone().into_module() );
@@ -1044,8 +1049,8 @@ fn test_function_import_removal() {
                 name: Some( "v1".to_owned() )
             }
         ],
-        opcodes: vec![
-            Opcode::Call( 1 )
+        instructions: vec![
+            Instruction::Call( 1 )
         ],
     });
     ctx.start = Some( 1 );
@@ -1055,10 +1060,10 @@ fn test_function_import_removal() {
     assert_eq!( new_ctx.functions.len(), 1 );
 
     match new_ctx.functions[ &0 ] {
-        FunctionKind::Definition { ref name, ref export, ref opcodes, .. } => {
+        FunctionKind::Definition { ref name, ref export, ref instructions, .. } => {
             assert_eq!( name.as_ref().unwrap(), "main" );
             assert_eq!( *export, Export::some( "main".to_owned() ) );
-            assert_eq!( *opcodes, &[Opcode::Call( 0 )] );
+            assert_eq!( *instructions, &[Instruction::Call( 0 )] );
         },
         _ => panic!()
     }

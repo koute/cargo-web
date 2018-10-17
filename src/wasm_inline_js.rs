@@ -11,7 +11,7 @@ use wasm_context::{
     Import,
     Export,
     Context,
-    Opcode
+    Instruction
 };
 
 fn hash( string: &str ) -> String {
@@ -67,13 +67,13 @@ pub fn process_and_extract( ctx: &mut Context ) -> Vec< JsSnippet > {
     }
 
     for (_, function) in &ctx.functions {
-        if let &FunctionKind::Definition { ref opcodes, .. } = function {
-            for (index, opcode) in opcodes.iter().enumerate() {
-                match opcode {
-                    &Opcode::Call( function_index ) => {
+        if let &FunctionKind::Definition { ref instructions, .. } = function {
+            for (index, instruction) in instructions.iter().enumerate() {
+                match instruction {
+                    &Instruction::Call( function_index ) => {
                         if let Some( &type_index ) = shim_map.get( &function_index ) {
-                            match opcodes[ index - 1 ] {
-                                Opcode::I32Const( offset ) => {
+                            match instructions[ index - 1 ] {
+                                Instruction::I32Const( offset ) => {
                                     if let Some( previous_ty ) = snippet_offset_to_type_index.get( &offset ).cloned() {
                                         if type_index != previous_ty {
                                             panic!( "internal error: same snippet of JS (by offset) is used with two different shims; please report this!" );
@@ -211,10 +211,10 @@ pub fn process_and_extract( ctx: &mut Context ) -> Vec< JsSnippet > {
         ctx.functions.remove( function_index );
     }
 
-    ctx.patch_code( |opcodes| {
-        let should_process = opcodes.iter().any( |opcode| {
-            match opcode {
-                &Opcode::Call( function_index ) => shim_map.contains_key( &function_index ),
+    ctx.patch_code( |instructions| {
+        let should_process = instructions.iter().any( |instruction| {
+            match instruction {
+                &Instruction::Call( function_index ) => shim_map.contains_key( &function_index ),
                 _ => false
             }
         });
@@ -223,29 +223,29 @@ pub fn process_and_extract( ctx: &mut Context ) -> Vec< JsSnippet > {
             return;
         }
 
-        let mut new_opcodes = Vec::with_capacity( opcodes.len() );
-        let mut old_opcodes = Vec::new();
-        mem::swap( opcodes, &mut old_opcodes );
+        let mut new_instructions = Vec::with_capacity( instructions.len() );
+        let mut old_instructions = Vec::new();
+        mem::swap( instructions, &mut old_instructions );
 
-        for opcode in old_opcodes {
-            match opcode {
-                Opcode::Call( function_index ) if shim_map.contains_key( &function_index ) => {
+        for instruction in old_instructions {
+            match instruction {
+                Instruction::Call( function_index ) if shim_map.contains_key( &function_index ) => {
                     // Pop the last argument which was a pointer to the code.
-                    let offset = match new_opcodes.pop().unwrap() {
-                        Opcode::I32Const( offset ) => offset,
+                    let offset = match new_instructions.pop().unwrap() {
+                        Instruction::I32Const( offset ) => offset,
                         _ => panic!()
                     };
                     let &snippet_index = snippet_index_by_offset.get( &offset ).unwrap();
                     let snippet = &snippets[ snippet_index ];
-                    new_opcodes.push( Opcode::Call( snippet.function_index ) );
+                    new_instructions.push( Instruction::Call( snippet.function_index ) );
                 }
-                opcode => {
-                    new_opcodes.push( opcode );
+                instruction => {
+                    new_instructions.push( instruction );
                 }
             }
         }
 
-        *opcodes = new_opcodes;
+        *instructions = new_instructions;
     });
 
     output.extend( snippets.into_iter().map( |snippet| {
