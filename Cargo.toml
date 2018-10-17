@@ -39,7 +39,7 @@ base-x = "0.2"
 memmap = "0.7"
 atty = "0.2"
 
-parity-wasm = "0.19"
+parity-wasm = "0.34"
 log = "0.4"
 rustc-demangle = "0.1.5"
 env_logger = "0.5.0-rc.2"
