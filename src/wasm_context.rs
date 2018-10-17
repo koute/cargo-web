@@ -564,7 +564,7 @@ impl Context {
                     let mut entry = entries.into_iter().next().unwrap();
                     ctx.fn_pointer_tables = Some( FnPointerTable {
                         members: take( entry.members_mut() ),
-                        offset: take( entry.offset_mut().code_mut() )
+                        offset: take( entry.offset_mut().as_mut().unwrap().code_mut() )
                     });
                 },
                 pw::Section::Code( mut section ) => {
@@ -594,7 +594,7 @@ impl Context {
                 pw::Section::Data( mut section ) => {
                     for mut entry in take( section.entries_mut() ) {
                         if ctx.data.last().map( |last_data| {
-                            last_data.offset == entry.offset().code() && last_data.value.is_empty()
+                            last_data.offset == entry.offset().as_ref().unwrap().code() && last_data.value.is_empty()
                         }).unwrap_or( false ) {
                             // Workaround for a `rustc`/LLVM bug where a duplicate empty data
                             // entries are generated.
@@ -602,7 +602,7 @@ impl Context {
                         }
 
                         ctx.data.push( Data {
-                            offset: take( entry.offset_mut().code_mut() ),
+                            offset: take( entry.offset_mut().as_mut().unwrap().code_mut() ),
                             value: take( entry.value_mut() )
                         });
                     }
@@ -842,12 +842,12 @@ impl Context {
                     section_imports.push( pw::ImportEntry::new(
                         import.module,
                         import.field,
-                        pw::External::Memory( pw::MemoryType::new( limits.min, limits.max ) )
+                        pw::External::Memory( pw::MemoryType::new( limits.min, limits.max, false ) )
                     ));
                     export
                 },
                 MemoryKind::Definition { limits, export } => {
-                    section_memories.push( pw::MemoryType::new( limits.min, limits.max ) );
+                    section_memories.push( pw::MemoryType::new( limits.min, limits.max, false ) );
                     export
                 }
             };
@@ -890,12 +890,12 @@ impl Context {
                 *function_index = functions.index_map.get( &function_index ).cloned().unwrap();
             }
 
-            let entry = pw::ElementSegment::new( 0, pw::InitExpr::new( pointer_table.offset ), pointer_table.members );
+            let entry = pw::ElementSegment::new( 0, Some( pw::InitExpr::new( pointer_table.offset ) ), pointer_table.members, false );
             section_elements.push( entry );
         }
 
         for data in self.data {
-            section_data.push( pw::DataSegment::new( 0, pw::InitExpr::new( data.offset ), data.value ) );
+            section_data.push( pw::DataSegment::new( 0, Some( pw::InitExpr::new( data.offset ) ), data.value, false ) );
         }
 
         if !section_types.is_empty() {
