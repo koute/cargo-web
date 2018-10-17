@@ -160,6 +160,8 @@ addons:
 ```
 
 ## Changelog
+   * `0.6.19`
+      * `cargo install` should now compile instead of failing in some environments
    * `0.6.18`
       * Default `index.html` doesn't have a newline before its doctype anymore
    * `0.6.17`
