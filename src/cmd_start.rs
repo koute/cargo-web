@@ -280,7 +280,7 @@ pub fn command_start< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Er
 
     let address = address_or_default( matches );
     let server = SimpleServer::new(&address, move |request| {
-        let path = request.path();
+        let path = request.uri().path();
         let last_build = last_build.lock().unwrap();
 
         if path == "/__cargo-web__/build_hash" {
@@ -299,7 +299,7 @@ pub fn command_start< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Er
                     Ok( artifact ) => artifact,
                     Err( error ) => {
                         warn!( "Cannot read {:?}: {:?}", path, error );
-                        return response_from_status(StatusCode::InternalServerError);
+                        return response_from_status(StatusCode::INTERNAL_SERVER_ERROR);
                     }
                 }
             }
@@ -314,7 +314,7 @@ pub fn command_start< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Er
                 }
             }
         } else {
-            response_from_status(StatusCode::NotFound)
+            response_from_status(StatusCode::NOT_FOUND)
         }
     });
 

@@ -1,14 +1,15 @@
-use std::io;
+use std::io::Cursor;
 use std::sync::Arc;
 use std::fs::File;
 use std::net::SocketAddr;
-use std::time::UNIX_EPOCH;
 use futures::{Poll, Async};
 use futures::future::{self, Future};
-use futures::stream::Stream;
-use hyper::{self, StatusCode};
-use hyper::header::{CacheControl, CacheDirective, ContentLength, ContentType, Expires, Pragma};
-use hyper::server::{Http, NewService, Request, Service};
+use hyper::body::Payload;
+use hyper::{self, StatusCode, Request, Response, Server};
+use hyper::service::{NewService, Service};
+use hyper::server::conn::AddrIncoming;
+use hyper::header::{CONTENT_TYPE, CONTENT_LENGTH, CACHE_CONTROL, EXPIRES, PRAGMA};
+use http::response::Builder;
 use memmap::Mmap;
 
 pub enum BodyContents {
@@ -25,46 +26,45 @@ impl AsRef< [u8] > for BodyContents {
     }
 }
 
-pub struct Body( Option< BodyContents > );
+pub struct Body( Option< Cursor< BodyContents > > );
 
-impl Stream for Body {
-    type Item = BodyContents;
-    type Error = hyper::error::Error;
+impl Payload for Body {
+    type Data = Cursor< BodyContents >;
+    type Error = hyper::Error;
 
-    fn poll( &mut self ) -> Poll< Option< Self::Item >, Self::Error > {
+    fn poll_data(&mut self) -> Poll< Option< Self::Data >, Self::Error > {
         Ok( Async::Ready( self.0.take() ) )
     }
 }
 
 impl From< Vec< u8 > > for Body {
     fn from( buffer: Vec< u8 > ) -> Self {
-        Body( Some( BodyContents::Owned( buffer ) ) )
+        Body( Some( Cursor::new( BodyContents::Owned( buffer ) ) ) )
     }
 }
 
 impl From< Mmap > for Body {
     fn from( map: Mmap ) -> Self {
-        Body( Some( BodyContents::Mmap( map ) ) )
+        Body( Some( Cursor::new( BodyContents::Mmap( map ) ) ) )
     }
 }
 
-type Response = hyper::server::Response< Body >;
-
-pub type FutureResponse = Box< Future< Item = Response, Error = hyper::Error > >;
-pub type FnHandler = Box< Fn( Request ) -> FutureResponse + Send + Sync >;
+pub type ResponseFuture = Box< Future< Item = Response< Body >, Error = hyper::Error > + Send >;
+pub type FnHandler = Box< Fn( Request< hyper::Body > ) -> ResponseFuture + Send + Sync >;
+pub type ServiceFuture = Box< Future< Item = SimpleService, Error = hyper::Error > + Send >;
 
 pub struct SimpleService {
     handler: Arc< FnHandler >
 }
 
 impl Service for SimpleService {
-    type Request = Request;
-    type Response = Response;
+    type ReqBody = hyper::Body;
+    type ResBody = Body;
     type Error = hyper::Error;
 
-    type Future = FutureResponse;
+    type Future = ResponseFuture;
 
-    fn call( &self, request: Request ) -> FutureResponse {
+    fn call( &mut self, request: Request< hyper::Body > ) -> ResponseFuture {
         ( *self.handler )( request )
     }
 }
@@ -74,60 +74,57 @@ pub struct NewSimpleService {
 }
 
 impl NewService for NewSimpleService {
-    type Request = Request;
-    type Response = Response;
+    type ReqBody = hyper::Body;
+    type ResBody = Body;
     type Error = hyper::Error;
 
-    type Instance = SimpleService;
+    type Service = SimpleService;
+    type Future = ServiceFuture;
+    type InitError = hyper::Error;
 
-    fn new_service( &self ) -> Result< Self::Instance, io::Error > {
-        Ok( SimpleService {
+    fn new_service( &self ) -> Self::Future {
+        Box::new( future::ok( SimpleService {
             handler: self.handler.clone()
-        } )
+        } ) )
     }
 }
 
 pub struct SimpleServer {
-    server: hyper::Server< NewSimpleService, Body >
+    server: Server< AddrIncoming, NewSimpleService >
 }
 
 impl SimpleServer {
     pub fn new< F >( address: &SocketAddr, handler: F ) -> Self
     where
-        F: Send + Sync + 'static + Fn( Request ) -> FutureResponse
+        F: Send + Sync + 'static + Fn( Request< hyper::Body > ) -> ResponseFuture
     {
-        let server = Http::new()
-            .bind(
-                address,
-                NewSimpleService {
-                    handler: Arc::new( Box::new( handler ) )
-                }
-            )
-            .unwrap();
+        let server = Server::bind( address )
+            .serve( NewSimpleService {
+                handler: Arc::new( Box::new( handler ) )
+            } );
         SimpleServer { server }
     }
 
     pub fn server_addr( &self ) -> SocketAddr {
-        self.server.local_addr().unwrap()
+        self.server.local_addr()
     }
 
     pub fn run( self ) {
-        self.server.run().unwrap();
+        hyper::rt::run(self.server.map_err(|e| {
+            eprintln!("server error: {}", e);
+        }));
     }
 }
 
-fn add_no_cache_headers( response: Response ) -> Response {
-    response
-        .with_header( CacheControl( vec![
-            CacheDirective::NoCache,
-            CacheDirective::NoStore,
-            CacheDirective::MustRevalidate,
-        ] ) )
-        .with_header( Expires( UNIX_EPOCH.into() ) )
-        .with_header( Pragma::NoCache )
+fn add_no_cache_headers( builder: &mut Builder ) {
+    builder.header( CACHE_CONTROL, "no-cache" );
+    builder.header( CACHE_CONTROL, "no-store" );
+    builder.header( CACHE_CONTROL, "must-revalidate" );
+    builder.header( EXPIRES, "0" );
+    builder.header( PRAGMA, "no-cache" );
 }
 
-pub fn response_from_file( mime_type: &str, fp: File ) -> FutureResponse {
+pub fn response_from_file( mime_type: &str, fp: File ) -> ResponseFuture {
     if let Ok( metadata ) = fp.metadata() {
         if metadata.len() == 0 {
             // This is necessary since `Mmap::map` will return an error for empty files.
@@ -139,39 +136,40 @@ pub fn response_from_file( mime_type: &str, fp: File ) -> FutureResponse {
         Ok( map ) => map,
         Err( error ) => {
             warn!( "Mmap failed: {}", error );
-            let status = StatusCode::InternalServerError;
+            let status = StatusCode::INTERNAL_SERVER_ERROR;
             let message = format!( "{}\n\n{}", status, error ).into_bytes();
-            return Box::new( future::ok(
-                sync_response_from_data( "text/plain", message ).with_status( status )
-            ));
+            let mut response = sync_response_from_data( "text/plain", message );
+            *response.status_mut() = status;
+            return Box::new( future::ok( response ) );
         }
     };
 
     let length = map.len();
     let body: Body = map.into();
-    let response = add_no_cache_headers( Response::new() )
-        .with_header( ContentType( mime_type.parse().unwrap() ) )
-        .with_header( ContentLength( length as u64 ) )
-        .with_body( body );
+    let mut response = Response::builder();
+    add_no_cache_headers( &mut response );
+    response.header( CONTENT_TYPE, mime_type );
+    response.header( CONTENT_LENGTH, length );
 
-    Box::new( future::ok( response ) )
+    Box::new( future::ok( response.body( body ).unwrap() ) )
 }
 
-fn sync_response_from_data( mime_type: &str, data: Vec< u8 > ) -> Response {
+fn sync_response_from_data( mime_type: &str, data: Vec< u8 > ) -> Response< Body > {
     let length = data.len();
     let body: Body = data.into();
-    add_no_cache_headers( Response::new() )
-        .with_header( ContentType( mime_type.parse().unwrap() ) )
-        .with_header( ContentLength( length as u64 ) )
-        .with_body( body )
+    let mut response = Response::builder();
+    add_no_cache_headers( &mut response );
+    response.header( CONTENT_TYPE, mime_type );
+    response.header( CONTENT_LENGTH, length );
+    response.body( body ).unwrap()
 }
 
-pub fn response_from_data( mime_type: &str, data: Vec< u8 > ) -> FutureResponse {
+pub fn response_from_data( mime_type: &str, data: Vec< u8 > ) -> ResponseFuture {
     Box::new( future::ok( sync_response_from_data( mime_type, data ) ) )
 }
 
-pub fn response_from_status( status: StatusCode ) -> FutureResponse {
-    Box::new( future::ok(
-        sync_response_from_data( "text/plain", format!( "{}", status ).into_bytes() ).with_status( status )
-    ) )
+pub fn response_from_status( status: StatusCode ) -> ResponseFuture {
+    let mut response = sync_response_from_data( "text/plain", format!( "{}", status ).into_bytes() );
+    *response.status_mut() = status;
+    Box::new( future::ok( response ) )
 }
