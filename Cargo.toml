@@ -15,7 +15,7 @@ exclude = ["build-scripts/**"]
 [dependencies]
 clap = "2"
 notify = "4"
-tempdir = "0.3"
+tempfile = "3"
 cargo_metadata = "0.6"
 ansi_term = "0.11"
 reqwest = "0.9"
