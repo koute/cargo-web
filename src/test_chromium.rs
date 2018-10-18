@@ -10,6 +10,7 @@ use std::net::SocketAddr;
 use std::ffi::OsStr;
 
 use hyper::StatusCode;
+use tempfile;
 use handlebars::Handlebars;
 use serde_json::{self, Value};
 use regex::Regex;

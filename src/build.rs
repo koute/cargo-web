@@ -19,7 +19,7 @@ use cargo_shim::{
 use semver::Version;
 use serde_json;
 use walkdir::WalkDir;
-use atty::Stream;
+use atty::{self, Stream};
 
 use config::Config;
 use emscripten::initialize_emscripten;

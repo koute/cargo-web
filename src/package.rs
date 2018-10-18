@@ -14,6 +14,8 @@ use reqwest::{
     Url,
 };
 
+use tempfile;
+
 use digest::Digest;
 use digest::generic_array::functional::FunctionalSequence;
 
