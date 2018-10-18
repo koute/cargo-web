@@ -14,8 +14,6 @@ use reqwest::{
     Url,
 };
 
-use tempdir::TempDir;
-
 use digest::Digest;
 use digest::generic_array::functional::FunctionalSequence;
 
@@ -82,7 +80,8 @@ pub fn download_package( package: &PrebuiltPackage ) -> PathBuf {
         .send()
         .unwrap();
 
-    let tmpdir = TempDir::new( format!( "cargo-web-{}-download", package.name ).as_str() ).unwrap();
+    let prefix = format!( "cargo-web-{}-download", package.name );
+    let tmpdir = tempfile::Builder::new().prefix( &prefix ).tempdir().unwrap();
     let dlpath = tmpdir.path().join( &package_filename );
     let mut fp = fs::File::create( &dlpath ).unwrap();
 

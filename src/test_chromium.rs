@@ -10,7 +10,6 @@ use std::net::SocketAddr;
 use std::ffi::OsStr;
 
 use hyper::StatusCode;
-use tempdir::TempDir;
 use handlebars::Handlebars;
 use serde_json::{self, Value};
 use regex::Regex;
@@ -125,7 +124,7 @@ pub fn test_in_chromium(
 
     *app_js.lock().unwrap() = read( artifact ).unwrap();
 
-    let tmpdir = TempDir::new( "cargo-web-chromium-profile" ).unwrap();
+    let tmpdir = tempfile::Builder::new().prefix( "cargo-web-chromium-profile" ).tempdir().unwrap();
     let tmpdir = tmpdir.path().to_string_lossy();
     let mut command = Command::new( chromium_executable );
     command

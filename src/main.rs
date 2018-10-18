@@ -11,7 +11,7 @@ extern crate notify;
 extern crate hyper;
 extern crate http;
 extern crate futures;
-extern crate tempdir;
+extern crate tempfile;
 extern crate reqwest;
 extern crate pbr;
 extern crate libflate;
