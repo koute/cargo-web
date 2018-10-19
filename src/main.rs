@@ -32,6 +32,9 @@ extern crate websocket;
 extern crate regex;
 extern crate walkdir;
 extern crate base_x;
+#[macro_use]
+extern crate lazy_static;
+extern crate directories;
 
 extern crate parity_wasm;
 #[macro_use]
@@ -58,14 +61,11 @@ use clap::{
     SubCommand
 };
 
-#[allow(dead_code)]
-mod app_dirs;
-
 mod cargo_shim;
 
 #[macro_use]
 mod utils;
-mod app_info;
+mod project_dirs;
 mod http_utils;
 mod config;
 mod package;

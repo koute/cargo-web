@@ -38,6 +38,8 @@ walkdir = "2"
 base-x = "0.2"
 memmap = "0.7"
 atty = "0.2"
+directories = "1"
+lazy_static = "1"
 
 parity-wasm = "0.35"
 log = "0.4"
@@ -57,10 +59,3 @@ openssl-sys = { version = "= 0.9.37", features = ["vendored"] }
 
 [features]
 development-mode = []
-
-# These are `app_dirs`'s dependencies.
-[target.'cfg(all(unix, not(target_os="macos")))'.dependencies]
-xdg = "^2.0.0"
-
-[target.'cfg(windows)'.dependencies]
-winapi = { version="^0.3.6", features=["shlobj", "combaseapi"] }
