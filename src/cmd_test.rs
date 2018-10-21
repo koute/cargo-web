@@ -1,6 +1,7 @@
 use std::process::{Command, exit};
 use std::iter;
 use std::env;
+use std::fs;
 use std::ffi::OsStr;
 
 use clap;
@@ -20,7 +21,7 @@ use utils::{
     write
 };
 use test_chromium::test_in_chromium;
-use app_info;
+use project_dirs::PROJECT_DIRS;
 
 pub const TEST_RUNNER: &'static str = include_str!( "test_runner.js" );
 
@@ -42,7 +43,9 @@ fn test_in_nodejs(
         Error::EnvironmentError( "node.js not found; please install it!".into() )
     })?;
 
-    let cache_path = app_info::app_dir( app_info::AppDataType::UserCache, &app_info::APP_INFO, "bin" ).unwrap();
+    let cache_path = PROJECT_DIRS.cache_dir().join( "bin" );
+    fs::create_dir_all( &cache_path ).unwrap();
+
     let runner_path = cache_path.join( "test_runner.js" );
     if !runner_path.exists() || read( &runner_path ).expect( "cannot read test runner" ) != TEST_RUNNER {
         write( &runner_path, &TEST_RUNNER ).expect( "cannot write test runner" );

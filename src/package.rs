@@ -25,7 +25,7 @@ use utils::{
     unpack
 };
 
-use app_info;
+use project_dirs::PROJECT_DIRS;
 
 pub struct PrebuiltPackage {
     pub url: &'static str,
@@ -58,9 +58,7 @@ pub fn download_package( package: &PrebuiltPackage ) -> PathBuf {
     let url = Url::parse( package.url ).unwrap();
     let package_filename = url.path_segments().unwrap().last().unwrap().to_owned();
 
-    let unpack_path = app_info::app_dir( app_info::AppDataType::UserData, &app_info::APP_INFO, package.name )
-        .unwrap()
-        .join( package.arch );
+    let unpack_path = PROJECT_DIRS.data_local_dir().join( package.name ).join( package.arch );
     let version_path = unpack_path.join( ".version" );
 
     if let Ok( existing_version ) = read( &version_path ) {
