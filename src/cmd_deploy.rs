@@ -21,6 +21,14 @@ pub fn command_deploy< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), E
         (target.kind == TargetKind::CDyLib && project.backend().is_native_wasm())
     })?;
 
+    if targets.is_empty() {
+        if project.backend().is_native_wasm() {
+            return Err( "No valid target found for deployment; expected a `bin` crate or a `cdylib`".into() );
+        } else {
+            return Err( "No valid target found for deployment; expected a `bin` crate".into() );
+        }
+    }
+
     let config = project.aggregate_configuration( Profile::Main )?;
     let target = targets[ 0 ];
     let result = project.build( &config, target )?;
