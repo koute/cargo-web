@@ -8,6 +8,7 @@ export CARGO_WEB=$REPOSITORY_ROOT/target/debug/cargo-web
 
 TEST_SUBSET=${TEST_SUBSET:-0}
 CHECK_ONLY=${CHECK_ONLY:-0}
+WITHOUT_CARGO_LOCK=${WITHOUT_CARGO_LOCK:-0}
 
 ONLY_LOCAL=0
 for ARG in "$@"
@@ -35,6 +36,11 @@ set -e
 cd $REPOSITORY_ROOT
 
 echo "++ Is Rust from nightly: $IS_NIGHTLY"
+
+if [ "$WITHOUT_CARGO_LOCK" == "1" ]; then
+    echo "++ Will compile itself without a preset Cargo.lock!"
+    rm -f Cargo.lock
+fi
 
 if [ "$CHECK_ONLY" == "1" ]; then
     echo "++ Will only check whenever we compile!"
