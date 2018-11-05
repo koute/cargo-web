@@ -40,12 +40,11 @@ custom:
         tags: true
 
 jobs:
-  allow_failures:
+  include:
     - <<: *test
       os: linux
       rust: 1.26.2
       env: CHECK_ONLY=1 WITHOUT_CARGO_LOCK=1
-  include:
     - <<: *test
       os: linux
       rust: 1.26.2
