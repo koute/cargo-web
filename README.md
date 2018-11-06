@@ -161,6 +161,10 @@ addons:
 ```
 
 ## Changelog
+   * `0.6.20`
+      * Installation through `cargo install` should now work again
+      * Most of the dependencies were updated to newer versions
+      * `deploy` should not panic when it doesn't find a valid target
    * `0.6.19`
       * `cargo install` should now compile instead of failing in some environments
       * Minimum required Rust version is now `1.26.2`
