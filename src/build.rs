@@ -166,6 +166,7 @@ impl BuildArgs {
             match runtime {
                 "standalone" => RuntimeKind::Standalone,
                 "library-es6" => RuntimeKind::LibraryEs6,
+                "web-extension" => RuntimeKind::WebExtension,
                 "experimental-only-loader" => RuntimeKind::OnlyLoader,
                 _ => unreachable!( "Unknown runtime: {:?}", runtime )
             }
