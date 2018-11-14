@@ -13,6 +13,7 @@ use wasm_js_export::{JsExport, TypeMetadata};
 pub enum RuntimeKind {
     Standalone,
     LibraryEs6,
+    WebExtension,
     OnlyLoader
 }
 
@@ -63,6 +64,7 @@ static FACTORY_TEMPLATE: &str = include_str!( "wasm_runtime_factory.js" );
 static ONLY_LOADER_TEMPLATE: &str = include_str!( "wasm_runtime_only_loader.js" );
 static STANDALONE_TEMPLATE: &str = include_str!( "wasm_runtime_standalone.js" );
 static LIBRARY_ES6_TEMPLATE: &str = include_str!( "wasm_runtime_library_es6.js" );
+static WEB_EXTENSION_TEMPLATE: &str = include_str!( "wasm_runtime_web_extension.js" );
 
 fn join< T: Display, I: IntoIterator< Item = T > >( separator: &str, iter: I ) -> String {
     let mut output = String::new();
@@ -155,6 +157,9 @@ pub fn generate_js( runtime: RuntimeKind, main_symbol: Option< String >, wasm_pa
         },
         RuntimeKind::LibraryEs6 => {
             handlebars.render_template( LIBRARY_ES6_TEMPLATE, &template_data ).unwrap()
+        },
+        RuntimeKind::WebExtension => {
+            handlebars.render_template( WEB_EXTENSION_TEMPLATE, &template_data ).unwrap()
         },
         RuntimeKind::OnlyLoader => {
             // TODO: Get rid of this.
