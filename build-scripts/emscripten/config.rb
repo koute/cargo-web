@@ -1,23 +1,23 @@
 #!/usr/bin/false
 
 NAME = "emscripten"
-VERSION = "1.38.11"
+VERSION = "1.38.19"
 RELEASE = "1"
 
 FILES = [
     [
         "https://github.com/kripken/emscripten/archive/#{VERSION}.tar.gz",
-        "5521e8eefbee284b6a72797c7f63ce606d37647930cd8f4d48d45d02c4e1da95",
+        "4bdb7932f084171e40b405b4ab5e60aa7adb36ae399ba88c967e66719fc2d1e2",
         "emscripten-#{VERSION}.tgz"
     ],
     [
         "https://github.com/kripken/emscripten-fastcomp/archive/#{VERSION}.tar.gz",
-        "55ddc1b1f045a36ac34ab60bb0e1a0370a40249eba8d41cd4e427be95beead18",
+        "19943b4299e4309fc7810e785ee0e38a15059c7a54d9451b2e0ed29f9573a29d",
         "emscripten_fastcomp-#{VERSION}.tgz"
     ],
     [
         "https://github.com/kripken/emscripten-fastcomp-clang/archive/#{VERSION}.tar.gz",
-        "1d2ac9f8dab54f0f17e4a77c3cd4653fe9f890831ef6e405320850fd7351f795",
+        "fbfb90f5d521fec143952a1b261a55ced293551f6753768f80499fb87bd876ca",
         "emscripten_fastcomp_clang-#{VERSION}.tgz"
     ]
 ]
