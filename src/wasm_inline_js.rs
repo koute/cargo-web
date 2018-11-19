@@ -135,9 +135,13 @@ pub fn process_and_extract( ctx: &mut Context ) -> Vec< JsSnippet > {
                 offset
             };
 
-            snippet_index_by_offset.insert( offset, snippets.len() );
-            snippet_index_by_hash.insert( code_hash, snippets.len() );
-            snippets.push( snippet );
+            let index = snippets.binary_search_by( |x| {
+                x.name.cmp( &snippet.name )
+            } ).unwrap_err();
+
+            snippet_index_by_offset.insert( offset, index );
+            snippet_index_by_hash.insert( code_hash, index );
+            snippets.insert( index, snippet );
         }
     }
 
