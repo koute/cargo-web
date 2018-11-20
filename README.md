@@ -161,6 +161,11 @@ addons:
 ```
 
 ## Changelog
+   * `0.6.21`
+      * Emscripten was updated to `1.38.19`; the Emscripten-based targets should now work again on nightly
+      * Broken output redirection in the test runner is now fixed
+      * The generated JS snippets and imports under `wasm32-unknown-unknown` are now sorted
+      * Compatibility with *really* old nightlies was removed for `wasm32-unknown-unknown`
    * `0.6.20`
       * Installation through `cargo install` should now work again
       * Most of the dependencies were updated to newer versions
