@@ -11,21 +11,21 @@ fn emscripten_package() -> Option< PrebuiltPackage > {
     let package =
         if cfg!( target_os = "linux" ) && cfg!( target_arch = "x86_64" ) {
             PrebuiltPackage {
-                url: "https://github.com/koute/emscripten-build/releases/download/emscripten-1.38.11-1/emscripten-1.38.11-1-x86_64-unknown-linux-gnu.tgz",
+                url: "https://github.com/koute/emscripten-build/releases/download/emscripten-1.38.19-1/emscripten-1.38.19-1-x86_64-unknown-linux-gnu.tgz",
                 name: "emscripten",
-                version: "1.38.11-1",
+                version: "1.38.19-1",
                 arch: "x86_64-unknown-linux-gnu",
-                hash: "cc2727143297c37323c051e2d170fb3b31f43a38999954f812cdca1232555fd5",
-                size: 211418062
+                hash: "baab5f1162901bfa220cb009dc628300c5e67b91cf58656ab6bf392d513bff9c",
+                size: 211505607
             }
         } else if cfg!( target_os = "linux" ) && cfg!( target_arch = "x86" ) {
             PrebuiltPackage {
-                url: "https://github.com/koute/emscripten-build/releases/download/emscripten-1.38.11-1/emscripten-1.38.11-1-i686-unknown-linux-gnu.tgz",
+                url: "https://github.com/koute/emscripten-build/releases/download/emscripten-1.38.19-1/emscripten-1.38.19-1-i686-unknown-linux-gnu.tgz",
                 name: "emscripten",
-                version: "1.38.11-1",
+                version: "1.38.19-1",
                 arch: "i686-unknown-linux-gnu",
-                hash: "6be9f70fa79c096688aa630b8fe33df7e6f35716088c28c6fb058921c0ba927e",
-                size: 223690133
+                hash: "6d211eb0e9bbf82a1bf0dcc336486aa5191952f3938b7c0cf76b8d6946d4c117",
+                size: 223770839
             }
         } else {
             return None;
@@ -38,21 +38,21 @@ fn binaryen_package() -> Option< PrebuiltPackage > {
     let package =
         if cfg!( target_os = "linux" ) && cfg!( target_arch = "x86_64" ) {
             PrebuiltPackage {
-                url: "https://github.com/koute/emscripten-build/releases/download/emscripten-1.38.11-1/binaryen-1.38.11-1-x86_64-unknown-linux-gnu.tgz",
+                url: "https://github.com/koute/emscripten-build/releases/download/emscripten-1.38.19-1/binaryen-1.38.19-1-x86_64-unknown-linux-gnu.tgz",
                 name: "binaryen",
-                version: "1.38.11-1",
+                version: "1.38.19-1",
                 arch: "x86_64-unknown-linux-gnu",
-                hash: "1035effafac158fc1342a80a16cd800b4fd8418b6100b1e7cc4fd385cd13d801",
-                size: 15048525
+                hash: "af079258c6f13234541d932b873762910951779c4682fc917255716637383dc9",
+                size: 15818455
             }
         } else if cfg!( target_os = "linux" ) && cfg!( target_arch = "x86" ) {
             PrebuiltPackage {
-                url: "https://github.com/koute/emscripten-build/releases/download/emscripten-1.38.11-1/binaryen-1.38.11-1-i686-unknown-linux-gnu.tgz",
+                url: "https://github.com/koute/emscripten-build/releases/download/emscripten-1.38.19-1/binaryen-1.38.19-1-i686-unknown-linux-gnu.tgz",
                 name: "binaryen",
-                version: "1.38.11-1",
+                version: "1.38.19-1",
                 arch: "i686-unknown-linux-gnu",
-                hash: "6bca8f2378e86dfa3305bffc3dc231ace15f93904dab138692c8f8fb3814d337",
-                size: 15042751
+                hash: "9fd0e30d1760d29e3c96fa24592a35629876316fadb7ef882b9c6d8b2eafb0d8",
+                size: 15951181
             }
         } else {
             return None;
