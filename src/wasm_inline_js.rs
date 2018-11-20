@@ -135,13 +135,9 @@ pub fn process_and_extract( ctx: &mut Context ) -> Vec< JsSnippet > {
                 offset
             };
 
-            let index = snippets.binary_search_by( |x| {
-                x.name.cmp( &snippet.name )
-            } ).unwrap_err();
-
-            snippet_index_by_offset.insert( offset, index );
-            snippet_index_by_hash.insert( code_hash, index );
-            snippets.insert( index, snippet );
+            snippet_index_by_offset.insert( offset, snippets.len() );
+            snippet_index_by_hash.insert( code_hash, snippets.len() );
+            snippets.push( snippet );
         }
     }
 
@@ -199,16 +195,21 @@ pub fn process_and_extract( ctx: &mut Context ) -> Vec< JsSnippet > {
 
     ctx.data = data_entries;
 
-    for snippet in &mut snippets {
-        let type_index = ctx.get_or_add_fn_type( snippet.ty.clone() );
-        let function_index = ctx.add_function( FunctionKind::Import {
-            export: Export::none(),
-            import: Import { module: "env".to_owned(), field: snippet.name.clone() },
-            name: Some( snippet.name.clone() ),
-            type_index
-        });
+    {
+        let mut sorted_snippets: Vec< _ > = snippets.iter_mut().collect();
+        sorted_snippets.sort_by( |a, b| a.name.cmp( &b.name ) );
 
-        snippet.function_index = function_index;
+        for snippet in sorted_snippets {
+            let type_index = ctx.get_or_add_fn_type( snippet.ty.clone() );
+            let function_index = ctx.add_function( FunctionKind::Import {
+                export: Export::none(),
+                import: Import { module: "env".to_owned(), field: snippet.name.clone() },
+                name: Some( snippet.name.clone() ),
+                type_index
+            });
+
+            snippet.function_index = function_index;
+        }
     }
 
     for function_index in shim_map.keys() {
