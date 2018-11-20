@@ -43,7 +43,7 @@ jobs:
   include:
     - <<: *test
       os: linux
-      rust: 1.26.2
+      rust: 1.29.0
       env: CHECK_ONLY=1 WITHOUT_CARGO_LOCK=1
     - <<: *test
       os: linux
