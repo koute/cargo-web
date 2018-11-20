@@ -250,6 +250,12 @@ eval((function() {
     }
 
     if( env.target === "asmjs-unknown-emscripten" || env.target === "wasm32-unknown-emscripten" ) {
+        if( env.target === "wasm32-unknown-emscripten" ) {
+            Module[ "locateFile" ] = function( path, script_directory ) {
+                return path;
+            }
+        }
+
         Module[ "preInit" ] = function() {
             target.exports = Module;
             const real_main = Module[ "_main" ];
