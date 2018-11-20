@@ -141,34 +141,6 @@ pub fn process_and_extract( ctx: &mut Context ) -> Vec< JsSnippet > {
         }
     }
 
-    // For older Rust nightlies.
-    data_entries.retain( |data| {
-        if data.offset.len() != 2 {
-            return true;
-        }
-
-        let (offset, type_index) = match data.constant_offset() {
-            Some( offset ) => {
-                if let Some( &type_index ) = snippet_offset_to_type_index.get( &offset ) {
-                    (offset, type_index)
-                } else {
-                    return true;
-                }
-            },
-            _ => return true
-        };
-
-        let slice = data.value.as_slice();
-        let slice = &slice[ 0..slice.iter().position( |&byte| byte == 0 ).unwrap_or( slice.len() ) ];
-        if slice.len() + 1 < data.value.len() {
-            return true;
-        }
-
-        add_js_snippet( ctx, slice, &mut snippet_index_by_hash, &mut snippet_index_by_offset, &mut snippets, offset, type_index );
-        return false;
-    });
-
-    // For newer Rust nightlies.
     for (offset, type_index) in snippet_offset_to_type_index {
         if snippet_index_by_offset.contains_key( &offset ) {
             continue; // Already done.
