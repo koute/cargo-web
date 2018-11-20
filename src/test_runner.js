@@ -169,17 +169,17 @@ eval((function() {
 
             if( is_node_js ) {
                 process.stdout.write = function( text ) {
-                    outputs[ name ] += text;
+                    state.outputs[ test_name ] += text;
                 };
 
                 process.stderr.write = function( text ) {
-                    outputs[ name ] += text;
+                    state.outputs[ test_name ] += text;
                 };
             }
 
             console.log = function() {
                 const text = Array.prototype.slice.call( arguments ).join( ", " ) + "\n";
-                outputs[ name ] += text;
+                state.outputs[ test_name ] += text;
             };
 
             console.warn = console.log;

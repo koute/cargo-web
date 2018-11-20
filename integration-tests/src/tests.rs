@@ -257,6 +257,7 @@ macro_rules! common_tests { (($($attr:tt)*) $namespace:ident, $target:expr) => {
         assert!( result.output().contains( "running 1 async test(s)" ) );
         assert!( result.output().contains( "test ok ... ok" ) );
         assert!( result.output().contains( "test result (async): ok. 1 passed; 0 failed" ) );
+        assert!( !result.output().contains( "Redirected console.log!" ) );
         result.assert_success();
     }
 
@@ -269,6 +270,7 @@ macro_rules! common_tests { (($($attr:tt)*) $namespace:ident, $target:expr) => {
         assert!( result.output().contains( "running 1 async test(s)" ) );
         assert!( result.output().contains( "test panic ... FAILED" ) );
         assert!( result.output().contains( "test result (async): FAILED. 0 passed; 1 failed" ) );
+        assert!( result.output().contains( "Redirected console.log!" ) );
         result.assert_failure();
     }
 
