@@ -7,6 +7,7 @@ extern crate stdweb;
 #[allow(non_snake_case)]
 pub fn __async_test__ok() {
     js! {
+        console.log( "Redirected console.log!" );
         ASYNC_TEST_PRIVATE.resolve();
     }
 }
@@ -27,6 +28,9 @@ pub fn __async_test__reject() {
 #[allow(non_snake_case)]
 pub fn __async_test__panic() {
     stdweb::initialize();
+    js! {
+        console.log( "Redirected console.log!" );
+    }
     assert!( false );
 }
 
