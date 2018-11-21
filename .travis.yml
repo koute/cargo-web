@@ -6,10 +6,6 @@ sudo: false
 custom:
   test: &test
     stage: test
-    cache:
-      cargo: true
-      directories:
-        - /home/travis/.local/share/cargo-web/emscripten
     addons:
       chrome: stable
     script:
