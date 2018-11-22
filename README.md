@@ -17,6 +17,7 @@ This software was brought to you thanks to these wonderful people:
   * Ferran Pujol Camins
   * Isaac F Leonard
   * Johan Andersson
+  * Martin Kavík
   * Stephen Sugden
 
 Thank you!
