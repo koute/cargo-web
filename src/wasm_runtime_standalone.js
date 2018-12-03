@@ -25,7 +25,7 @@ if( typeof Rust === "undefined" ) {
             var wasm_instance = new WebAssembly.Instance( mod, instance.imports );
             return instance.initialize( wasm_instance );
         } else {
-            var file = fetch( "{{{wasm_filename}}}", {credentials: "same-origin"} );
+            var file = fetch( "{{{mount_path}}}{{{wasm_filename}}}", {credentials: "same-origin"} );
 
             var wasm_instance = ( typeof WebAssembly.instantiateStreaming === "function"
                 ? WebAssembly.instantiateStreaming( file, instance.imports )
