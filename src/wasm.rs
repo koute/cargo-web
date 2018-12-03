@@ -40,7 +40,7 @@ fn get_sha1sum< P: AsRef< Path > >( path: P ) -> io::Result< String > {
     Ok( format!( "{}", hasher.digest() ) )
 }
 
-pub fn process_wasm_file< P: AsRef< Path > + ?Sized >( runtime: RuntimeKind, build: &BuildConfig, prepend_js: &str, artifact: &P ) -> Option< PathBuf > {
+pub fn process_wasm_file< P: AsRef< Path > + ?Sized >( runtime: RuntimeKind, build: &BuildConfig, mount_path: &str, prepend_js: &str, artifact: &P ) -> Option< PathBuf > {
     if !build.triplet.as_ref().map( |triplet| triplet == "wasm32-unknown-unknown" ).unwrap_or( false ) {
         return None;
     }
@@ -104,7 +104,7 @@ pub fn process_wasm_file< P: AsRef< Path > + ?Sized >( runtime: RuntimeKind, bui
 
     all_snippets.sort_by( |a, b| a.name.cmp( &b.name ) );
 
-    let js = wasm_runtime::generate_js( runtime, main_symbol, path, prepend_js, &all_snippets, &exports );
+    let js = wasm_runtime::generate_js( runtime, main_symbol, mount_path, path, prepend_js, &all_snippets, &exports );
     let mut fp = File::create( &js_path ).unwrap();
     fp.write_all( js.as_bytes() ).unwrap();
 

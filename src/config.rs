@@ -32,6 +32,7 @@ fn from_string_or_array_of_strings( path_in_toml: &str, config: &Config, prepend
 #[derive(Clone, Debug, Default)]
 pub struct PerTargetConfig {
     pub link_args: Option< Vec< String > >,
+    pub mount_path: Option< String >,
     pub prepend_js: Option< Vec< String > >
 }
 
@@ -60,6 +61,10 @@ impl Config {
         self.per_target.get( &backend ).and_then( |per_target| per_target.link_args.as_ref() )
     }
 
+    pub fn get_mount_path( &self, backend: Backend ) -> Option< &String > {
+        self.per_target.get( &backend ).and_then( |per_target| per_target.mount_path.as_ref() )
+    }
+
     pub fn get_prepend_js( &self, backend: Backend ) -> Option< &Vec< String > > {
         self.per_target.get( &backend ).and_then( |per_target| per_target.prepend_js.as_ref() )
     }
@@ -81,6 +86,18 @@ fn add_link_args( config: &mut Config, backend: Backend, link_args: Vec< String 
     }
 
     return Err( format!( "{}: you can't have multiple 'link-args' defined for a single target", config.source() ).into() );
+}
+
+fn add_mount_path( config: &mut Config, backend: Backend, mount_path: String ) -> Result< (), Error > {
+    {
+        let per_target = config.per_target.entry( backend ).or_insert( Default::default() );
+        if per_target.mount_path.is_none() {
+            per_target.mount_path = Some( mount_path );
+            return Ok(());
+        }
+    }
+
+    return Err( format!( "{}: you can't have multiple 'mount-path' defined for a single target", config.source() ).into() );
 }
 
 fn add_prepend_js( config: &mut Config, backend: Backend, prepend_js: Vec< String > ) -> Result< (), Error > {
@@ -150,6 +167,16 @@ impl Config {
 
                             for backend in ALL_BACKENDS.iter().cloned() {
                                 add_link_args( &mut config, backend, link_args.clone() )?;
+                            }
+                        },
+                        "mount-path" => {
+                            let mount_path: String =
+                                toplevel_value.try_into().map_err( |_|
+                                    format!( "{}: 'mount-path' is not a string", config.source()
+                                ))?;
+
+                            for backend in ALL_BACKENDS.iter().cloned() {
+                                add_mount_path( &mut config, backend, mount_path.clone() )?;
                             }
                         },
                         "prepend-js" => {
@@ -235,6 +262,20 @@ impl Config {
 
                                             for backend in backends.iter().cloned() {
                                                 add_link_args( &mut config, backend, link_args.clone() )?;
+                                            }
+                                        },
+                                        "mount-path" => {
+                                            let mount_path: String =
+                                                per_target_value.try_into().map_err( |_|
+                                                    format!(
+                                                        "{}: '{}' is not a string",
+                                                        config.source(),
+                                                        path_in_toml
+                                                    )
+                                                )?;
+
+                                            for backend in backends.iter().cloned() {
+                                                add_mount_path( &mut config, backend, mount_path.clone() )?;
                                             }
                                         },
                                         "prepend-js" => {

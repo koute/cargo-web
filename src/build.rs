@@ -108,6 +108,7 @@ pub struct BuildArgs {
 pub struct AggregatedConfig {
     profile: Profile,
     pub link_args: Vec< String >,
+    pub mount_path: String,
     pub prepend_js: Vec< (PathBuf, String) >
 }
 
@@ -346,6 +347,7 @@ impl Project {
         let mut aggregated_config = AggregatedConfig {
             profile,
             link_args: Vec::new(),
+            mount_path: String::new(),
             prepend_js: Vec::new()
         };
 
@@ -389,6 +391,11 @@ impl Project {
                 if let Some( ref link_args ) = config.get_link_args( self.backend() ) {
                     debug!( "{} defines the following link-args: {:?}", config.source(), link_args );
                     aggregated_config.link_args.extend( link_args.iter().cloned() );
+                }
+
+                if let Some( ref mount_path ) = config.get_mount_path( self.backend() ) {
+                    debug!( "{} defines the following mount_pathl {:?}", config.source(), mount_path );
+                    aggregated_config.mount_path = mount_path.to_string();
                 }
 
                 if let Some( ref prepend_js ) = config.get_prepend_js( self.backend() ) {
@@ -656,6 +663,7 @@ impl Project {
                 prepend_js.push_str( "\n" );
             }
         }
+        let mount_path = &config.mount_path;
 
         if self.build_args.message_format == MessageFormat::Json {
             let mut paths = Vec::new();
@@ -693,7 +701,7 @@ impl Project {
         let result = build_config.build( Some( |artifacts: Vec< PathBuf >| {
             let mut out = Vec::new();
             for path in artifacts {
-                if let Some( artifact ) = wasm::process_wasm_file( self.build_args.runtime, &build_config, &prepend_js, &path ) {
+                if let Some( artifact ) = wasm::process_wasm_file( self.build_args.runtime, &build_config, &mount_path, &prepend_js, &path ) {
                     debug!( "Generated artifact: {:?}", artifact );
                     out.push( artifact );
                 }

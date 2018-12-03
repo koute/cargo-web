@@ -78,7 +78,7 @@ fn join< T: Display, I: IntoIterator< Item = T > >( separator: &str, iter: I ) -
     output
 }
 
-pub fn generate_js( runtime: RuntimeKind, main_symbol: Option< String >, wasm_path: &Path, prepend_js: &str, snippets: &[JsSnippet], exports: &[JsExport] ) -> String {
+pub fn generate_js( runtime: RuntimeKind, main_symbol: Option< String >, mount_path: &str, wasm_path: &Path, prepend_js: &str, snippets: &[JsSnippet], exports: &[JsExport] ) -> String {
     let filename = wasm_path.file_name().unwrap().to_str().unwrap();
     let module_name = to_js_identifier( wasm_path.file_stem().unwrap().to_str().unwrap() );
 
@@ -148,6 +148,7 @@ pub fn generate_js( runtime: RuntimeKind, main_symbol: Option< String >, wasm_pa
     let factory = handlebars.render_template( FACTORY_TEMPLATE, &template_data ).unwrap();
     template_data.clear();
     template_data.insert( "factory", factory );
+    template_data.insert( "mount_path", mount_path.to_owned() );
     template_data.insert( "wasm_filename", filename.to_owned() );
     template_data.insert( "module_name", module_name );
 
