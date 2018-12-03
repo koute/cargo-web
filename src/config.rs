@@ -73,7 +73,8 @@ impl Config {
 pub enum Warning {
     UnknownKey( String ),
     InvalidValue( String ),
-    Deprecation( String, Option< String > )
+    Deprecation( String, Option< String > ),
+    Custom( String ),
 }
 
 fn add_link_args( config: &mut Config, backend: Backend, link_args: Vec< String > ) -> Result< (), Error > {
@@ -176,7 +177,7 @@ impl Config {
                                 ))?;
 
                             if mount_path.chars().last().unwrap() != '/' {
-                                warnings.push( Warning::InvalidValue(
+                                warnings.push( Warning::Custom(
                                     "mount-path should end with a slash".to_owned()
                                 ));
                             }
@@ -205,7 +206,7 @@ impl Config {
                                     if is_main_crate {
                                         return Err( format!( "{}: `default-target` has an invalid value: `{}`", config.source(), default_target ).into() );
                                     } else {
-                                        warnings.push( Warning::InvalidValue( toplevel_key.clone() ) );
+                                        warnings.push( Warning::Custom( toplevel_key.clone() ) );
                                     }
 
                                     continue;
@@ -345,6 +346,9 @@ impl Config {
                 },
                 Warning::InvalidValue( key ) => {
                     eprintln!( "warning: key `{}` in {} has an invalid value", key, config.source() );
+                }
+                Warning::Custom( msg ) => {
+                    eprintln!( "warning: {} in {}", msg, config.source() );
                 }
             }
         }
