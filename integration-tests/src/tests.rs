@@ -189,10 +189,12 @@ macro_rules! common_tests { (($($attr:tt)*) $namespace:ident, $target:expr) => {
     fn mount_path() {
         let cwd = crate_path( "mount-path" );
         assert_builds( $target, "mount-path" );
-        // TODO: We should run cargo-web with `--message-format=json` and grab this path automatically.
-        let build_dir = if $target == Wasm32UnknownUnknown { "release" } else { "debug" };
-        let output = cwd.join( "target" ).join( $target.to_str() ).join( build_dir ).join( "mount-path.js" );
-        assert_file_contains( output, "/custom/static/" );
+        // only applies to wasm32-unknown-unknown backend
+        if $target == Wasm32UnknownUnknown {
+            let build_dir = "release";
+            let output = cwd.join( "target" ).join( $target.to_str() ).join( build_dir ).join( "mount-path.js" );
+            assert_file_contains( output, "/custom/static/" );
+        }
     }
 
     $($attr)*
