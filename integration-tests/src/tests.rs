@@ -186,19 +186,6 @@ macro_rules! common_tests { (($($attr:tt)*) $namespace:ident, $target:expr) => {
 
     $($attr)*
     #[test]
-    fn mount_path() {
-        let cwd = crate_path( "mount-path" );
-        assert_builds( $target, "mount-path" );
-        // only applies to wasm32-unknown-unknown backend
-        if $target == Wasm32UnknownUnknown {
-            let build_dir = "release";
-            let output = cwd.join( "target" ).join( $target.to_str() ).join( build_dir ).join( "mount-path.js" );
-            assert_file_contains( output, "/custom/static/" );
-        }
-    }
-
-    $($attr)*
-    #[test]
     fn prepend_js() {
         let cwd = crate_path( "prepend-js" );
         assert_builds( $target, "prepend-js" );
@@ -528,4 +515,24 @@ fn requires_future_cargo_web_cfg_dep() {
 fn requires_future_cargo_web_cfg_not_dep() {
     assert_fails_to_build( Wasm32UnknownUnknown, "req-future-cargo-web-cfg-not-dep" );
     assert_builds( Wasm32UnknownEmscripten, "req-future-cargo-web-cfg-not-dep" );
+}
+
+#[test]
+fn mount_path_fails_for_per() {
+    // only applies to wasm32-unknown-unknown backend
+    let cwd = crate_path( "mount-path" );
+    assert_fails_to_build( Wasm32UnknownEmscripten, "mount-path" );
+    assert_fails_to_build( AsmjsUnknownEmscripten, "mount-path" );
+    assert_fails_to_build( Wasm32UnknownUnknown, "mount-path" );
+}
+
+
+#[test]
+fn mount_path_for_wasm32_unknown_unknown() {
+    // only applies to wasm32-unknown-unknown backend
+    let cwd = crate_path( "mount-path-wasm32-unknown-unknown" );
+    assert_builds( Wasm32UnknownUnknown, "mount-path-wasm32-unknown-unknown" );
+    let build_dir = "release";
+    let output = cwd.join( "target" ).join( Wasm32UnknownUnknown.to_str() ).join( build_dir ).join( "mount-path.js" );
+    assert_file_contains( output, "/custom/static/" );
 }
