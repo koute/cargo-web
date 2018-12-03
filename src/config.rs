@@ -175,6 +175,12 @@ impl Config {
                                     format!( "{}: 'mount-path' is not a string", config.source()
                                 ))?;
 
+                            if mount_path.chars().last().unwrap() != '/' {
+                                warnings.push( Warning::InvalidValue(
+                                    "mount-path should end with a slash".to_owned()
+                                ));
+                            }
+
                             for backend in ALL_BACKENDS.iter().cloned() {
                                 add_mount_path( &mut config, backend, mount_path.clone() )?;
                             }
@@ -273,6 +279,13 @@ impl Config {
                                                         path_in_toml
                                                     )
                                                 )?;
+
+                                            if mount_path.chars().last().unwrap() != '/' {
+                                                warnings.push( Warning::InvalidValue(
+                                                    format!("{}: '{}' should end with a slash", config.source(), path_in_toml)
+                                                ));
+                                            }
+
 
                                             for backend in backends.iter().cloned() {
                                                 add_mount_path( &mut config, backend, mount_path.clone() )?;
