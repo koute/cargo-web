@@ -9,6 +9,7 @@
 extern crate clap;
 extern crate notify;
 extern crate hyper;
+extern crate percent_encoding;
 extern crate http;
 extern crate futures;
 extern crate tempfile;

@@ -515,3 +515,22 @@ fn requires_future_cargo_web_cfg_not_dep() {
     assert_fails_to_build( Wasm32UnknownUnknown, "req-future-cargo-web-cfg-not-dep" );
     assert_builds( Wasm32UnknownEmscripten, "req-future-cargo-web-cfg-not-dep" );
 }
+
+#[cfg_attr(not(test_wasm32_unknown_unknown), ignore)]
+#[test]
+fn static_files_with_space() {
+    let cwd = crate_path( "static-files-with-space" );
+    use reqwest::header::CONTENT_TYPE;
+    use reqwest::StatusCode;
+     run( &cwd, &*CARGO_WEB, &["build", "--target", "wasm32-unknown-unknown"] ).assert_success();
+    let _child = run_in_the_background( &cwd, &*CARGO_WEB, &["start", "--target", "wasm32-unknown-unknown"] );
+     let start = Instant::now();
+    let mut response = None;
+    while start.elapsed() < Duration::from_secs( 10 ) && response.is_none() {
+        thread::sleep( Duration::from_millis( 100 ) );
+        response = reqwest::get( "http://localhost:8000" ).ok();
+    }
+     let mut response = reqwest::get( "http://localhost:8000/file name.txt" ).unwrap();
+    assert!(response.text().unwrap().contains("example"));
+}
+

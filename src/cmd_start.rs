@@ -7,6 +7,8 @@ use std::net::{self, ToSocketAddrs};
 use std::hash::Hash;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::path::{Path, PathBuf};
+use percent_encoding::percent_decode;
+use std::str;
 
 use notify::{
     RecommendedWatcher,
@@ -280,7 +282,9 @@ pub fn command_start< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Er
 
     let address = address_or_default( matches );
     let server = SimpleServer::new(&address, move |request| {
-        let path = request.uri().path();
+        let orig_path = request.uri().path();
+        let decoded = percent_decode(orig_path.as_bytes()).decode_utf8().unwrap();
+        let path = str::from_utf8(decoded.as_bytes()).unwrap();
         let last_build = last_build.lock().unwrap();
 
         if path == "/__cargo-web__/build_hash" {
