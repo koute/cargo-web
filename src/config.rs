@@ -171,20 +171,7 @@ impl Config {
                             }
                         },
                         "mount-path" => {
-                            let mount_path: String =
-                                toplevel_value.try_into().map_err( |_|
-                                    format!( "{}: 'mount-path' is not a string", config.source()
-                                ))?;
-
-                            if mount_path.chars().last().unwrap() != '/' {
-                                warnings.push( Warning::Custom(
-                                    "mount-path should end with a slash".to_owned()
-                                ));
-                            }
-
-                            for backend in ALL_BACKENDS.iter().cloned() {
-                                add_mount_path( &mut config, backend, mount_path.clone() )?;
-                            }
+                            return Err( format!( "{}: `mount-path` only applies to wasm32-unknown-unknown ", config.source()).into() );
                         },
                         "prepend-js" => {
                             let toplevel_value = from_string_or_array_of_strings( &toplevel_key, &config, toplevel_value )?;
@@ -206,7 +193,7 @@ impl Config {
                                     if is_main_crate {
                                         return Err( format!( "{}: `default-target` has an invalid value: `{}`", config.source(), default_target ).into() );
                                     } else {
-                                        warnings.push( Warning::Custom( toplevel_key.clone() ) );
+                                        warnings.push( Warning::InvalidValue( toplevel_key.clone() ) );
                                     }
 
                                     continue;
@@ -272,6 +259,9 @@ impl Config {
                                             }
                                         },
                                         "mount-path" => {
+                                            if target_key.as_str() != "wasm32-unknown-unknown" {
+                                                return Err(format!("{}: `mount_path` only applies to `wasm32-unknown-unknown`", config.source()).into())
+                                            }
                                             let mount_path: String =
                                                 per_target_value.try_into().map_err( |_|
                                                     format!(
@@ -282,7 +272,7 @@ impl Config {
                                                 )?;
 
                                             if mount_path.chars().last().unwrap() != '/' {
-                                                warnings.push( Warning::InvalidValue(
+                                                warnings.push( Warning::Custom(
                                                     format!("{}: '{}' should end with a slash", config.source(), path_in_toml)
                                                 ));
                                             }

@@ -394,7 +394,7 @@ impl Project {
                 }
 
                 if let Some( ref mount_path ) = config.get_mount_path( self.backend() ) {
-                    debug!( "{} defines the following mount_pathl {:?}", config.source(), mount_path );
+                    debug!( "{} defines the following mount_path {:?}", config.source(), mount_path );
                     aggregated_config.mount_path = mount_path.to_string();
                 }
 
