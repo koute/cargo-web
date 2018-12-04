@@ -567,3 +567,25 @@ fn mount_path_target_wasm32_unknown_unknown_deploy() {
     let output = cwd.join( "target" ).join( Wasm32UnknownUnknown.to_str() ).join( build_dir ).join( "mount-path.js" );
     assert_file_contains( output, "/custom/static/" );
 }
+
+#[cfg_attr(not(test_wasm32_unknown_unknown), ignore)]
+#[test]
+fn static_files_with_space() {
+    let cwd = crate_path( "static-files-with-space" );
+    use reqwest::header::CONTENT_TYPE;
+    use reqwest::StatusCode;
+
+    run( &cwd, &*CARGO_WEB, &["build", "--target", "wasm32-unknown-unknown"] ).assert_success();
+    let _child = run_in_the_background( &cwd, &*CARGO_WEB, &["start", "--target", "wasm32-unknown-unknown"] );
+
+    let start = Instant::now();
+    let mut response = None;
+    while start.elapsed() < Duration::from_secs( 10 ) && response.is_none() {
+        thread::sleep( Duration::from_millis( 100 ) );
+        response = reqwest::get( "http://localhost:8000" ).ok();
+    }
+
+    let mut response = reqwest::get( "http://localhost:8000/file name.txt" ).unwrap();
+    println!("{}", response.text().unwrap());
+    assert!(response.text().unwrap().contains("example"));
+}
