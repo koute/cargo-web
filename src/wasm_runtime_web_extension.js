@@ -18,7 +18,8 @@ Rust.{{{module_name}}} = (function( module_factory ) {
             return exports;
         })
         .catch( function( error ) {
-            console.log( "Error loading Rust wasm module '{{{module_name}}}':", error );
+            // The toString is needed to workaround a bug in Firefox (see issue #147)
+            console.log( "Error loading Rust wasm module '{{{module_name}}}':", error.toString() );
             throw error;
         });
 }( {{{factory}}} ));
