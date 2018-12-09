@@ -96,7 +96,7 @@ fn check_emscripten() {
         }
         eprintln!( "  curl -O https://s3.amazonaws.com/mozilla-games/emscripten/releases/emsdk-portable.tar.gz" );
         eprintln!( "  tar -xzf emsdk-portable.tar.gz" );
-        eprintln!( "  source emsdk_portable/emsdk_env.sh" );
+        eprintln!( "  source emsdk-portable/emsdk_env.sh" );
         eprintln!( "  emsdk update" );
         eprintln!( "  emsdk install sdk-incoming-64bit" );
         eprintln!( "  emsdk activate sdk-incoming-64bit" );
