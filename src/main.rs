@@ -337,7 +337,15 @@ fn main() {
 
     let mut deploy_subcommand =
         SubCommand::with_name( "deploy" )
-            .about( "Deploys your project so that its ready to be served statically" );
+            .about( "Deploys your project so that its ready to be served statically" )
+            .arg(
+                Arg::with_name( "output" )
+                    .short( "o" )
+                    .long( "output" )
+                    .help( "Output directory; the default is `$CARGO_TARGET_DIR/deploy`")
+                    .value_name( "OUTPUT_DIRECTORY" )
+                    .takes_value( true )
+            );
 
     let prepare_emscripten_subcommand =
         SubCommand::with_name( "prepare-emscripten" )

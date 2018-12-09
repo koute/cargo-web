@@ -1,4 +1,5 @@
 use std::fs;
+use std::path::PathBuf;
 
 use clap;
 
@@ -34,8 +35,21 @@ pub fn command_deploy< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), E
     let result = project.build( &config, target )?;
 
     let deployment = Deployment::new( package, target, &result )?;
-    let directory = project.target_directory().join( "deploy" );
-    if directory.exists() {
+    let directory = matches.value_of( "output" ).map( PathBuf::from );
+
+    let is_using_default_directory;
+    let directory = match directory {
+        Some( directory ) => {
+            is_using_default_directory = false;
+            directory
+        },
+        None => {
+            is_using_default_directory = true;
+            project.target_directory().join( "deploy" )
+        }
+    };
+
+    if directory.exists() && is_using_default_directory {
         let entries = fs::read_dir( &directory ).map_err( |error| Error::CannotRemoveDirectory( directory.clone(), error ) )?; // TODO: Another error?
         for entry in entries {
             let entry = entry.expect( "cannot unwrap directory entry" );
