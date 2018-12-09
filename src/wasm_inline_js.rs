@@ -48,20 +48,21 @@ pub fn process_and_extract( ctx: &mut Context ) -> Vec< JsSnippet > {
     let mut snippets = Vec::new();
     let mut output = Vec::new();
 
-    for snippet in ctx.js_snippets.drain( .. ) {
-        let snippet = JsSnippet {
-            name: snippet.name,
-            code: snippet.code,
-            arg_count: snippet.arg_count
-        };
-
-        output.push( snippet );
-    }
-
     for (&function_index, function) in &ctx.functions {
         if let &FunctionKind::Import { type_index, ref import, .. } = function {
             if import.module == "env" && import.field.starts_with( "__js_" ) {
                 shim_map.insert( function_index, type_index );
+            }
+            if import.module == "env" {
+                if let Some( snippet ) = ctx.js_snippets.remove( &import.field ) {
+                    let snippet = JsSnippet {
+                        name: snippet.name,
+                        code: snippet.code,
+                        arg_count: snippet.arg_count
+                    };
+
+                    output.push( snippet );
+                }
             }
         }
     }
