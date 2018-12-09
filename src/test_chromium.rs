@@ -8,6 +8,7 @@ use std::time::Instant;
 use std::io::{BufRead, BufReader};
 use std::net::SocketAddr;
 use std::ffi::OsStr;
+use std::path::Path;
 
 use hyper::StatusCode;
 use tempfile;
@@ -63,12 +64,21 @@ pub fn test_in_chromium(
         if cfg!( windows ) {
             &[ "chrome.exe" ][..]
         } else {
-            &[ "chromium", "chromium-browser", "google-chrome", "google-chrome-stable" ][..]
+            &[ "chromium", "chromium-browser", "google-chrome", "google-chrome-stable", "Google Chrome" ][..]
         };
 
-    let chromium_executable = find_cmd( possible_commands ).ok_or_else( || {
-        Error::EnvironmentError( "you need to have either Chromium or Chrome installed and in your PATH to run the tests!".into() )
-    })?;
+    let chromium_executable = find_cmd( possible_commands )
+        .or_else( || {
+            let path = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+            if Path::new( path ).exists() {
+                Some( path )
+            } else {
+                None
+            }
+        })
+        .ok_or_else( || {
+            Error::EnvironmentError( "you need to have either Chromium or Chrome installed and in your PATH to run the tests!".into() )
+        })?;
 
     let app_js = Arc::new( Mutex::new( String::new() ) );
     let server_app_js = app_js.clone();
