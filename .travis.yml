@@ -45,9 +45,16 @@ jobs:
       os: linux
       rust: 1.26.2
       env: CHECK_ONLY=1
+
     - <<: *test
       os: linux
       rust: stable
+      env: TEST_SUBSET=1
+    - <<: *test
+      os: linux
+      rust: stable
+      env: TEST_SUBSET=2
+
     - <<: *test
       os: linux
       rust: nightly
