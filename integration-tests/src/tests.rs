@@ -1,13 +1,34 @@
 use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::{Duration, Instant};
+use std::env;
 
 use reqwest;
 
 use utils::*;
 
 lazy_static! {
-    static ref CARGO_WEB: PathBuf = get_var( "CARGO_WEB" ).into();
+    static ref CARGO_WEB: PathBuf = {
+        if let Some( path ) = env::var_os( "CARGO_WEB" ) {
+            return path.into();
+        }
+
+        let candidates = &[
+            REPOSITORY_ROOT.join( "target" ).join( "debug" ).join( "cargo-web" ),
+            REPOSITORY_ROOT.join( "target" ).join( "release" ).join( "cargo-web" ),
+            REPOSITORY_ROOT.join( "target" ).join( "debug" ).join( "cargo-web.exe" ),
+            REPOSITORY_ROOT.join( "target" ).join( "release" ).join( "cargo-web.exe" )
+        ];
+
+        let mut candidates: Vec< _ > = candidates.iter().filter( |path| path.exists() ).collect();
+        if candidates.is_empty() {
+            panic!( "Compiled `cargo-web` not found! Either compile `cargo-web` or set the CARGO_WEB environment variable to where I can find it." );
+        }
+
+        candidates.sort_by_key( |path| path.metadata().unwrap().modified().unwrap() );
+        let path = candidates.into_iter().rev().cloned().next().unwrap();
+        path
+    };
     static ref REPOSITORY_ROOT: PathBuf = Path::new( env!( "CARGO_MANIFEST_DIR" ) ).join( ".." ).canonicalize().unwrap();
     static ref NODEJS: PathBuf = {
         use utils::find_cmd;

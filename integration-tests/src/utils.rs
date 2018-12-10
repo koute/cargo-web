@@ -8,13 +8,6 @@ use std::thread;
 use std::sync::{Mutex, Arc};
 use std::mem;
 
-pub fn get_var( name: &str ) -> String {
-    match env::var( name ) {
-        Ok( value ) => value,
-        Err( error ) => panic!( "Cannot get the '{}' environment variable: {:?}", name, error )
-    }
-}
-
 fn run_internal< R, I, C, E, S, F >( cwd: C, executable: E, args: I, callback: F ) -> R
     where I: IntoIterator< Item = S >,
           C: AsRef< Path >,
