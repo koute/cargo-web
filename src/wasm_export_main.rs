@@ -20,8 +20,8 @@ pub fn process( ctx: &mut Context ) -> Option< String > {
         Some( "main".to_owned() )
     } else if let Some( start_index ) = start_index {
         let start_fn = ctx.functions.get_mut( &start_index ).unwrap();
-        *start_fn.as_export_mut() = Export::some( "__web_main".to_owned() );
-        Some( "__web_main".to_owned() )
+        *start_fn.as_export_mut() = Export::some( "main".to_owned() );
+        Some( "main".to_owned() )
     } else {
         None
     }
