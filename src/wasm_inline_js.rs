@@ -53,17 +53,6 @@ pub fn process_and_extract( ctx: &mut Context ) -> Vec< JsSnippet > {
             if import.module == "env" && import.field.starts_with( "__js_" ) {
                 shim_map.insert( function_index, type_index );
             }
-            if import.module == "env" {
-                if let Some( snippet ) = ctx.js_snippets.remove( &import.field ) {
-                    let snippet = JsSnippet {
-                        name: snippet.name,
-                        code: snippet.code,
-                        arg_count: snippet.arg_count
-                    };
-
-                    output.push( snippet );
-                }
-            }
         }
     }
 
