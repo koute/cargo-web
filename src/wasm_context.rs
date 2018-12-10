@@ -678,7 +678,7 @@ impl Context {
                         }
                         debug!( "Found {} unique JS snippets, and {} duplicates", ctx.js_snippets.len(), duplicate_count );
                     } else {
-                        eprintln!( "warning: unsupported custom section: '{}', please report this!", section.name() );
+                        debug!( "unsupported custom section: '{}'", section.name() );
                     }
                 },
                 pw::Section::Name(_) => {
