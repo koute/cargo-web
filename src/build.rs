@@ -530,6 +530,9 @@ impl Project {
             extra_environment.push( ("COMPILING_UNDER_CARGO_WEB".to_owned(), "1".to_owned()) );
         }
 
+        extra_environment.push( ("CARGO_WEB_TARGET_DIR".to_owned(), self.target_directory().to_str().unwrap().to_owned()) );
+        extra_environment.push( ("CARGO_WEB_TARGET".to_owned(), self.backend().triplet().to_owned()) );
+
         BuildConfig {
             build_target: target_to_build_target( target, config.profile ),
             build_type,
