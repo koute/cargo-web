@@ -35,6 +35,7 @@ extern crate base_x;
 #[macro_use]
 extern crate lazy_static;
 extern crate directories;
+extern crate percent_encoding;
 
 extern crate parity_wasm;
 #[macro_use]

@@ -17,6 +17,7 @@ use notify::{
 
 use clap;
 use handlebars::Handlebars;
+use percent_encoding::percent_decode;
 
 use hyper::StatusCode;
 
@@ -281,6 +282,7 @@ pub fn command_start< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Er
     let address = address_or_default( matches );
     let server = SimpleServer::new(&address, move |request| {
         let path = request.uri().path();
+        let path = percent_decode( path.as_bytes() ).decode_utf8().unwrap();
         let last_build = last_build.lock().unwrap();
 
         if path == "/__cargo-web__/build_hash" {

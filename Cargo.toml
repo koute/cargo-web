@@ -40,6 +40,7 @@ memmap = "0.7"
 atty = "0.2"
 directories = "1"
 lazy_static = "1"
+percent-encoding = "1"
 
 parity-wasm = "0.35"
 log = "0.4"

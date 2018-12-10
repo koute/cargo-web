@@ -490,7 +490,7 @@ fn static_files() {
     assert_eq!( response.status(), StatusCode::OK );
     assert_eq!( *response.headers().get(CONTENT_TYPE).unwrap(), "text/html" );
 
-    let mut response = reqwest::get( "http://localhost:8000/subdirectory/dummy.json" ).unwrap();
+    let mut response = reqwest::get( "http://localhost:8000/subdirectory/dummy file.json" ).unwrap();
     assert_eq!( response.status(), StatusCode::OK );
     assert_eq!( *response.headers().get(CONTENT_TYPE).unwrap(), "application/json" );
     assert_eq!( response.text().unwrap(), "{}" );
