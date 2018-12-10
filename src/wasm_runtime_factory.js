@@ -37,7 +37,7 @@ function() {
             Object.defineProperty( Module, 'instance', { value: instance } );
             Object.defineProperty( Module, 'web_malloc', { value: Module.instance.exports.__web_malloc } );
             Object.defineProperty( Module, 'web_free', { value: Module.instance.exports.__web_free } );
-            Object.defineProperty( Module, 'web_table', { value: Module.instance.exports.__web_table } );
+            Object.defineProperty( Module, 'web_table', { value: Module.instance.exports.__indirect_function_table } );
 
             {{{exports}}}
             __web_on_grow();
