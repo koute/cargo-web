@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -8,7 +8,7 @@ use utils::*;
 
 lazy_static! {
     static ref CARGO_WEB: PathBuf = get_var( "CARGO_WEB" ).into();
-    static ref REPOSITORY_ROOT: PathBuf = get_var( "REPOSITORY_ROOT" ).into();
+    static ref REPOSITORY_ROOT: PathBuf = Path::new( env!( "CARGO_MANIFEST_DIR" ) ).join( ".." ).canonicalize().unwrap();
     static ref NODEJS: PathBuf = {
         use utils::find_cmd;
         find_cmd( &[ "nodejs", "node", "nodejs.exe", "node.exe" ] ).expect( "nodejs not found" ).into()
