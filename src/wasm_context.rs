@@ -7,7 +7,6 @@ use std::iter;
 use indexmap::IndexMap;
 use parity_wasm::elements as pw;
 use parity_wasm::elements::Deserialize;
-use serde_json;
 
 trait IterExt: Iterator + Sized {
     fn enumerate_u32( self ) -> iter::Map< iter::Enumerate< Self >, fn( (usize, Self::Item) ) -> (u32, Self::Item) > {
