@@ -163,6 +163,12 @@ addons:
 ```
 
 ## Changelog
+   * `0.6.22`
+      * Running tests through Chrome should now work out-of-box on macOS
+      * The `deploy` subcommand can now be told where to deploy using the `-o`/`--output` parameter
+      * Static files with spaces in their names are now properly served
+      * `Access-Control-Allow-Origin: *` is now always sent by the embedded webserver
+      * Debug builds on `wasm32-unknown-unknown` are now supported provided a recent enough `stdweb` is used
    * `0.6.21`
       * Emscripten was updated to `1.38.19`; the Emscripten-based targets should now work again on nightly
       * Broken output redirection in the test runner is now fixed
