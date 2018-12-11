@@ -8,7 +8,7 @@ use hyper::body::Payload;
 use hyper::{self, StatusCode, Request, Response, Server};
 use hyper::service::{NewService, Service};
 use hyper::server::conn::AddrIncoming;
-use hyper::header::{CONTENT_TYPE, CONTENT_LENGTH, CACHE_CONTROL, EXPIRES, PRAGMA};
+use hyper::header::{CONTENT_TYPE, CONTENT_LENGTH, CACHE_CONTROL, EXPIRES, PRAGMA, ACCESS_CONTROL_ALLOW_ORIGIN};
 use http::response::Builder;
 use memmap::Mmap;
 
@@ -116,12 +116,13 @@ impl SimpleServer {
     }
 }
 
-fn add_no_cache_headers( builder: &mut Builder ) {
+fn add_headers( builder: &mut Builder ) {
     builder.header( CACHE_CONTROL, "no-cache" );
     builder.header( CACHE_CONTROL, "no-store" );
     builder.header( CACHE_CONTROL, "must-revalidate" );
     builder.header( EXPIRES, "0" );
     builder.header( PRAGMA, "no-cache" );
+    builder.header( ACCESS_CONTROL_ALLOW_ORIGIN, "*" );
 }
 
 pub fn response_from_file( mime_type: &str, fp: File ) -> ResponseFuture {
@@ -147,7 +148,7 @@ pub fn response_from_file( mime_type: &str, fp: File ) -> ResponseFuture {
     let length = map.len();
     let body: Body = map.into();
     let mut response = Response::builder();
-    add_no_cache_headers( &mut response );
+    add_headers( &mut response );
     response.header( CONTENT_TYPE, mime_type );
     response.header( CONTENT_LENGTH, length );
 
@@ -158,7 +159,7 @@ fn sync_response_from_data( mime_type: &str, data: Vec< u8 > ) -> Response< Body
     let length = data.len();
     let body: Body = data.into();
     let mut response = Response::builder();
-    add_no_cache_headers( &mut response );
+    add_headers( &mut response );
     response.header( CONTENT_TYPE, mime_type );
     response.header( CONTENT_LENGTH, length );
     response.body( body ).unwrap()
