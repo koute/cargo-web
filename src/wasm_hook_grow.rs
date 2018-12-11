@@ -10,6 +10,19 @@ use wasm_context::{
 };
 
 pub fn process( ctx: &mut Context ) {
+    let already_done = ctx.functions.iter().any( |(_, function)| {
+        match function {
+            &FunctionKind::Import { import: Import { ref module, ref field }, .. } if module == "env" && field == "__web_on_grow" => {
+                true
+            },
+            _ => false
+        }
+    });
+
+    if already_done {
+        return;
+    }
+
     let type_index = ctx.get_or_add_fn_type( FnTy { params: vec![], return_type: None } );
     let on_grow_function_index = ctx.add_function( FunctionKind::Import {
         type_index,
