@@ -358,7 +358,7 @@ macro_rules! common_tests { (($($attr:tt)*) $namespace:ident, $target:expr) => {
 
 common_tests!( () asmjs_unknown_emscripten, Target::AsmjsUnknownEmscripten );
 common_tests!( () wasm32_unknown_emscripten, Target::Wasm32UnknownEmscripten );
-common_tests!( (#[cfg_attr(not(test_wasm32_unknown_unknown), ignore)]) wasm32_unknown_unknown, Target::Wasm32UnknownUnknown );
+common_tests!( () wasm32_unknown_unknown, Target::Wasm32UnknownUnknown );
 
 #[test]
 fn build_requires_future_cargo_web_target_dep() {
@@ -377,10 +377,8 @@ fn link_args_per_target() {
     assert_builds( Wasm32UnknownEmscripten, "link-args-per-target" );
     assert_file_contains( cwd.join( "target/wasm32-unknown-emscripten/debug/link-args-per-target.js" ), "CustomExportNameWasm" );
 
-    if cfg!( test_wasm32_unknown_unknown ) {
-        // This has no flags set, but still should compile.
-        assert_builds( Wasm32UnknownUnknown, "link-args-per-target" );
-    }
+    // This has no flags set, but still should compile.
+    assert_builds( Wasm32UnknownUnknown, "link-args-per-target" );
 }
 
 #[test]
@@ -393,10 +391,8 @@ fn link_args_for_emscripten() {
     assert_builds( Wasm32UnknownEmscripten, "link-args-for-emscripten" );
     assert_file_contains( cwd.join( "target/wasm32-unknown-emscripten/debug/link-args-for-emscripten.js" ), "CustomExportNameEmscripten" );
 
-    if cfg!( test_wasm32_unknown_unknown ) {
-        // This has no flags set, but still should compile.
-        assert_builds( Wasm32UnknownUnknown, "link-args-for-emscripten" );
-    }
+    // This has no flags set, but still should compile.
+    assert_builds( Wasm32UnknownUnknown, "link-args-for-emscripten" );
 }
 
 #[test]
@@ -435,7 +431,6 @@ fn default_target_invalid() {
     run( &cwd, &*CARGO_WEB, &["deploy"] ).assert_failure();
 }
 
-#[cfg_attr(not(test_wasm32_unknown_unknown), ignore)]
 #[test]
 fn build_and_run_native_wasm() {
     let cwd = crate_path( "native-webasm" );
@@ -443,7 +438,6 @@ fn build_and_run_native_wasm() {
     run( &cwd, &*NODEJS, &["run.js"] ).assert_success();
 }
 
-#[cfg_attr(not(test_wasm32_unknown_unknown), ignore)]
 #[test]
 fn cdylib() {
     let cwd = crate_path( "cdylib" );
@@ -452,7 +446,6 @@ fn cdylib() {
     run( &cwd, &*NODEJS, &[cwd.join( "target/wasm32-unknown-unknown/debug/cdylib.js" )] ).assert_success();
 }
 
-#[cfg_attr(not(test_wasm32_unknown_unknown), ignore)]
 #[test]
 fn default_target_wasm32_unknown_unknown() {
     let cwd = crate_path( "default-target-wasm32-unknown-unknown" );
@@ -461,7 +454,6 @@ fn default_target_wasm32_unknown_unknown() {
     run( &cwd, &*CARGO_WEB, &["deploy"] ).assert_success();
 }
 
-#[cfg_attr(not(test_wasm32_unknown_unknown), ignore)]
 #[test]
 fn prepend_js_includable_only_once() {
     let cwd = crate_path( "prepend-js-includable-only-once" );
