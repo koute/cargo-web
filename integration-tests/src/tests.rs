@@ -210,9 +210,7 @@ macro_rules! common_tests { (($($attr:tt)*) $namespace:ident, $target:expr) => {
     fn prepend_js() {
         let cwd = crate_path( "prepend-js" );
         assert_builds( $target, "prepend-js" );
-        // TODO: We should run cargo-web with `--message-format=json` and grab this path automatically.
-        let build_dir = if $target == Wasm32UnknownUnknown { "release" } else { "debug" };
-        let output = cwd.join( "target" ).join( $target.to_str() ).join( build_dir ).join( "prepend-js.js" );
+        let output = cwd.join( "target" ).join( $target.to_str() ).join( "debug" ).join( "prepend-js.js" );
         assert_file_contains( output, "alert('THIS IS A TEST');" );
     }
 
@@ -451,7 +449,7 @@ fn cdylib() {
     let cwd = crate_path( "cdylib" );
     run( &cwd, &*CARGO_WEB, &["build", "--target", "wasm32-unknown-unknown"] ).assert_success();
     run( &cwd, &*CARGO_WEB, &["deploy", "--target", "wasm32-unknown-unknown"] ).assert_success();
-    run( &cwd, &*NODEJS, &[cwd.join( "target/wasm32-unknown-unknown/release/cdylib.js" )] ).assert_success();
+    run( &cwd, &*NODEJS, &[cwd.join( "target/wasm32-unknown-unknown/debug/cdylib.js" )] ).assert_success();
 }
 
 #[cfg_attr(not(test_wasm32_unknown_unknown), ignore)]
@@ -459,7 +457,7 @@ fn cdylib() {
 fn default_target_wasm32_unknown_unknown() {
     let cwd = crate_path( "default-target-wasm32-unknown-unknown" );
     run( &cwd, &*CARGO_WEB, &["build"] ).assert_success();
-    assert_file_exists( cwd.join( "target/wasm32-unknown-unknown/release/default-target-wasm32-unknown-unknown.js" ) );
+    assert_file_exists( cwd.join( "target/wasm32-unknown-unknown/debug/default-target-wasm32-unknown-unknown.js" ) );
     run( &cwd, &*CARGO_WEB, &["deploy"] ).assert_success();
 }
 
