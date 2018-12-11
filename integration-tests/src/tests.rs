@@ -86,79 +86,66 @@ fn assert_tests_fail( target: Target, crate_name: &str ) {
 macro_rules! common_tests { (($($attr:tt)*) $namespace:ident, $target:expr) => { mod $namespace {
     use super::*;
 
-    $($attr)*
     #[test]
     fn build_rlib() {
         assert_builds( $target, "rlib" );
     }
 
-    $($attr)*
     #[test]
     fn build_dev_depends_on_dylib() {
         assert_builds( $target, "dev-depends-on-dylib" );
     }
 
-    $($attr)*
     #[test]
     fn build_staticlib() {
         assert_builds( $target, "staticlib" );
     }
 
-    $($attr)*
     #[test]
     fn build_workspace() {
         assert_builds( $target, "workspace" );
     }
 
-    $($attr)*
     #[test]
     fn build_conflicting_versions() {
         assert_builds( $target, "conflicting-versions" );
     }
 
-    $($attr)*
     #[test]
     fn build_requires_old_cargo_web() {
         assert_builds( $target, "requires-old-cargo-web" );
     }
 
-    $($attr)*
     #[test]
     fn build_requires_future_cargo_web_disabled_dep() {
         assert_builds( $target, "req-future-cargo-web-disabled-dep" );
     }
 
-    $($attr)*
     #[test]
     fn build_requires_future_cargo_web_dev_dep() {
         assert_builds( $target, "req-future-cargo-web-dev-dep" );
     }
 
-    $($attr)*
     #[test]
     fn build_requires_future_cargo_web_dep_dev_dep() {
         assert_builds( $target, "req-future-cargo-web-dep-dev-dep" );
     }
 
-    $($attr)*
     #[test]
     fn build_requires_future_cargo_web_build_dep() {
         assert_builds( $target, "req-future-cargo-web-build-dep" );
     }
 
-    $($attr)*
     #[test]
     fn build_compiling_under_cargo_web_env_var() {
         assert_builds( $target, "compiling-under-cargo-web-env-var" );
     }
 
-    $($attr)*
     #[test]
     fn build_depends_on_default_target_invalid() {
         assert_builds( $target, "depends-on-default-target-invalid" );
     }
 
-    $($attr)*
     #[test]
     fn test_crate_with_tests() {
         assert_tests_build( $target, "crate-with-tests" );
@@ -175,37 +162,31 @@ macro_rules! common_tests { (($($attr:tt)*) $namespace:ident, $target:expr) => {
         }
     }
 
-    $($attr)*
     #[test]
     fn failed_build_requires_future_cargo_web() {
         assert_fails_to_build( $target, "requires-future-cargo-web" );
     }
 
-    $($attr)*
     #[test]
     fn failed_build_requires_future_cargo_web_dep() {
         assert_fails_to_build( $target, "req-future-cargo-web-dep" );
     }
 
-    $($attr)*
     #[test]
     fn failed_build_requires_future_cargo_web_dep_dep() {
         assert_fails_to_build( $target, "req-future-cargo-web-dep-dep" );
     }
 
-    $($attr)*
     #[test]
     fn failed_build_requires_future_cargo_web_dep_and_dev_dep() {
         assert_fails_to_build( $target, "req-future-cargo-web-dep-and-dev-dep" );
     }
 
-    $($attr)*
     #[test]
     fn failed_test_requires_future_cargo_web_dev_dep() {
         assert_tests_fail_to_build( $target, "req-future-cargo-web-dev-dep" );
     }
 
-    $($attr)*
     #[test]
     fn prepend_js() {
         let cwd = crate_path( "prepend-js" );
@@ -214,7 +195,6 @@ macro_rules! common_tests { (($($attr:tt)*) $namespace:ident, $target:expr) => {
         assert_file_contains( output, "alert('THIS IS A TEST');" );
     }
 
-    $($attr)*
     #[test]
     fn virtual_manifest() {
         let cwd = crate_path( "virtual-manifest" );
@@ -231,21 +211,18 @@ macro_rules! common_tests { (($($attr:tt)*) $namespace:ident, $target:expr) => {
         assert_file_exists( cwd.join( "target/deploy" ) );
     }
 
-    $($attr)*
     #[test]
     fn failing_test() {
         assert_tests_build( $target, "failing-test" );
         assert_tests_fail( $target, "failing-test" );
     }
 
-    $($attr)*
     #[test]
     fn failing_integration_test() {
         assert_tests_build( $target, "failing-integration-test" );
         assert_tests_fail( $target, "failing-integration-test" );
     }
 
-    $($attr)*
     #[test]
     fn failing_integration_test_crate_types() {
         assert_tests_build( $target, "failing-integration-test-crate-types" );
@@ -358,7 +335,7 @@ macro_rules! common_tests { (($($attr:tt)*) $namespace:ident, $target:expr) => {
 
 common_tests!( () asmjs_unknown_emscripten, Target::AsmjsUnknownEmscripten );
 common_tests!( () wasm32_unknown_emscripten, Target::Wasm32UnknownEmscripten );
-common_tests!( () wasm32_unknown_unknown, Target::Wasm32UnknownUnknown );
+common_tests!( (#[cfg_attr(not(test_rust_nightly), ignore)]) wasm32_unknown_unknown, Target::Wasm32UnknownUnknown );
 
 #[test]
 fn build_requires_future_cargo_web_target_dep() {
@@ -431,6 +408,7 @@ fn default_target_invalid() {
     run( &cwd, &*CARGO_WEB, &["deploy"] ).assert_failure();
 }
 
+#[cfg_attr(not(test_rust_nightly), ignore)]
 #[test]
 fn build_and_run_native_wasm() {
     let cwd = crate_path( "native-webasm" );
