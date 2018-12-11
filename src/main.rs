@@ -83,6 +83,7 @@ mod wasm_runtime;
 mod wasm_context;
 mod wasm_intrinsics;
 mod wasm_js_export;
+mod wasm_js_snippet;
 mod emscripten;
 mod test_chromium;
 mod chrome_devtools;

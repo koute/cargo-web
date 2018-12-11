@@ -106,6 +106,7 @@ pub struct BuildArgs {
 }
 
 pub struct AggregatedConfig {
+    uses_old_stdweb: bool,
     profile: Profile,
     pub link_args: Vec< String >,
     pub prepend_js: Vec< (PathBuf, String) >
@@ -344,6 +345,7 @@ impl Project {
     pub fn aggregate_configuration( &self, profile: Profile ) -> Result< AggregatedConfig, Error > {
         let main_package = self.package();
         let mut aggregated_config = AggregatedConfig {
+            uses_old_stdweb: false,
             profile,
             link_args: Vec::new(),
             prepend_js: Vec::new()
@@ -354,6 +356,13 @@ impl Project {
         let mut configs = Vec::new();
 
         for package in &packages {
+            if package.name == "stdweb" && package.id.version() < Version::parse( "0.4.11" ).unwrap() {
+                debug!( "Using old `stdweb`!" );
+                aggregated_config.uses_old_stdweb = true;
+            } else {
+                debug!( "Using new `stdweb`!" );
+            }
+
             let config = if package.id == main_package.id {
                 self.main_config.clone()
             } else {
@@ -491,7 +500,7 @@ impl Project {
             }
         }
 
-        if self.backend().is_native_wasm() && self.build_args.build_type == BuildType::Debug {
+        if self.backend().is_native_wasm() && self.build_args.build_type == BuildType::Debug && config.uses_old_stdweb {
             extra_rustflags.push( "-C".to_owned() );
             extra_rustflags.push( "debuginfo=2".to_owned() );
         }
@@ -505,7 +514,7 @@ impl Project {
         }
 
         let build_type = self.build_args.build_type;
-        let build_type = if self.backend().is_native_wasm() && build_type == BuildType::Debug {
+        let build_type = if self.backend().is_native_wasm() && build_type == BuildType::Debug && config.uses_old_stdweb {
             // TODO: Remove this in the future.
             eprintln!( "warning: debug builds on the wasm32-unknown-unknown are currently totally broken" );
             eprintln!( "         forcing a release build" );
@@ -693,10 +702,11 @@ impl Project {
             println!( "{}", serde_json::to_string( &message ).unwrap() );
         }
 
+        let target_dir = self.target_directory();
         let result = build_config.build( Some( |artifacts: Vec< PathBuf >| {
             let mut out = Vec::new();
             for path in artifacts {
-                if let Some( artifact ) = wasm::process_wasm_file( self.build_args.runtime, &build_config, &prepend_js, &path ) {
+                if let Some( artifact ) = wasm::process_wasm_file( config.uses_old_stdweb, self.build_args.runtime, &build_config, &prepend_js, target_dir, &path ) {
                     debug!( "Generated artifact: {:?}", artifact );
                     out.push( artifact );
                 }
