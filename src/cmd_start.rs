@@ -279,6 +279,7 @@ pub fn command_start< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Er
 
     let _watcher = monitor_for_changes_and_rebuild( last_build.clone() );
 
+    let target_name = target.name.clone();
     let address = address_or_default( matches );
     let server = SimpleServer::new(&address, move |request| {
         let path = request.uri().path();
@@ -288,6 +289,12 @@ pub fn command_start< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Er
         if path == "/__cargo-web__/build_hash" {
             let data = format!( "{}", last_build.get_build_hash() );
             return response_from_data("application/text", data.into_bytes());
+        }
+
+        if path == "/js/app.js" {
+            eprintln!( "!!!!!!!!!!!!!!!!!!!!!" );
+            eprintln!( "WARNING: `/js/app.js` is deprecated; you should update your HTML file to use `/{}.js` instead!", target_name );
+            eprintln!( "!!!!!!!!!!!!!!!!!!!!!" );
         }
 
         debug!( "Received a request for {:?}", path );
