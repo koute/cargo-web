@@ -30,7 +30,7 @@ Currently it supports the following features:
   * `cargo web build` - will build your project using one of Rust's three Web backends:
     * [asm.js] using Emscripten (when you pass `--target=asmjs-unknown-emscripten`; default)
     * [WebAssembly] using Emscripten (when you pass `--target=wasm32-unknown-emscripten`)
-    * [WebAssembly] using Rust's native WebAssembly backend (when you pass `--target=wasm32-unknown-unknown`, requires Rust nightly)
+    * [WebAssembly] using Rust's native WebAssembly backend (when you pass `--target=wasm32-unknown-unknown`)
   * `cargo web test` - will run your tests either under:
     * Under a headless instance of Google Chrome (default)
     * Under [Node.js] (when you pass `--nodejs`)
