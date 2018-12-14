@@ -458,7 +458,7 @@ fn static_files() {
     use reqwest::header::CONTENT_TYPE;
     use reqwest::StatusCode;
 
-    run( &cwd, &*CARGO_WEB, &["build"] ).assert_success();
+    run( &cwd, &*CARGO_WEB, &["build", "--target", "wasm32-unknown-unknown"] ).assert_success();
     let _child = run_in_the_background( &cwd, &*CARGO_WEB, &["start"] );
     let start = Instant::now();
     let mut response = None;
@@ -479,7 +479,7 @@ fn static_files() {
     let mut response = reqwest::get( "http://localhost:8000/static-files.js" ).unwrap();
     assert_eq!( response.status(), StatusCode::OK );
     assert_eq!( *response.headers().get(CONTENT_TYPE).unwrap(), "application/javascript" );
-    assert_eq!( response.text().unwrap(), read_to_string( cwd.join( "target/asmjs-unknown-emscripten/debug/static-files.js" ) ) );
+    assert_eq!( response.text().unwrap(), read_to_string( cwd.join( "target/wasm32-unknown-unknown/debug/static-files.js" ) ) );
 
     // TODO: Move this to its own test?
     let mut response = reqwest::get( "http://localhost:8000/__cargo-web__/build_hash" ).unwrap();
