@@ -290,7 +290,7 @@ impl Project {
     pub fn backend( &self ) -> Backend {
         self.build_args.backend
             .or_else( || self.main_config.as_ref().and_then( |config| config.default_target ) )
-            .unwrap_or( Backend::EmscriptenAsmJs )
+            .unwrap_or( Backend::WebAssembly )
     }
 
     pub fn build_args( &self ) -> &BuildArgs {

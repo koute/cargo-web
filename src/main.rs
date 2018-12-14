@@ -138,7 +138,7 @@ fn add_shared_build_params< 'a, 'b >( app: App< 'a, 'b > ) -> App< 'a, 'b > {
                 .long( "target" )
                 .takes_value( true )
                 .value_name( "TRIPLE" )
-                .help( "Build for the target [default: asmjs-unknown-emscripten]" )
+                .help( "Build for the target [default: wasm32-unknown-unknown]" )
                 .possible_values( &[ "asmjs-unknown-emscripten", "wasm32-unknown-emscripten", "wasm32-unknown-unknown" ] )
                 .conflicts_with_all( &["target-asmjs-emscripten", "target-webasm-emscripten", "target-webasm"] )
         )
