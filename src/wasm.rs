@@ -72,6 +72,10 @@ fn new_process_wasm_file( runtime: RuntimeKind, prepend_js: &str, target_dir: &P
     wasm_hook_grow::process( &mut ctx );
     module = ctx.into_module();
 
+    // TODO: Remove this once we stop losing information when we process the `.wasm` file.
+    //       (That is - migrate the `#[js_export]` macro to use another mechanism.)
+    let _ = fs::remove_file( path );
+
     parity_wasm::serialize_to_file( path, module ).unwrap();
 
     let mut all_snippets: Vec< _ > = snippets.into_iter().chain( intrinsics.into_iter() ).collect();
