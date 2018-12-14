@@ -421,7 +421,6 @@ fn default_target_invalid() {
     run( &cwd, &*CARGO_WEB, &["deploy"] ).assert_failure();
 }
 
-#[cfg_attr(not(test_rust_nightly), ignore)]
 #[test]
 fn build_and_run_native_wasm() {
     let cwd = crate_path( "native-webasm" );
