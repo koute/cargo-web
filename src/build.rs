@@ -657,7 +657,7 @@ impl Project {
         }
     }
 
-    pub fn build( &self, config: &AggregatedConfig, target: &CargoTarget ) -> Result< CargoResult, Error > {
+    fn build_or_check( &self, config: &AggregatedConfig, target: &CargoTarget, should_build: bool ) -> Result< CargoResult, Error > {
         self.install_target_if_necessary()?;
 
         let build_config = self.prepare_build_config( config, target );
@@ -703,24 +703,36 @@ impl Project {
         }
 
         let target_dir = self.target_directory();
-        let result = build_config.build( Some( |artifacts: Vec< PathBuf >| {
-            let mut out = Vec::new();
-            for path in artifacts {
-                if let Some( artifact ) = wasm::process_wasm_file( config.uses_old_stdweb, self.build_args.runtime, &build_config, &prepend_js, target_dir, &path ) {
-                    debug!( "Generated artifact: {:?}", artifact );
-                    out.push( artifact );
+        let result = if !should_build {
+            build_config.check()
+        } else {
+            build_config.build( Some( |artifacts: Vec< PathBuf >| {
+                let mut out = Vec::new();
+                for path in artifacts {
+                    if let Some( artifact ) = wasm::process_wasm_file( config.uses_old_stdweb, self.build_args.runtime, &build_config, &prepend_js, target_dir, &path ) {
+                        debug!( "Generated artifact: {:?}", artifact );
+                        out.push( artifact );
+                    }
+
+                    out.push( path );
                 }
 
-                out.push( path );
-            }
-
-            out
-        }));
+                out
+            }))
+        };
 
         if result.is_ok() == false {
             return Err( Error::BuildError );
         }
 
         Ok( result )
+    }
+
+    pub fn build( &self, config: &AggregatedConfig, target: &CargoTarget ) -> Result< CargoResult, Error > {
+        self.build_or_check( config, target, true )
+    }
+
+    pub fn check( &self, config: &AggregatedConfig, target: &CargoTarget ) -> Result< CargoResult, Error > {
+        self.build_or_check( config, target, false )
     }
 }

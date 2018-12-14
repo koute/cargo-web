@@ -172,6 +172,68 @@ fn add_shared_build_params< 'a, 'b >( app: App< 'a, 'b > ) -> App< 'a, 'b > {
         );
 }
 
+fn add_build_params< 'a, 'b >( app: App< 'a, 'b > ) -> App< 'a, 'b > {
+    return app
+        .arg(
+            Arg::with_name( "lib" )
+                .long( "lib" )
+                .help( "Build only this package's library" )
+        )
+        .arg(
+            Arg::with_name( "bin" )
+                .long( "bin" )
+                .help( "Build only the specified binary" )
+                .value_name( "NAME" )
+                .takes_value( true )
+        )
+        .arg(
+            Arg::with_name( "example" )
+                .long( "example" )
+                .help( "Build only the specified example" )
+                .value_name( "NAME" )
+                .takes_value( true )
+        )
+        .arg(
+            Arg::with_name( "test" )
+                .long( "test" )
+                .help( "Build only the specified test target" )
+                .value_name( "NAME" )
+                .takes_value( true )
+        )
+        .arg(
+            Arg::with_name( "bench" )
+                .long( "bench" )
+                .help( "Build only the specified benchmark target" )
+                .value_name( "NAME" )
+                .takes_value( true )
+        )
+        .arg(
+            Arg::with_name( "message-format" )
+                .long( "message-format" )
+                .help( "Selects the stdout output format" )
+                .value_name( "FMT" )
+                .takes_value( true )
+                .default_value( "human" )
+                .possible_values( &[
+                    "human",
+                    "json"
+                ])
+        )
+        .arg(
+            Arg::with_name( "runtime" )
+                .long( "runtime" )
+                .takes_value( true )
+                .value_name( "RUNTIME" )
+                .help( "Selects the type of JavaScript runtime which will be generated; valid only for the `wasm32-unknown-unknown` target [possible values: standalone, library-es6, web-extension]" )
+                .possible_values( &["standalone", "library-es6", "web-extension", "experimental-only-loader"] )
+                .default_value_if(
+                    "target", Some( "wasm32-unknown-unknown" ),
+                    "standalone"
+                )
+                .hide_possible_values( true ) // Get rid of this after removing `experimental-only-loader` variant.
+        );
+}
+
 fn main() {
     if let Ok( value ) = env::var( "CARGO_WEB_LOG" ) {
         let mut builder = env_logger::Builder::new();
@@ -200,65 +262,14 @@ fn main() {
 
     let mut build_subcommand =
         SubCommand::with_name( "build" )
-            .about( "Compile a local package and all of its dependencies" )
-            .arg(
-                Arg::with_name( "lib" )
-                    .long( "lib" )
-                    .help( "Build only this package's library" )
-            )
-            .arg(
-                Arg::with_name( "bin" )
-                    .long( "bin" )
-                    .help( "Build only the specified binary" )
-                    .value_name( "NAME" )
-                    .takes_value( true )
-            )
-            .arg(
-                Arg::with_name( "example" )
-                    .long( "example" )
-                    .help( "Build only the specified example" )
-                    .value_name( "NAME" )
-                    .takes_value( true )
-            )
-            .arg(
-                Arg::with_name( "test" )
-                    .long( "test" )
-                    .help( "Build only the specified test target" )
-                    .value_name( "NAME" )
-                    .takes_value( true )
-            )
-            .arg(
-                Arg::with_name( "bench" )
-                    .long( "bench" )
-                    .help( "Build only the specified benchmark target" )
-                    .value_name( "NAME" )
-                    .takes_value( true )
-            )
-            .arg(
-                Arg::with_name( "message-format" )
-                    .long( "message-format" )
-                    .help( "Selects the stdout output format" )
-                    .value_name( "FMT" )
-                    .takes_value( true )
-                    .default_value( "human" )
-                    .possible_values( &[
-                        "human",
-                        "json"
-                    ])
-            )
-            .arg(
-                Arg::with_name( "runtime" )
-                    .long( "runtime" )
-                    .takes_value( true )
-                    .value_name( "RUNTIME" )
-                    .help( "Selects the type of JavaScript runtime which will be generated; valid only for the `wasm32-unknown-unknown` target [possible values: standalone, library-es6, web-extension]" )
-                    .possible_values( &["standalone", "library-es6", "web-extension", "experimental-only-loader"] )
-                    .default_value_if(
-                        "target", Some( "wasm32-unknown-unknown" ),
-                        "standalone"
-                    )
-                    .hide_possible_values( true ) // Get rid of this after removing `experimental-only-loader` variant.
-            );
+            .about( "Compile a local package and all of its dependencies" );
+
+    let mut check_subcommand =
+        SubCommand::with_name( "check" )
+            .about( "Typecheck a local package and all of its dependencies" );
+
+    build_subcommand = add_build_params( build_subcommand );
+    check_subcommand = add_build_params( check_subcommand );
 
     let mut test_subcommand =
         SubCommand::with_name( "test" )
@@ -354,6 +365,7 @@ fn main() {
             .about( "Fetches and installs prebuilt Emscripten packages" );
 
     build_subcommand = add_shared_build_params( build_subcommand );
+    check_subcommand = add_shared_build_params( check_subcommand );
     test_subcommand = add_shared_build_params( test_subcommand );
     start_subcommand = add_shared_build_params( start_subcommand );
     deploy_subcommand = add_shared_build_params( deploy_subcommand );
@@ -363,6 +375,7 @@ fn main() {
         .setting( AppSettings::SubcommandRequiredElseHelp )
         .setting( AppSettings::VersionlessSubcommands )
         .subcommand( build_subcommand )
+        .subcommand( check_subcommand )
         .subcommand( test_subcommand )
         .subcommand( start_subcommand )
         .subcommand( deploy_subcommand )
@@ -371,6 +384,8 @@ fn main() {
 
     let result = if let Some( matches ) = matches.subcommand_matches( "build" ) {
         cmd_build::command_build( matches )
+    } else if let Some( matches ) = matches.subcommand_matches( "check" ) {
+        cmd_build::command_check( matches )
     } else if let Some( matches ) = matches.subcommand_matches( "test" ) {
         cmd_test::command_test( matches )
     } else if let Some( matches ) = matches.subcommand_matches( "start" ) {

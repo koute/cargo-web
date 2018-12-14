@@ -477,9 +477,14 @@ pub fn target_to_build_target( target: &CargoTarget, profile: Profile ) -> Build
 }
 
 impl BuildConfig {
-    fn as_command( &self ) -> Command {
+    fn as_command( &self, should_build: bool ) -> Command {
         let mut command = Command::new( "cargo" );
-        command.arg( "rustc" );
+        if should_build {
+            command.arg( "rustc" );
+        } else {
+            command.arg( "check" );
+        }
+
         command.arg( "--message-format" );
         command.arg( "json" );
 
@@ -504,6 +509,12 @@ impl BuildConfig {
         }
 
         match self.build_target {
+            BuildTarget::Lib( _, _ ) if !should_build => {
+                command.arg( "--lib" );
+            },
+            BuildTarget::Bin( ref name, _ ) if !should_build => {
+                command.arg( "--bin" ).arg( name.as_str() );
+            },
             BuildTarget::Lib( _, profile ) => {
                 command
                     .arg( "--profile" ).arg( profile_to_arg( profile ) )
@@ -545,6 +556,30 @@ impl BuildConfig {
         command
     }
 
+    pub fn check( &self ) -> CargoResult {
+        let status = self.launch_cargo( false ).map( |(status, _)| status );
+        CargoResult {
+            status,
+            artifacts: Vec::new()
+        }
+        /*
+        match self.launch_cargo( true ) {
+            Some( (status, _) ) => {
+                return CargoResult {
+                    status: Some( status ),
+                    artifacts: Vec::new()
+                }
+            },
+            None => {
+                return CargoResult {
+                    status: None,
+                    artifacts: Vec::new()
+                }
+            }
+        }
+        */
+    }
+
     pub fn build< F >( &self, mut postprocess: Option< F > ) -> CargoResult
         where F: for <'a> FnMut( Vec< PathBuf > ) -> Vec< PathBuf >
     {
@@ -575,10 +610,8 @@ impl BuildConfig {
         return result;
     }
 
-    fn build_internal< F >( &self, postprocess: &mut Option< F > ) -> CargoResult
-        where F: for <'a> FnMut( Vec< PathBuf > ) -> Vec< PathBuf >
-    {
-        let mut command = self.as_command();
+    fn launch_cargo( &self, should_build: bool ) -> Option< (i32, Vec< cargo_output::Artifact >) > {
+        let mut command = self.as_command( should_build );
 
         let env_paths = env::var_os( "PATH" )
             .map( |paths| env::split_paths( &paths ).collect() )
@@ -621,12 +654,7 @@ impl BuildConfig {
         debug!( "Launching cargo: {:?}", command );
         let mut child = match command.spawn() {
             Ok( child ) => child,
-            Err( _ ) => {
-                return CargoResult {
-                    status: None,
-                    artifacts: Vec::new()
-                };
-            }
+            Err( _ ) => return None
         };
 
         let stderr = BufReader::new( child.stderr.take().unwrap() );
@@ -702,6 +730,22 @@ impl BuildConfig {
         let result = child.wait();
         let status = result.unwrap().code().expect( "failed to grab cargo status code" );
         debug!( "Cargo finished with status: {}", status );
+
+        Some( (status, artifacts) )
+    }
+
+    fn build_internal< F >( &self, postprocess: &mut Option< F > ) -> CargoResult
+        where F: for <'a> FnMut( Vec< PathBuf > ) -> Vec< PathBuf >
+    {
+        let (status, mut artifacts) = match self.launch_cargo( true ) {
+            Some( result ) => result,
+            None => {
+                return CargoResult {
+                    status: None,
+                    artifacts: Vec::new()
+                }
+            }
+        };
 
         fn has_extension< P: AsRef< Path > >( path: P, extension: &str ) -> bool {
             path.as_ref().extension().map( |ext| ext == extension ).unwrap_or( false )

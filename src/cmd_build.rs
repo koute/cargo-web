@@ -8,7 +8,7 @@ use cargo_shim::{
 use build::BuildArgs;
 use error::Error;
 
-pub fn command_build< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Error > {
+fn command_build_or_check< 'a >( matches: &clap::ArgMatches< 'a >, should_build: bool ) -> Result< (), Error > {
     let build_args = BuildArgs::new( matches )?;
     let project = build_args.load_project()?;
 
@@ -18,8 +18,20 @@ pub fn command_build< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Er
 
     let config = project.aggregate_configuration( Profile::Main )?;
     for target in targets {
-        project.build( &config, target )?;
+        if should_build {
+            project.build( &config, target )?;
+        } else {
+            project.check( &config, target )?;
+        }
     }
 
     Ok(())
+}
+
+pub fn command_build< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Error > {
+    command_build_or_check( matches, true )
+}
+
+pub fn command_check< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Error > {
+    command_build_or_check( matches, false )
 }

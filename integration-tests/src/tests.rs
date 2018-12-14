@@ -229,6 +229,18 @@ macro_rules! common_tests { (($($attr:tt)*) $namespace:ident, $target:expr) => {
         assert_tests_fail( $target, "failing-integration-test-crate-types" );
     }
 
+    #[test]
+    fn check_ok() {
+        let cwd = crate_path( "dummy-v1" );
+        run( &cwd, &*CARGO_WEB, &["check", "--target", $target.to_str()] ).assert_success();
+    }
+
+    #[test]
+    fn check_failed() {
+        let cwd = crate_path( "compilation-error" );
+        run( &cwd, &*CARGO_WEB, &["check", "--target", $target.to_str()] ).assert_failure();
+    }
+
     $($attr)*
     #[test]
     fn async_normal_test_with_nodejs() {
