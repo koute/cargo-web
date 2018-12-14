@@ -163,6 +163,9 @@ addons:
 ```
 
 ## Changelog
+   * `0.6.23` (unreleased)
+      * New subcommand: `cargo web check`
+      * The `wasm32-unknown-unknown` target is now the default
    * `0.6.22`
       * Running tests through Chrome should now work out-of-box on macOS
       * The `deploy` subcommand can now be told where to deploy using the `-o`/`--output` parameter
