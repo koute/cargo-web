@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::{Duration, Instant};
 use std::env;
+use std::fs;
 
 use reqwest;
 
@@ -515,4 +516,22 @@ fn requires_future_cargo_web_cfg_dep() {
 fn requires_future_cargo_web_cfg_not_dep() {
     assert_fails_to_build( Wasm32UnknownUnknown, "req-future-cargo-web-cfg-not-dep" );
     assert_builds( Wasm32UnknownEmscripten, "req-future-cargo-web-cfg-not-dep" );
+}
+
+#[test]
+fn runtime_library_es6() {
+    let cwd = crate_path( "runtime-library-es6" );
+
+    // We do it twice to make sure the `.wasm` file is not irreversibly mangled.
+    for _ in 0..2 {
+        run( &cwd, &*CARGO_WEB, &["build", "--target", "wasm32-unknown-unknown", "--runtime", "library-es6"] ).assert_success();
+        let target_dir = cwd.join( "target" ).join( "wasm32-unknown-unknown" ).join( "debug" );
+
+        fs::copy( target_dir.join( "runtime-library-es6.js" ), target_dir.join( "runtime-library-es6.mjs" ) ).unwrap();
+        let result = run( &cwd, &*NODEJS, &["--experimental-modules", "run.mjs"] );
+
+        assert!( result.output().contains( "Result is 3" ) );
+        assert!( result.output().contains( "Main triggered!" ) );
+        result.assert_success();
+    }
 }

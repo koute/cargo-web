@@ -1,0 +1,7 @@
+[package]
+name = "runtime-library-es6"
+version = "0.1.0"
+authors = ["Jan Bujak <j@exia.io>"]
+
+[dependencies.stdweb]
+version = "0.4"
