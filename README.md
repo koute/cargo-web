@@ -162,7 +162,7 @@ addons:
   chrome: stable
 ```
 
-### Custom runtime (`wasm32-unknown-unknown`-only)
+## Custom runtime (`wasm32-unknown-unknown`-only)
 
 When building a project by default `cargo-web` generates a standalone runtime
 runtime for you. What this means is that the `.js` file which is generated
