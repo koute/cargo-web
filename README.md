@@ -28,9 +28,10 @@ Thank you!
 Currently it supports the following features:
 
   * `cargo web build` - will build your project using one of Rust's three Web backends:
-    * [asm.js] using Emscripten (when you pass `--target=asmjs-unknown-emscripten`; default)
+    * [WebAssembly] using Rust's native WebAssembly backend (when you pass `--target=wasm32-unknown-unknown`; default)
     * [WebAssembly] using Emscripten (when you pass `--target=wasm32-unknown-emscripten`)
-    * [WebAssembly] using Rust's native WebAssembly backend (when you pass `--target=wasm32-unknown-unknown`)
+    * [asm.js] using Emscripten (when you pass `--target=asmjs-unknown-emscripten`)
+  * `cargo web check` - will typecheck your project
   * `cargo web test` - will run your tests either under:
     * Under a headless instance of Google Chrome (default)
     * Under [Node.js] (when you pass `--nodejs`)
@@ -41,7 +42,7 @@ Currently it supports the following features:
   * Will automatically download and install Emscripten for you (if necessary) on the following platforms:
     * Linux x86-64
     * Linux x86
-  * Will automatically garbage-collect your WebAssembly artifacts.
+  * Will automatically install the relevant Rust target through `rustup`
 
 [asm.js]: https://en.wikipedia.org/wiki/Asm.js
 [WebAssembly]: https://en.wikipedia.org/wiki/WebAssembly
@@ -218,7 +219,7 @@ you want to integrate the output with a JavaScript bundler, or anything
 else which requires you to load the module yourself.
 
 ## Changelog
-   * `0.6.23` (unreleased)
+   * `0.6.23`
       * New subcommand: `cargo web check`
       * The `wasm32-unknown-unknown` target is now the default
    * `0.6.22`
