@@ -562,22 +562,6 @@ impl BuildConfig {
             status,
             artifacts: Vec::new()
         }
-        /*
-        match self.launch_cargo( true ) {
-            Some( (status, _) ) => {
-                return CargoResult {
-                    status: Some( status ),
-                    artifacts: Vec::new()
-                }
-            },
-            None => {
-                return CargoResult {
-                    status: None,
-                    artifacts: Vec::new()
-                }
-            }
-        }
-        */
     }
 
     pub fn build< F >( &self, mut postprocess: Option< F > ) -> CargoResult
