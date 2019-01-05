@@ -893,6 +893,7 @@ impl BuildConfig {
     }
 }
 
+#[derive(Debug)]
 pub struct CargoResult {
     status: Option< i32 >,
     artifacts: Vec< PathBuf >

@@ -1,7 +1,7 @@
 use serde_json::{self, Value};
 use serde::ser;
 
-pub use cargo_shim::rustc_diagnostic::Diagnostic;
+pub use super::rustc_diagnostic::Diagnostic;
 pub use cargo_metadata::Target;
 pub use cargo_metadata::WorkspaceMember as PackageId;
 

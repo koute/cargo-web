@@ -1,8 +1,8 @@
 use std::fmt::{self, Write};
 use ansi_term::{Color, Style};
 use serde_json;
-use cargo_shim::cargo_output::Message;
-use cargo_shim::rustc_diagnostic::Diagnostic;
+use super::cargo_output::Message;
+use super::rustc_diagnostic::Diagnostic;
 
 struct Pad< T: fmt::Display >( usize, T );
 
