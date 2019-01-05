@@ -225,6 +225,8 @@ you want to integrate the output with a JavaScript bundler, or anything
 else which requires you to load the module yourself.
 
 ## Changelog
+   * `0.6.24`
+      * Conditional dependencies of form `[target.'cfg(...)'.dependencies]` are now properly supported
    * `0.6.23`
       * New subcommand: `cargo web check`
       * The `wasm32-unknown-unknown` target is now the default
