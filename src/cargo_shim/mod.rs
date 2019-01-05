@@ -15,10 +15,12 @@ use std::fmt;
 use cargo_metadata;
 use serde_json;
 
+mod cargo;
 mod cargo_output;
 mod rustc_diagnostic;
 mod diagnostic_formatter;
 
+use self::cargo::cfg::{Cfg, CfgExpr};
 use self::cargo_output::{CargoOutput, PackageId};
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
@@ -117,17 +119,102 @@ pub enum CargoDependencyKind {
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum CargoDependencyTarget {
-    Target( String ),
-    Emscripten, // TODO: Remove these hardcodes.
-    NonEmscripten
+    Expr( CfgExpr ),
+    Target( String )
+}
+
+struct TargetCfg {
+    triplet: String,
+    map: HashMap< String, String >,
+    set: HashSet< String >
+}
+
+impl TargetCfg {
+    fn new( triplet: &str ) -> Self {
+        let rustc =
+            if cfg!( windows ) {
+                "rustc.exe"
+            } else {
+                "rustc"
+            };
+
+        // NOTE: Currently this will always emit the "debug_assertion" config
+        // even if we're compiling in release mode, and it won't contain "test"
+        // even if we're building tests.
+        //
+        // Cargo works the same way:
+        //    https://github.com/rust-lang/cargo/issues/5777
+
+        debug!( "Querying the target config..." );
+        let mut command = Command::new( rustc );
+        command.arg( "--target" );
+        command.arg( triplet );
+        command.arg( "--print" );
+        command.arg( "cfg" );
+
+        let mut map = HashMap::new();
+        let mut set = HashSet::new();
+
+        command.stdout( Stdio::piped() );
+        command.stderr( Stdio::inherit() );
+        command.stdin( Stdio::null() );
+        let result = command.output().expect( "could not launch rustc" );
+        if !result.status.success() {
+            panic!( "Failed to grab the target configuration from rustc!" );
+        }
+
+        for line in BufReader::new( result.stdout.as_slice() ).lines() {
+            let line = line.unwrap();
+            let line = line.trim();
+            if line.is_empty() {
+                continue;
+            }
+
+            if let Some( index ) = line.chars().position( |byte| byte == '=' ) {
+                let key: String = line.chars().take( index ).collect();
+                let mut value: String = line.chars().skip( index + 2 ).collect();
+                value.pop().unwrap();
+                debug!( "Target config: '{}' = '{}'", key, value );
+                map.insert( key, value );
+            } else {
+                debug!( "Target config: '{}'", line );
+                set.insert( line.to_owned() );
+            }
+        }
+
+        TargetCfg {
+            triplet: triplet.to_owned(),
+            map,
+            set
+        }
+    }
+
+    fn matches( &self, expr: &CfgExpr ) -> bool {
+        match *expr {
+            CfgExpr::Not( ref inner ) => !self.matches( &inner ),
+            CfgExpr::All( ref inner ) => inner.iter().all( |inner| self.matches( &inner ) ),
+            CfgExpr::Any( ref inner ) => inner.iter().any( |inner| self.matches( &inner ) ),
+            CfgExpr::Value( ref inner ) => self.matches_value( &inner )
+        }
+    }
+
+    fn matches_value( &self, value: &Cfg ) -> bool {
+        match *value {
+            Cfg::Name( ref name ) => {
+                self.set.contains( name )
+            },
+            Cfg::KeyPair( ref key, ref expected_value ) => {
+                self.map.get( key ).map( |value| value == expected_value ).unwrap_or( false )
+            }
+        }
+    }
 }
 
 impl CargoDependencyTarget {
-    fn matches( &self, triplet: &str ) -> bool {
+    fn matches( &self, target_cfg: &TargetCfg ) -> bool {
         match *self {
-            CargoDependencyTarget::Target( ref target ) => target == triplet,
-            CargoDependencyTarget::Emscripten => triplet.ends_with( "-emscripten" ),
-            CargoDependencyTarget::NonEmscripten => !triplet.ends_with( "-emscripten" )
+            CargoDependencyTarget::Target( ref target ) => *target == target_cfg.triplet,
+            CargoDependencyTarget::Expr( ref expr ) => target_cfg.matches( expr )
         }
     }
 }
@@ -268,11 +355,11 @@ impl CargoProject {
                         let target = match json.get( "target" ).unwrap() {
                             &serde_json::Value::Null => None,
                             &serde_json::Value::String( ref target ) => {
-                                let target = match target.replace( " ", "" ).as_str() {
-                                    // TODO: Do this properly.
-                                    "cfg(target_os=\"emscripten\")" => CargoDependencyTarget::Emscripten,
-                                    "cfg(not(target_os=\"emscripten\"))" => CargoDependencyTarget::NonEmscripten,
-                                    _ => CargoDependencyTarget::Target( target.clone() )
+                                let target = if target.starts_with( "cfg(" ) && target.ends_with( ")" ) {
+                                    let cfg = target[ 4..target.len() - 1 ].trim().parse().expect( "cannot parse target specification in a Cargo.toml" );
+                                    CargoDependencyTarget::Expr( cfg )
+                                } else {
+                                    CargoDependencyTarget::Target( target.clone() )
                                 };
 
                                 Some( target )
@@ -371,10 +458,11 @@ impl CargoProject {
             }
         }).collect();
 
+        let target_cfg = TargetCfg::new( triplet );
         while let Some( index ) = queue.pop() {
             for dependency in &entries[ index ].package.dependencies {
-                if let Some( ref required_triplet ) = dependency.target {
-                    if !required_triplet.matches( triplet ) {
+                if let Some( ref target ) = dependency.target {
+                    if !target.matches( &target_cfg ) {
                         continue;
                     }
                 }

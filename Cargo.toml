@@ -50,6 +50,7 @@ hyper = "0.12.12"
 http = "0.1.13"
 futures = "0.1.17"
 open = "1"
+failure = "0.1"
 
 [dependencies.semver]
 features = ["serde"]

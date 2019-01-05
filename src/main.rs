@@ -51,6 +51,7 @@ extern crate memmap;
 
 extern crate open;
 extern crate atty;
+extern crate failure;
 
 use std::process::exit;
 use std::env;
