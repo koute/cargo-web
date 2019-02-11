@@ -79,7 +79,7 @@ impl Backend {
 }
 
 #[derive(Clone)]
-enum TargetName {
+pub enum TargetName {
     Lib,
     Bin( String ),
     Example( String ),
@@ -88,21 +88,21 @@ enum TargetName {
 
 #[derive(Clone)]
 pub struct BuildArgs {
-    features: Vec< String >,
-    no_default_features: bool,
-    enable_all_features: bool,
+    pub features: Vec< String >,
+    pub no_default_features: bool,
+    pub enable_all_features: bool,
 
-    build_type: BuildType,
-    use_system_emscripten: bool,
+    pub build_type: BuildType,
+    pub use_system_emscripten: bool,
 
-    is_verbose: bool,
-    message_format: MessageFormat,
+    pub is_verbose: bool,
+    pub message_format: MessageFormat,
 
-    backend: Option< Backend >,
-    runtime: RuntimeKind,
+    pub backend: Option< Backend >,
+    pub runtime: RuntimeKind,
 
-    package_name: Option< String >,
-    target_name: Option< TargetName >
+    pub package_name: Option< String >,
+    pub target_name: Option< TargetName >
 }
 
 pub struct AggregatedConfig {
@@ -110,6 +110,24 @@ pub struct AggregatedConfig {
     profile: Profile,
     pub link_args: Vec< String >,
     pub prepend_js: Vec< (PathBuf, String) >
+}
+
+impl Default for BuildArgs {
+    fn default() -> Self {
+        Self {
+            features: Vec::new(),
+            no_default_features: false,
+            enable_all_features: false,
+            build_type: BuildType::Debug,
+            use_system_emscripten: false,
+            is_verbose: false,
+            message_format: MessageFormat::Human,
+            backend: None,
+            runtime: RuntimeKind::Standalone,
+            package_name: None,
+            target_name: None,
+        }
+    }
 }
 
 impl BuildArgs {
