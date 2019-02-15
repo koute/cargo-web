@@ -1,5 +1,6 @@
 extern crate cargo_web;
 extern crate clap;
+extern crate env_logger;
 
 use std::process::exit;
 use std::env;
