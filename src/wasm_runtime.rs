@@ -2,6 +2,7 @@ use std::path::Path;
 use std::collections::BTreeMap;
 use std::fmt::Write as FmtWrite;
 use std::fmt::Display;
+use std::str::FromStr;
 
 use unicode_categories::UnicodeCategories;
 use handlebars::Handlebars;
@@ -9,12 +10,28 @@ use handlebars::Handlebars;
 use wasm_inline_js::JsSnippet;
 use wasm_js_export::{JsExport, TypeMetadata};
 
+use super::Error;
+
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum RuntimeKind {
     Standalone,
     LibraryEs6,
     WebExtension,
     OnlyLoader
+}
+
+impl FromStr for RuntimeKind {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "standalone" => Ok(RuntimeKind::Standalone),
+            "library-es6" => Ok(RuntimeKind::LibraryEs6),
+            "web-extension" => Ok(RuntimeKind::WebExtension),
+            "experimental-only-loader" => Ok(RuntimeKind::OnlyLoader),
+            _ => Err(Error::ConfigurationError(format!("{} is not a valid runtime type.", s))),
+        }
+    }
 }
 
 // This is probably a total overkill, but oh well.

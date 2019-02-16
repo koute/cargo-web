@@ -3,7 +3,7 @@ use std::sync::mpsc::channel;
 use std::sync::{Mutex, Arc};
 use std::time::{Instant, Duration};
 use std::thread;
-use std::net::{self, ToSocketAddrs};
+use std::net;
 use std::hash::Hash;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::path::{Path, PathBuf};
@@ -15,7 +15,6 @@ use notify::{
     DebouncedEvent
 };
 
-use clap;
 use handlebars::Handlebars;
 use percent_encoding::percent_decode;
 
@@ -253,15 +252,13 @@ fn monitor_for_changes_and_rebuild(
     watcher
 }
 
-fn address_or_default< 'a >( matches: &clap::ArgMatches< 'a > ) -> net::SocketAddr {
-    let host = matches.value_of( "host" ).unwrap_or( "localhost" );
-    let port = matches.value_of( "port" ).unwrap_or( "8000" );
-    format!( "{}:{}", host, port ).to_socket_addrs().unwrap().next().unwrap()
-}
-
-pub fn command_start< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Error > {
-    let auto_reload = matches.is_present( "auto-reload" );
-    let build_args = BuildArgs::new( matches )?;
+pub fn command_start(
+    build_args: BuildArgs,
+    host: net::IpAddr,
+    port: u16,
+    open: bool,
+    auto_reload: bool
+) -> Result< (), Error > {
     let project = build_args.load_project()?;
 
     let last_build = {
@@ -280,7 +277,7 @@ pub fn command_start< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Er
     let _watcher = monitor_for_changes_and_rebuild( last_build.clone() );
 
     let target_name = target.name.clone();
-    let address = address_or_default( matches );
+    let address = net::SocketAddr::new(host, port);
     let server = SimpleServer::new(&address, move |request| {
         let path = request.uri().path();
         let path = percent_decode( path.as_bytes() ).decode_utf8().unwrap();
@@ -341,7 +338,7 @@ pub fn command_start< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Er
     eprintln!( "" );
     eprintln!( "You can access the web server at `http://{}`.", &address );
 
-    if matches.is_present( "open" ) {
+    if open {
         thread::spawn( move || {
             // Wait for server to start
             let start = Instant::now();

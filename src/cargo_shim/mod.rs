@@ -8,7 +8,7 @@ use std::ops::Deref;
 use std::cell::Cell;
 use std::env;
 use std::thread;
-use std::str;
+use std::str::{self, FromStr};
 use std::error;
 use std::fmt;
 
@@ -526,6 +526,21 @@ impl BuildTarget {
 pub enum MessageFormat {
     Human,
     Json
+}
+
+impl FromStr for MessageFormat {
+    type Err = super::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "human" => Ok(MessageFormat::Human),
+            "json" => Ok(MessageFormat::Json),
+            _ => Err(super::Error::ConfigurationError(format!(
+                "{} is not a valid message format. Possible values are `human` and `json`.",
+                s
+            ))),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]

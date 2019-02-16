@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 use std::process::{Command, Stdio, exit};
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use std::env;
 
-use clap;
 use cargo_shim::{
     Profile,
     CargoPackage,
@@ -29,6 +29,10 @@ use wasm;
 
 use wasm_runtime::RuntimeKind;
 
+const WASM: &str = "wasm32-unknown-unknown";
+const ASM_JS: &str = "asmjs-unknown-emscripten";
+const WASM_EMCC: &str = "wasm32-unknown-emscripten";
+
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum PathKind {
     File,
@@ -46,6 +50,22 @@ pub enum Backend {
     EmscriptenWebAssembly,
     EmscriptenAsmJs,
     WebAssembly
+}
+
+impl FromStr for Backend {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            WASM => Ok(Backend::WebAssembly),
+            WASM_EMCC => Ok(Backend::EmscriptenWebAssembly),
+            ASM_JS => Ok(Backend::EmscriptenAsmJs),
+            _ => Err(Error::ConfigurationError(format!(
+                "{} is not a valid target triple.",
+                s
+            ))),
+        }
+    }
 }
 
 impl Backend {
@@ -71,9 +91,9 @@ impl Backend {
 
     pub fn triplet( &self ) -> &str {
         match *self {
-            Backend::EmscriptenAsmJs => "asmjs-unknown-emscripten",
-            Backend::EmscriptenWebAssembly => "wasm32-unknown-emscripten",
-            Backend::WebAssembly => "wasm32-unknown-unknown"
+            Backend::EmscriptenAsmJs => ASM_JS,
+            Backend::EmscriptenWebAssembly => WASM_EMCC,
+            Backend::WebAssembly => WASM,
         }
     }
 }
@@ -84,6 +104,28 @@ pub enum TargetName {
     Bin( String ),
     Example( String ),
     Bench( String )
+}
+
+impl TargetName {
+    pub fn from(t: super::Target) -> Option<Self> {
+        if t.lib {
+            return Some(TargetName::Lib);
+        }
+
+        if let Some(bin) = t.bin {
+            return Some(TargetName::Bin(bin));
+        }
+
+        if let Some(example) = t.example {
+            return Some(TargetName::Example(example));
+        }
+
+        if let Some(bench) = t.bench {
+            return Some(TargetName::Bench(bench));
+        }
+
+        None
+    }
 }
 
 #[derive(Clone)]
@@ -130,95 +172,62 @@ impl Default for BuildArgs {
     }
 }
 
+impl From<super::Build> for BuildArgs {
+    fn from(b: super::Build) -> Self {
+        let mut backend = b.target;
+
+        if b.target_webasm {
+            backend = Backend::WebAssembly;
+        }
+
+        if b.target_webasm_emscripten {
+            backend = Backend::EmscriptenWebAssembly;
+        }
+
+        if b.target_asmjs_emscripten {
+            backend = Backend::EmscriptenAsmJs;
+        }
+
+        Self {
+            features: b.features,
+            no_default_features: b.no_default_features,
+            enable_all_features: b.all_features,
+            build_type: if b.release { BuildType::Release } else { BuildType::Debug },
+            use_system_emscripten: b.use_system_emscripten,
+            is_verbose: b.verbose,
+            package_name: b.package,
+            backend: Some(backend),
+            ..Self::default()
+        }
+    }
+}
+
 impl BuildArgs {
-    pub fn new( matches: &clap::ArgMatches ) -> Result< Self, Error > {
-        let features = if let Some( features ) = matches.value_of( "features" ) {
-            features.split_whitespace().map( |feature| feature.to_owned() ).collect()
-        } else {
-            Vec::new()
-        };
+    pub fn new(build: super::Build, ext: super::BuildExt, target: super::Target) -> Result<Self, Error> {
+        let mut out = Self::from(build).with_target(target);
+        out.message_format = ext.message_format;
 
-        let no_default_features = matches.is_present( "no-default-features" );
-        let enable_all_features = matches.is_present( "all-features" );
-
-        let build_type = if matches.is_present( "release" ) {
-            BuildType::Release
-        } else {
-            BuildType::Debug
-        };
-
-        let use_system_emscripten = matches.is_present( "use-system-emscripten" );
-        let is_verbose = matches.is_present( "verbose" );
-        let message_format = if let Some( name ) = matches.value_of( "message-format" ) {
-            match name {
-                "human" => MessageFormat::Human,
-                "json" => MessageFormat::Json,
-                _ => unreachable!()
+        if let Some(rt) = ext.runtime {
+            match out.backend {
+                None | Some(Backend::WebAssembly) => {
+                    out.runtime = rt;
+                }
+                Some(be) => {
+                    return Err(Error::ConfigurationError(format!(
+                        "JavaScript runtime can only be specified for target `{}`. (Current target is `{}`)",
+                        WASM,
+                        be.triplet()
+                    )));
+                }
             }
-        } else {
-            MessageFormat::Human
-        };
+        }
 
-        let backend = if matches.is_present( "target-webasm-emscripten" ) {
-            eprintln!( "warning: `--target-webasm-emscripten` argument is deprecated; please use `--target wasm32-unknown-emscripten` instead" );
-            Some( Backend::EmscriptenWebAssembly )
-        } else if matches.is_present( "target-webasm" ) {
-            eprintln!( "warning: `--target-webasm` argument is deprecated; please use `--target wasm32-unknown-unknown` instead" );
-            Some( Backend::WebAssembly )
-        } else if matches.is_present( "target-asmjs-emscripten" ) {
-            eprintln!( "warning: `--target-asmjs-emscripten` argument is deprecated; please use `--target asmjs-unknown-emscripten` instead" );
-            Some( Backend::EmscriptenAsmJs )
-        } else if let Some( triplet ) = matches.value_of( "target" ) {
-            let backend = match triplet {
-                "asmjs-unknown-emscripten" => Backend::EmscriptenAsmJs,
-                "wasm32-unknown-emscripten" => Backend::EmscriptenWebAssembly,
-                "wasm32-unknown-unknown" => Backend::WebAssembly,
-                _ => unreachable!( "Unknown target: {:?}", triplet )
-            };
+        Ok(out)
+    }
 
-            Some( backend )
-        } else {
-            None
-        };
-
-        let runtime = if let Some( runtime ) = matches.value_of( "runtime" ) {
-            match runtime {
-                "standalone" => RuntimeKind::Standalone,
-                "library-es6" => RuntimeKind::LibraryEs6,
-                "web-extension" => RuntimeKind::WebExtension,
-                "experimental-only-loader" => RuntimeKind::OnlyLoader,
-                _ => unreachable!( "Unknown runtime: {:?}", runtime )
-            }
-        } else {
-            RuntimeKind::Standalone
-        };
-
-        let package_name = matches.value_of( "package" ).map( |name| name.to_owned() );
-        let target_name = if matches.is_present( "lib" ) {
-            Some( TargetName::Lib )
-        } else if let Some( name ) = matches.value_of( "bin" ) {
-            Some( TargetName::Bin( name.to_owned() ) )
-        } else if let Some( name ) = matches.value_of( "example" ) {
-            Some( TargetName::Example( name.to_owned() ) )
-        } else if let Some( name ) = matches.value_of( "bench" ) {
-            Some( TargetName::Bench( name.to_owned() ) )
-        } else {
-            None
-        };
-
-        Ok( BuildArgs {
-            features,
-            no_default_features,
-            enable_all_features,
-            build_type,
-            use_system_emscripten,
-            is_verbose,
-            message_format,
-            backend,
-            runtime,
-            package_name,
-            target_name
-        })
+    pub fn with_target(mut self, target: super::Target) -> Self {
+        self.target_name = TargetName::from(target);
+        self
     }
 
     pub fn load_project( &self ) -> Result< Project, Error > {

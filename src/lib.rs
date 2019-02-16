@@ -87,9 +87,14 @@ mod wasm_js_export;
 mod wasm_js_snippet;
 mod wasm_runtime;
 
+use std::ffi::OsStr;
+use std::net::IpAddr;
 use std::path::PathBuf;
 
+use build::{Backend, BuildArgs};
+use cargo_shim::MessageFormat;
 pub use error::Error;
+use wasm_runtime::RuntimeKind;
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "cargo-web")]
@@ -102,6 +107,8 @@ pub enum SubCmds {
         build_args: Build,
         #[structopt(flatten)]
         ext: BuildExt,
+        #[structopt(flatten)]
+        build_target: Target,
     },
     /// Typecheck a local package and all of its dependencies
     Check {
@@ -109,6 +116,8 @@ pub enum SubCmds {
         build_args: Build,
         #[structopt(flatten)]
         ext: BuildExt,
+        #[structopt(flatten)]
+        build_target: Target,
     },
     /// Deploys your project so that it's ready to be served statically
     Deploy {
@@ -123,8 +132,8 @@ pub enum SubCmds {
     /// Runs an embedded web server, which serves the built project
     Start {
         /// Bind the server to this address
-        #[structopt(long, default_value = "localhost")]
-        host: String,
+        #[structopt(long, parse(try_from_str), default_value = "127.0.0.1")]
+        host: IpAddr,
         /// Bind the server to this port
         #[structopt(long, default_value = "8000")]
         port: u16,
@@ -156,14 +165,44 @@ pub enum SubCmds {
 
 impl SubCmds {
     pub fn run(self) -> Result<(), Error> {
-        // cmd_build::command_build( matches )
-        // cmd_build::command_check( matches )
-        // cmd_test::command_test( matches )
-        // cmd_start::command_start( matches )
-        // cmd_deploy::command_deploy( matches )
         match self {
+            SubCmds::Build {
+                build_args,
+                build_target,
+                ext,
+            } => cmd_build::command_build(BuildArgs::new(build_args, ext, build_target)?),
+            SubCmds::Check {
+                build_args,
+                build_target,
+                ext,
+            } => cmd_build::command_check(BuildArgs::new(build_args, ext, build_target)?),
+            SubCmds::Deploy { build_args, output } => {
+                cmd_deploy::command_deploy(build_args.into(), output)
+            }
             SubCmds::PrepareEmscripten => cmd_prepare_emscripten::command_prepare_emscripten(),
-            _ => Ok(()),
+            SubCmds::Start {
+                build_args,
+                build_target,
+                auto_reload,
+                open,
+                port,
+                host,
+            } => cmd_start::command_start(
+                BuildArgs::from(build_args).with_target(build_target),
+                host,
+                port,
+                open,
+                auto_reload,
+            ),
+            SubCmds::Test {
+                build_args,
+                nodejs,
+                no_run,
+                passthrough,
+            } => {
+                let pass_os = passthrough.iter().map(OsStr::new).collect::<Vec<_>>();
+                cmd_test::command_test(build_args.into(), nodejs, no_run, &pass_os)
+            }
         }
     }
 }
@@ -192,15 +231,13 @@ pub struct Target {
 #[structopt(rename_all = "kebab-case")]
 pub struct BuildExt {
     /// Selects the stdout output format
-    #[structopt(long, default_value = "human")]
-    message_format: String,
+    #[structopt(long, default_value = "human", parse(try_from_str))]
+    message_format: MessageFormat,
     /// Selects the type of JavaScript runtime which will be generated
     ///
     /// Valid only for the `wasm32-unknown-unknown` target.
-    #[structopt(long, default_value = "standalone")]
-    runtime: String,
-    #[structopt(flatten)]
-    build_target: Target,
+    #[structopt(long, parse(try_from_str))]
+    runtime: Option<RuntimeKind>,
 }
 
 #[derive(Debug, StructOpt)]
@@ -228,9 +265,10 @@ pub struct Build {
     #[structopt(
         long,
         group = "target_platform",
-        default_value = "wasm32-unknown-unknown"
+        default_value = "wasm32-unknown-unknown",
+        parse(try_from_str)
     )]
-    target: String,
+    target: Backend,
     /// Use verbose output
     #[structopt(short = "v", long)]
     verbose: bool,

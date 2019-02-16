@@ -1,8 +1,6 @@
 use std::fs;
 use std::path::PathBuf;
 
-use clap;
-
 use cargo_shim::{
     Profile,
     TargetKind
@@ -12,8 +10,7 @@ use build::BuildArgs;
 use deployment::Deployment;
 use error::Error;
 
-pub fn command_deploy< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Error > {
-    let build_args = BuildArgs::new( matches )?;
+pub fn command_deploy< 'a >(build_args: BuildArgs, directory: Option<PathBuf>) -> Result< (), Error > {
     let project = build_args.load_project()?;
 
     let package = project.package();
@@ -35,7 +32,6 @@ pub fn command_deploy< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), E
     let result = project.build( &config, target )?;
 
     let deployment = Deployment::new( package, target, &result )?;
-    let directory = matches.value_of( "output" ).map( PathBuf::from );
 
     let is_using_default_directory;
     let directory = match directory {
