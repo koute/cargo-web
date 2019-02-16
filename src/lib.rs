@@ -356,28 +356,23 @@ pub struct Build {
     /// Build artifacts in release mode, with optimizations
     #[structopt(long)]
     pub release: bool,
-    /// Build for the target
-    #[structopt(
-        long,
-        group = "target_platform",
-        default_value = "wasm32-unknown-unknown",
-        parse(try_from_str)
-    )]
-    pub target: Backend,
+    /// Target triple to build for [default: "wasm32-unknown-unknown"]
+    #[structopt(long, group = "target_platform", parse(try_from_str))]
+    pub target: Option<Backend>,
     /// Use verbose output
     #[structopt(short = "v", long)]
     pub verbose: bool,
 
     // These three are legacy options kept for compatibility.
     /// Generate `asmjs` with Emscripten
-    #[structopt(long, group = "target_platform")]
-    pub target_asmjs_emscripten: bool,
+    #[structopt(long, group = "target_platform", raw(hidden = "true"))]
+    target_asmjs_emscripten: bool,
     /// Generate WASM with Emscripten
-    #[structopt(long, group = "target_platform")]
-    pub target_webasm_emscripten: bool,
+    #[structopt(long, group = "target_platform", raw(hidden = "true"))]
+    target_webasm_emscripten: bool,
     /// Generate WASM with Rust's native backend (default)
-    #[structopt(long, group = "target_platform")]
-    pub target_webasm: bool,
+    #[structopt(long, group = "target_platform", raw(hidden = "true"))]
+    target_webasm: bool,
 }
 
 impl Default for Build {
@@ -394,7 +389,7 @@ impl Default for Build {
             no_default_features: false,
             use_system_emscripten: false,
             release: false,
-            target: Backend::WebAssembly,
+            target: None,
             verbose: false,
             target_asmjs_emscripten: false,
             target_webasm_emscripten: false,

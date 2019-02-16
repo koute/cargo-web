@@ -156,19 +156,28 @@ pub struct AggregatedConfig {
 
 impl From<super::Build> for BuildArgs {
     fn from(b: super::Build) -> Self {
-        let mut backend = b.target;
+        let backend = if let Some(be) = b.target {
+            be
+        } else {
+            if b.target_webasm_emscripten {
+                eprintln!("The `--target-webasm-emscripten` flag is DEPRECATED. \
+                           Please use the `--target` option with the full triple \
+                           (`\"{}\"`)", WASM_EMCC);
+                Backend::EmscriptenWebAssembly
+            } else if b.target_asmjs_emscripten {
+                eprintln!("The `--target-asmjs-emscripten` flag is DEPRECATED. \
+                           Please use the `--target` option with the full triple \
+                           (`\"{}\"`)", ASM_JS);
+                Backend::EmscriptenAsmJs
+            } else if b.target_webasm {
+                eprintln!("The `--target-webasm` flag is DEPRECATED. Please use the \
+                           `--target` option with the full triple (`\"{}\"`)", WASM);
+                Backend::WebAssembly
+            } else {
+                Backend::WebAssembly
+            }
 
-        if b.target_webasm {
-            backend = Backend::WebAssembly;
-        }
-
-        if b.target_webasm_emscripten {
-            backend = Backend::EmscriptenWebAssembly;
-        }
-
-        if b.target_asmjs_emscripten {
-            backend = Backend::EmscriptenAsmJs;
-        }
+        };
 
         Self {
             features: b.features,
