@@ -5,7 +5,7 @@ extern crate structopt;
 use std::env::var;
 use std::process::exit;
 
-use cargo_web::SubCmds;
+use cargo_web::CargoWeb;
 use structopt::StructOpt;
 
 fn main() {
@@ -15,7 +15,7 @@ fn main() {
         builder.init();
     }
 
-    if let Err(error) = SubCmds::from_args().run() {
+    if let Err(error) = CargoWeb::from_args().run() {
         eprintln!("error: {}", error);
         exit(101);
     }

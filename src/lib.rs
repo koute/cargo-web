@@ -56,21 +56,21 @@ extern crate open;
 #[macro_use]
 extern crate failure;
 
-pub mod cargo_shim;
+mod cargo_shim;
 
 #[macro_use]
 mod utils;
-pub mod build;
+mod build;
 mod chrome_devtools;
-pub mod cmd_build;
-pub mod cmd_deploy;
-pub mod cmd_prepare_emscripten;
-pub mod cmd_start;
-pub mod cmd_test;
+mod cmd_build;
+mod cmd_deploy;
+mod cmd_prepare_emscripten;
+mod cmd_start;
+mod cmd_test;
 mod config;
-pub mod deployment;
+mod deployment;
 mod emscripten;
-pub mod error;
+mod error;
 mod http_utils;
 mod package;
 mod project_dirs;
@@ -93,14 +93,15 @@ use std::path::PathBuf;
 
 use build::{Backend, BuildArgs};
 use cargo_shim::MessageFormat;
-pub use error::Error;
+use error::Error;
 use wasm_runtime::RuntimeKind;
 
+/// CLI for `cargo-web`
 #[derive(Debug, StructOpt)]
 #[structopt(name = "cargo-web")]
 #[structopt(raw(setting = "structopt::clap::AppSettings::ColoredHelp"))]
 #[structopt(rename_all = "kebab-case")]
-pub enum SubCmds {
+pub enum CargoWeb {
     /// Compile a local package and all of its dependencies
     Build {
         #[structopt(flatten)]
@@ -163,24 +164,24 @@ pub enum SubCmds {
     },
 }
 
-impl SubCmds {
+impl CargoWeb {
     pub fn run(self) -> Result<(), Error> {
         match self {
-            SubCmds::Build {
+            CargoWeb::Build {
                 build_args,
                 build_target,
                 ext,
             } => cmd_build::command_build(BuildArgs::new(build_args, ext, build_target)?),
-            SubCmds::Check {
+            CargoWeb::Check {
                 build_args,
                 build_target,
                 ext,
             } => cmd_build::command_check(BuildArgs::new(build_args, ext, build_target)?),
-            SubCmds::Deploy { build_args, output } => {
+            CargoWeb::Deploy { build_args, output } => {
                 cmd_deploy::command_deploy(build_args.into(), output)
             }
-            SubCmds::PrepareEmscripten => cmd_prepare_emscripten::command_prepare_emscripten(),
-            SubCmds::Start {
+            CargoWeb::PrepareEmscripten => cmd_prepare_emscripten::command_prepare_emscripten(),
+            CargoWeb::Start {
                 build_args,
                 build_target,
                 auto_reload,
@@ -194,7 +195,7 @@ impl SubCmds {
                 open,
                 auto_reload,
             ),
-            SubCmds::Test {
+            CargoWeb::Test {
                 build_args,
                 nodejs,
                 no_run,
@@ -207,6 +208,7 @@ impl SubCmds {
     }
 }
 
+/// Select a target to build
 #[derive(Debug, StructOpt)]
 #[structopt(rename_all = "kebab-case")]
 pub struct Target {
@@ -227,6 +229,7 @@ pub struct Target {
     bench: Option<String>,
 }
 
+/// Specify additional build options
 #[derive(Debug, StructOpt)]
 #[structopt(rename_all = "kebab-case")]
 pub struct BuildExt {
@@ -240,6 +243,7 @@ pub struct BuildExt {
     runtime: Option<RuntimeKind>,
 }
 
+/// Build configuration for one or more targets
 #[derive(Debug, StructOpt)]
 #[structopt(rename_all = "kebab-case")]
 pub struct Build {
