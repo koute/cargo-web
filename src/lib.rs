@@ -102,11 +102,10 @@ use wasm_runtime::RuntimeKind;
 #[derive(Debug, StructOpt)]
 #[structopt(name = "cargo-web")]
 #[structopt(about = "A `cargo` subcommand for the client-side web.")]
-#[structopt(raw(setting = "structopt::clap::AppSettings::ColoredHelp"))]
+#[structopt(raw(global_setting = "structopt::clap::AppSettings::ColoredHelp"))]
 #[structopt(rename_all = "kebab-case")]
 pub enum CargoWeb {
     /// Compile a local package and all of its dependencies
-    #[structopt(raw(setting = "structopt::clap::AppSettings::ColoredHelp"))]
     Build {
         #[structopt(flatten)]
         build_args: Build,
@@ -116,7 +115,6 @@ pub enum CargoWeb {
         build_target: Target,
     },
     /// Typecheck a local package and all of its dependencies
-    #[structopt(raw(setting = "structopt::clap::AppSettings::ColoredHelp"))]
     Check {
         #[structopt(flatten)]
         build_args: Build,
@@ -126,7 +124,6 @@ pub enum CargoWeb {
         build_target: Target,
     },
     /// Deploys your project so that it's ready to be served statically
-    #[structopt(raw(setting = "structopt::clap::AppSettings::ColoredHelp"))]
     Deploy {
         /// Output directory; the default is `$CARGO_TARGET_DIR/deploy`
         #[structopt(short = "o", long, parse(from_os_str))]
@@ -135,10 +132,8 @@ pub enum CargoWeb {
         build_args: Build,
     },
     /// Fetches and installs prebuilt Emscripten packages
-    #[structopt(raw(setting = "structopt::clap::AppSettings::ColoredHelp"))]
     PrepareEmscripten,
     /// Runs an embedded web server, which serves the built project
-    #[structopt(raw(setting = "structopt::clap::AppSettings::ColoredHelp"))]
     Start {
         /// Bind the server to this address
         #[structopt(long, parse(try_from_str), default_value = "127.0.0.1")]
@@ -158,7 +153,6 @@ pub enum CargoWeb {
         build_args: Build,
     },
     /// Compiles and runs tests
-    #[structopt(raw(setting = "structopt::clap::AppSettings::ColoredHelp"))]
     Test {
         /// Compile, but don't run tests
         #[structopt(long)]
