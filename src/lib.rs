@@ -259,7 +259,7 @@ impl Target {
     /// Only build the specified binary
     pub fn only_bin(mut self, s: &str) -> Self {
         self.lib = false;
-        self.bin.replace(s.to_string());
+        self.bin = Some(s.to_string());
         self.example.take();
         self.test.take();
         self.bench.take();
@@ -271,7 +271,7 @@ impl Target {
     pub fn only_example(mut self, s: &str) -> Self {
         self.lib = false;
         self.bin.take();
-        self.example.replace(s.to_string());
+        self.example = Some(s.to_string());
         self.test.take();
         self.bench.take();
 
@@ -283,7 +283,7 @@ impl Target {
         self.lib = false;
         self.bin.take();
         self.example.take();
-        self.test.replace(s.to_string());
+        self.test = Some(s.to_string());
         self.bench.take();
 
         self
@@ -295,7 +295,7 @@ impl Target {
         self.bin.take();
         self.example.take();
         self.test.take();
-        self.bench.replace(s.to_string());
+        self.bench = Some(s.to_string());
 
         self
     }
