@@ -126,7 +126,7 @@ pub enum CargoWeb {
     /// Deploys your project so that it's ready to be served statically
     Deploy {
         /// Output directory; the default is `$CARGO_TARGET_DIR/deploy`
-        #[structopt(short = "o", long, parse(from_os_str))]
+        #[structopt(short, long, parse(from_os_str))]
         output: Option<PathBuf>,
         #[structopt(flatten)]
         build_args: Build,
@@ -339,7 +339,7 @@ impl BuildExt {
 #[structopt(rename_all = "kebab-case")]
 pub struct Build {
     /// Package to build
-    #[structopt(short = "p", long)]
+    #[structopt(short, long)]
     pub package: Option<String>,
     /// Additional features to build
     #[structopt(long, group = "build_features")]
@@ -360,7 +360,7 @@ pub struct Build {
     #[structopt(long, group = "target_platform", parse(try_from_str))]
     pub target: Option<Backend>,
     /// Use verbose output
-    #[structopt(short = "v", long)]
+    #[structopt(short, long)]
     pub verbose: bool,
 
     // These three are legacy options kept for compatibility.
