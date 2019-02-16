@@ -1,3 +1,5 @@
+//! A `cargo` subcommand for the client-side Web.
+
 #![deny(
     // missing_debug_implementations,
     trivial_numeric_casts,
@@ -99,10 +101,12 @@ use wasm_runtime::RuntimeKind;
 /// CLI for `cargo-web`
 #[derive(Debug, StructOpt)]
 #[structopt(name = "cargo-web")]
+#[structopt(about = "A `cargo` subcommand for the client-side web.")]
 #[structopt(raw(setting = "structopt::clap::AppSettings::ColoredHelp"))]
 #[structopt(rename_all = "kebab-case")]
 pub enum CargoWeb {
     /// Compile a local package and all of its dependencies
+    #[structopt(raw(setting = "structopt::clap::AppSettings::ColoredHelp"))]
     Build {
         #[structopt(flatten)]
         build_args: Build,
@@ -112,6 +116,7 @@ pub enum CargoWeb {
         build_target: Target,
     },
     /// Typecheck a local package and all of its dependencies
+    #[structopt(raw(setting = "structopt::clap::AppSettings::ColoredHelp"))]
     Check {
         #[structopt(flatten)]
         build_args: Build,
@@ -121,6 +126,7 @@ pub enum CargoWeb {
         build_target: Target,
     },
     /// Deploys your project so that it's ready to be served statically
+    #[structopt(raw(setting = "structopt::clap::AppSettings::ColoredHelp"))]
     Deploy {
         /// Output directory; the default is `$CARGO_TARGET_DIR/deploy`
         #[structopt(short = "o", long, parse(from_os_str))]
@@ -129,8 +135,10 @@ pub enum CargoWeb {
         build_args: Build,
     },
     /// Fetches and installs prebuilt Emscripten packages
+    #[structopt(raw(setting = "structopt::clap::AppSettings::ColoredHelp"))]
     PrepareEmscripten,
     /// Runs an embedded web server, which serves the built project
+    #[structopt(raw(setting = "structopt::clap::AppSettings::ColoredHelp"))]
     Start {
         /// Bind the server to this address
         #[structopt(long, parse(try_from_str), default_value = "127.0.0.1")]
@@ -150,6 +158,7 @@ pub enum CargoWeb {
         build_args: Build,
     },
     /// Compiles and runs tests
+    #[structopt(raw(setting = "structopt::clap::AppSettings::ColoredHelp"))]
     Test {
         /// Compile, but don't run tests
         #[structopt(long)]
@@ -159,7 +168,8 @@ pub enum CargoWeb {
         nodejs: bool,
         #[structopt(flatten)]
         build_args: Build,
-        /// -- followed by anything will pass the arguments to the test runner
+        /// all additional arguments will be passed through to the test runner
+        #[structopt(name = "test-args")]
         passthrough: Vec<String>,
     },
 }
@@ -229,6 +239,75 @@ pub struct Target {
     bench: Option<String>,
 }
 
+impl Default for Target {
+    fn default() -> Self {
+        Self {
+            lib: false,
+            bin: None,
+            example: None,
+            test: None,
+            bench: None,
+        }
+    }
+}
+
+impl Target {
+    /// Only build the library portion of the selected package
+    pub fn only_lib(mut self) -> Self {
+        self.lib = true;
+        self.bin.take();
+        self.example.take();
+        self.test.take();
+        self.bench.take();
+
+        self
+    }
+
+    /// Only build the specified binary
+    pub fn only_bin(mut self, s: &str) -> Self {
+        self.lib = false;
+        self.bin.replace(s.to_string());
+        self.example.take();
+        self.test.take();
+        self.bench.take();
+
+        self
+    }
+
+    /// Only build the specified example
+    pub fn only_example(mut self, s: &str) -> Self {
+        self.lib = false;
+        self.bin.take();
+        self.example.replace(s.to_string());
+        self.test.take();
+        self.bench.take();
+
+        self
+    }
+
+    /// Only build the specified test case
+    pub fn only_test(mut self, s: &str) -> Self {
+        self.lib = false;
+        self.bin.take();
+        self.example.take();
+        self.test.replace(s.to_string());
+        self.bench.take();
+
+        self
+    }
+
+    /// Only build the specified benchmark
+    pub fn only_bench(mut self, s: &str) -> Self {
+        self.lib = false;
+        self.bin.take();
+        self.example.take();
+        self.test.take();
+        self.bench.replace(s.to_string());
+
+        self
+    }
+}
+
 /// Specify additional build options
 #[derive(Debug, StructOpt)]
 #[structopt(rename_all = "kebab-case")]
@@ -243,28 +322,46 @@ pub struct BuildExt {
     runtime: Option<RuntimeKind>,
 }
 
+impl Default for BuildExt {
+    fn default() -> Self {
+        Self {
+            message_format: MessageFormat::Json,
+            runtime: None,
+        }
+    }
+}
+
+impl BuildExt {
+    /// Set the message format (for progress messages on stdout).
+    /// Acceptable values are `"human"` (default) and `"json"`.
+    pub fn with_message_fmt(mut self, s: &str) -> Result<Self, Error> {
+        self.message_format = s.parse()?;
+        Ok(self)
+    }
+}
+
 /// Build configuration for one or more targets
 #[derive(Debug, StructOpt)]
 #[structopt(rename_all = "kebab-case")]
 pub struct Build {
     /// Package to build
     #[structopt(short = "p", long)]
-    package: Option<String>,
+    pub package: Option<String>,
     /// Additional features to build
     #[structopt(long, group = "build_features")]
-    features: Vec<String>,
+    pub features: Vec<String>,
     /// Build all available features
     #[structopt(long, group = "build_features")]
-    all_features: bool,
+    pub all_features: bool,
     /// Do not build the `default` feature
     #[structopt(long, group = "build_features")]
-    no_default_features: bool,
+    pub no_default_features: bool,
     /// Won't try to download Emscripten; will always use the system one
     #[structopt(long)]
-    use_system_emscripten: bool,
+    pub use_system_emscripten: bool,
     /// Build artifacts in release mode, with optimizations
     #[structopt(long)]
-    release: bool,
+    pub release: bool,
     /// Build for the target
     #[structopt(
         long,
@@ -272,19 +369,42 @@ pub struct Build {
         default_value = "wasm32-unknown-unknown",
         parse(try_from_str)
     )]
-    target: Backend,
+    pub target: Backend,
     /// Use verbose output
     #[structopt(short = "v", long)]
-    verbose: bool,
+    pub verbose: bool,
 
     // These three are legacy options kept for compatibility.
-    /// Generate asmjs through Emscripten (default)
+    /// Generate `asmjs` with Emscripten
     #[structopt(long, group = "target_platform")]
-    target_asmjs_emscripten: bool,
-    /// Generate webasm through Emscripten
+    pub target_asmjs_emscripten: bool,
+    /// Generate WASM with Emscripten
     #[structopt(long, group = "target_platform")]
-    target_webasm_emscripten: bool,
-    /// Generates webasm through Rust's native backend (HIGHLY EXPERIMENTAL!)
+    pub target_webasm_emscripten: bool,
+    /// Generate WASM with Rust's native backend (default)
     #[structopt(long, group = "target_platform")]
-    target_webasm: bool,
+    pub target_webasm: bool,
+}
+
+impl Default for Build {
+    /// Returns a sensible default config.
+    ///
+    /// # Note
+    /// If you want to change the target triple, use `Into`, e.g.
+    /// `target: "asmjs-unknown-emscripten".into()`
+    fn default() -> Self {
+        Self {
+            package: None,
+            features: Vec::new(),
+            all_features: false,
+            no_default_features: false,
+            use_system_emscripten: false,
+            release: false,
+            target: Backend::WebAssembly,
+            verbose: false,
+            target_asmjs_emscripten: false,
+            target_webasm_emscripten: false,
+            target_webasm: false,
+        }
+    }
 }
