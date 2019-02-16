@@ -1,16 +1,15 @@
 extern crate cargo_web;
-extern crate clap;
 extern crate env_logger;
 extern crate structopt;
 
-use std::env;
+use std::env::var;
 use std::process::exit;
 
 use cargo_web::SubCmds;
 use structopt::StructOpt;
 
 fn main() {
-    if let Ok(value) = env::var("CARGO_WEB_LOG") {
+    if let Ok(value) = var("CARGO_WEB_LOG") {
         let mut builder = env_logger::Builder::new();
         builder.parse(&value);
         builder.init();
