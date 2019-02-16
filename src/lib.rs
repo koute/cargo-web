@@ -163,7 +163,6 @@ pub enum CargoWeb {
         #[structopt(flatten)]
         build_args: Build,
         /// all additional arguments will be passed through to the test runner
-        #[structopt(name = "test-args")]
         passthrough: Vec<String>,
     },
 }
