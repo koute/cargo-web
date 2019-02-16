@@ -130,21 +130,21 @@ impl TargetName {
 
 #[derive(Clone)]
 pub struct BuildArgs {
-    pub features: Vec< String >,
-    pub no_default_features: bool,
-    pub enable_all_features: bool,
+    features: Vec< String >,
+    no_default_features: bool,
+    enable_all_features: bool,
 
-    pub build_type: BuildType,
-    pub use_system_emscripten: bool,
+    build_type: BuildType,
+    use_system_emscripten: bool,
 
-    pub is_verbose: bool,
-    pub message_format: MessageFormat,
+    is_verbose: bool,
+    message_format: MessageFormat,
 
-    pub backend: Option< Backend >,
-    pub runtime: RuntimeKind,
+    backend: Option< Backend >,
+    runtime: RuntimeKind,
 
-    pub package_name: Option< String >,
-    pub target_name: Option< TargetName >
+    package_name: Option< String >,
+    target_name: Option< TargetName >
 }
 
 pub struct AggregatedConfig {
@@ -152,24 +152,6 @@ pub struct AggregatedConfig {
     profile: Profile,
     pub link_args: Vec< String >,
     pub prepend_js: Vec< (PathBuf, String) >
-}
-
-impl Default for BuildArgs {
-    fn default() -> Self {
-        Self {
-            features: Vec::new(),
-            no_default_features: false,
-            enable_all_features: false,
-            build_type: BuildType::Debug,
-            use_system_emscripten: false,
-            is_verbose: false,
-            message_format: MessageFormat::Human,
-            backend: None,
-            runtime: RuntimeKind::Standalone,
-            package_name: None,
-            target_name: None,
-        }
-    }
 }
 
 impl From<super::Build> for BuildArgs {
@@ -195,9 +177,11 @@ impl From<super::Build> for BuildArgs {
             build_type: if b.release { BuildType::Release } else { BuildType::Debug },
             use_system_emscripten: b.use_system_emscripten,
             is_verbose: b.verbose,
-            package_name: b.package,
+            message_format: MessageFormat::Human,
             backend: Some(backend),
-            ..Self::default()
+            runtime: RuntimeKind::Standalone,
+            package_name: b.package,
+            target_name: None,
         }
     }
 }
