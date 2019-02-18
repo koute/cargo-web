@@ -29,9 +29,9 @@ use wasm;
 
 use wasm_runtime::RuntimeKind;
 
-const WASM: &str = "wasm32-unknown-unknown";
-const ASM_JS: &str = "asmjs-unknown-emscripten";
-const WASM_EMCC: &str = "wasm32-unknown-emscripten";
+const ASMJS_UNKNOWN_EMSCRIPTEN: &str = "asmjs-unknown-emscripten";
+const WASM32_UNKNOWN_EMSCRIPTEN: &str = "wasm32-unknown-emscripten";
+const WASM32_UNKNOWN_UNKNOWN: &str = "wasm32-unknown-unknown";
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum PathKind {
@@ -57,9 +57,9 @@ impl FromStr for Backend {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            WASM => Ok(Backend::WebAssembly),
-            WASM_EMCC => Ok(Backend::EmscriptenWebAssembly),
-            ASM_JS => Ok(Backend::EmscriptenAsmJs),
+            WASM32_UNKNOWN_UNKNOWN => Ok(Backend::WebAssembly),
+            WASM32_UNKNOWN_EMSCRIPTEN => Ok(Backend::EmscriptenWebAssembly),
+            ASMJS_UNKNOWN_EMSCRIPTEN => Ok(Backend::EmscriptenAsmJs),
             _ => Err(Error::ConfigurationError(format!(
                 "{} is not a valid target triple.",
                 s
@@ -91,9 +91,9 @@ impl Backend {
 
     pub fn triplet( &self ) -> &str {
         match *self {
-            Backend::EmscriptenAsmJs => ASM_JS,
-            Backend::EmscriptenWebAssembly => WASM_EMCC,
-            Backend::WebAssembly => WASM,
+            Backend::EmscriptenAsmJs => ASMJS_UNKNOWN_EMSCRIPTEN,
+            Backend::EmscriptenWebAssembly => WASM32_UNKNOWN_EMSCRIPTEN,
+            Backend::WebAssembly => WASM32_UNKNOWN_UNKNOWN,
         }
     }
 }
@@ -185,7 +185,7 @@ impl BuildArgs {
                 Some(be) => {
                     return Err(Error::ConfigurationError(format!(
                         "JavaScript runtime can only be specified for target `{}`. (Current target is `{}`)",
-                        WASM,
+                        WASM32_UNKNOWN_UNKNOWN,
                         be.triplet()
                     )));
                 }
