@@ -104,7 +104,7 @@ use wasm_runtime::RuntimeKind;
 #[structopt(about = "A `cargo` subcommand for the client-side web.")]
 #[structopt(raw(global_setting = "structopt::clap::AppSettings::ColoredHelp"))]
 #[structopt(rename_all = "kebab-case")]
-pub enum CargoWeb {
+pub enum CargoWebOpts {
     /// Compile a local package and all of its dependencies
     Build {
         #[structopt(flatten)]
@@ -168,23 +168,23 @@ pub enum CargoWeb {
 }
 
 /// Run a subcommand based on a configuration
-pub fn run(cfg: CargoWeb) -> Result<(), Error> {
+pub fn run(cfg: CargoWebOpts) -> Result<(), Error> {
     match cfg {
-        CargoWeb::Build {
+        CargoWebOpts::Build {
             build_args,
             build_target,
             ext,
         } => cmd_build::command_build(BuildArgs::new(build_args, ext, build_target)?),
-        CargoWeb::Check {
+        CargoWebOpts::Check {
             build_args,
             build_target,
             ext,
         } => cmd_build::command_check(BuildArgs::new(build_args, ext, build_target)?),
-        CargoWeb::Deploy { build_args, output } => {
+        CargoWebOpts::Deploy { build_args, output } => {
             cmd_deploy::command_deploy(build_args.into(), output)
         }
-        CargoWeb::PrepareEmscripten => cmd_prepare_emscripten::command_prepare_emscripten(),
-        CargoWeb::Start {
+        CargoWebOpts::PrepareEmscripten => cmd_prepare_emscripten::command_prepare_emscripten(),
+        CargoWebOpts::Start {
             build_args,
             build_target,
             auto_reload,
@@ -198,7 +198,7 @@ pub fn run(cfg: CargoWeb) -> Result<(), Error> {
             open,
             auto_reload,
         ),
-        CargoWeb::Test {
+        CargoWebOpts::Test {
             build_args,
             nodejs,
             no_run,

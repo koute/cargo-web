@@ -5,7 +5,7 @@ extern crate structopt;
 use std::env::{args, var};
 use std::process::exit;
 
-use cargo_web::{run, CargoWeb};
+use cargo_web::{run, CargoWebOpts};
 use structopt::StructOpt;
 
 macro_rules! target_arg {
@@ -36,7 +36,7 @@ fn main() {
         _ => arg,
     });
 
-    if let Err(error) = run(CargoWeb::from_iter(argv)) {
+    if let Err(error) = run(CargoWebOpts::from_iter(argv)) {
         eprintln!("error: {}", error);
         exit(101);
     }
