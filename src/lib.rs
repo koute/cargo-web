@@ -167,46 +167,45 @@ pub enum CargoWeb {
     },
 }
 
-impl CargoWeb {
-    pub fn run(self) -> Result<(), Error> {
-        match self {
-            CargoWeb::Build {
-                build_args,
-                build_target,
-                ext,
-            } => cmd_build::command_build(BuildArgs::new(build_args, ext, build_target)?),
-            CargoWeb::Check {
-                build_args,
-                build_target,
-                ext,
-            } => cmd_build::command_check(BuildArgs::new(build_args, ext, build_target)?),
-            CargoWeb::Deploy { build_args, output } => {
-                cmd_deploy::command_deploy(build_args.into(), output)
-            }
-            CargoWeb::PrepareEmscripten => cmd_prepare_emscripten::command_prepare_emscripten(),
-            CargoWeb::Start {
-                build_args,
-                build_target,
-                auto_reload,
-                open,
-                port,
-                host,
-            } => cmd_start::command_start(
-                BuildArgs::from(build_args).with_target(build_target),
-                host,
-                port,
-                open,
-                auto_reload,
-            ),
-            CargoWeb::Test {
-                build_args,
-                nodejs,
-                no_run,
-                passthrough,
-            } => {
-                let pass_os = passthrough.iter().map(OsStr::new).collect::<Vec<_>>();
-                cmd_test::command_test(build_args.into(), nodejs, no_run, &pass_os)
-            }
+/// Run a subcommand based on a configuration
+pub fn run(cfg: CargoWeb) -> Result<(), Error> {
+    match cfg {
+        CargoWeb::Build {
+            build_args,
+            build_target,
+            ext,
+        } => cmd_build::command_build(BuildArgs::new(build_args, ext, build_target)?),
+        CargoWeb::Check {
+            build_args,
+            build_target,
+            ext,
+        } => cmd_build::command_check(BuildArgs::new(build_args, ext, build_target)?),
+        CargoWeb::Deploy { build_args, output } => {
+            cmd_deploy::command_deploy(build_args.into(), output)
+        }
+        CargoWeb::PrepareEmscripten => cmd_prepare_emscripten::command_prepare_emscripten(),
+        CargoWeb::Start {
+            build_args,
+            build_target,
+            auto_reload,
+            open,
+            port,
+            host,
+        } => cmd_start::command_start(
+            BuildArgs::from(build_args).with_target(build_target),
+            host,
+            port,
+            open,
+            auto_reload,
+        ),
+        CargoWeb::Test {
+            build_args,
+            nodejs,
+            no_run,
+            passthrough,
+        } => {
+            let pass_os = passthrough.iter().map(OsStr::new).collect::<Vec<_>>();
+            cmd_test::command_test(build_args.into(), nodejs, no_run, &pass_os)
         }
     }
 }
