@@ -165,6 +165,9 @@ pub enum CargoWebOpts {
         /// all additional arguments will be passed through to the test runner
         passthrough: Vec<String>,
     },
+    #[doc(hidden)]
+    #[structopt(raw(setting = "structopt::clap::AppSettings::Hidden"))]
+    NoOp,
 }
 
 /// Run a subcommand based on a configuration
@@ -207,6 +210,7 @@ pub fn run(cfg: CargoWebOpts) -> Result<(), Error> {
             let pass_os = passthrough.iter().map(OsStr::new).collect::<Vec<_>>();
             cmd_test::command_test(build_args.into(), nodejs, no_run, &pass_os)
         }
+        CargoWebOpts::NoOp => Err(Error::ConfigurationError("How did you get here?".into())),
     }
 }
 
