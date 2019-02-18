@@ -29,55 +29,51 @@ fn test_in_nodejs(
     arg_passthrough: &Vec< &OsStr >,
     any_failure: &mut bool
 ) -> Result<(), Error> {
-    let possible_commands = if cfg!( windows ) {
-        &[ "node.exe" ][..]
-    } else {
-        &[ "nodejs", "node" ][..]
-    };
+    let possible_commands =
+        if cfg!( windows ) {
+            &[ "node.exe" ][..]
+        } else {
+            &[ "nodejs", "node" ][..]
+        };
 
-    let nodejs_name = find_cmd(possible_commands).ok_or_else( || {
-            Error::EnvironmentError( "node.js not found; please install it!".into() )
-        })?;
+    let nodejs_name = find_cmd( possible_commands ).ok_or_else( || {
+        Error::EnvironmentError( "node.js not found; please install it!".into() )
+    })?;
 
     let cache_path = PROJECT_DIRS.cache_dir().join( "bin" );
     fs::create_dir_all( &cache_path ).unwrap();
 
     let runner_path = cache_path.join( "test_runner.js" );
-    if !runner_path.exists() || read( &runner_path ).expect( "cannot read test runner" ) != TEST_RUNNER
-    {
+    if !runner_path.exists() || read( &runner_path ).expect( "cannot read test runner" ) != TEST_RUNNER {
         write( &runner_path, &TEST_RUNNER ).expect( "cannot write test runner" );
     }
 
     let js_files: Vec< _ > =
         build.artifacts()
         .iter()
-        .filter(|artifact| artifact.extension().map( |ext| ext == "js" ).unwrap_or( false ))
+        .filter( |artifact| artifact.extension().map( |ext| ext == "js" ).unwrap_or( false ) )
         .collect();
 
     if js_files.is_empty() {
         panic!( "internal error: no .js file found" );
     }
 
-    let artifact = if let Some( artifact ) = js_files.iter().find( |artifact| !artifact.iter().any( |chunk| chunk == "deps" ) )
-    {
+    let artifact = if let Some( artifact ) = js_files.iter().find( |artifact| !artifact.iter().any( |chunk| chunk == "deps" ) ) {
         artifact
     } else {
         js_files[ 0 ]
     };
 
     let test_args = iter::once( runner_path.as_os_str() )
-        .chain( iter::once(OsStr::new(backend.triplet())) )
-        .chain( iter::once(artifact.as_os_str()) )
+        .chain( iter::once( OsStr::new(backend.triplet()) ) )
+        .chain( iter::once( artifact.as_os_str() ) )
         .chain( arg_passthrough.iter().cloned() );
 
     let previous_cwd = env::current_dir().unwrap();
     if backend.is_emscripten_wasm() {
         // On the Emscripten target the `.wasm` file is in a different directory.
         let wasm_artifact = build.artifacts().iter()
-            .find( |artifact| artifact
-                    .extension()
-                    .map( |ext| ext == "wasm" )
-                    .unwrap_or( false ) )
+            .find( |artifact| artifact.extension().map( |ext| ext == "wasm" ).unwrap_or( false ) )
             .expect( "internal error: no .wasm file found" );
 
         env::set_current_dir( wasm_artifact.parent().unwrap() ).unwrap();

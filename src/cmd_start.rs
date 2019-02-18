@@ -258,7 +258,7 @@ pub fn command_start(
     port: u16,
     open: bool,
     auto_reload: bool
-) -> Result< (), Error > {
+) -> Result<(), Error> {
     let project = build_args.load_project()?;
 
     let last_build = {

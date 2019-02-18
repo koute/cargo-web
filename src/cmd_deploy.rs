@@ -10,7 +10,7 @@ use build::BuildArgs;
 use deployment::Deployment;
 use error::Error;
 
-pub fn command_deploy< 'a >(build_args: BuildArgs, directory: Option<PathBuf>) -> Result< (), Error > {
+pub fn command_deploy(build_args: BuildArgs, directory: Option<PathBuf>) -> Result<(), Error> {
     let project = build_args.load_project()?;
 
     let package = project.package();

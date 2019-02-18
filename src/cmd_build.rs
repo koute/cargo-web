@@ -9,7 +9,7 @@ use error::Error;
 pub fn command_build_or_check(build_args: BuildArgs, should_build: bool) -> Result<(), Error> {
     let project = build_args.load_project()?;
 
-    let targets = project.target_or_select(|target| {
+    let targets = project.target_or_select( |target| {
         target.kind == TargetKind::Lib || target.kind == TargetKind::CDyLib || target.kind == TargetKind::Bin
     })?;
 
