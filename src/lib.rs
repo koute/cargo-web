@@ -103,6 +103,7 @@ use wasm_runtime::RuntimeKind;
 #[structopt(name = "cargo-web")]
 #[structopt(about = "A `cargo` subcommand for the client-side web.")]
 #[structopt(raw(global_setting = "structopt::clap::AppSettings::ColoredHelp"))]
+#[structopt(raw(setting = "structopt::clap::AppSettings::VersionlessSubcommands"))]
 #[structopt(rename_all = "kebab-case")]
 pub enum CargoWebOpts {
     /// Compile a local package and all of its dependencies
