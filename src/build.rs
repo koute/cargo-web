@@ -157,7 +157,7 @@ pub struct AggregatedConfig {
 impl From<super::Build> for BuildArgs {
     fn from(b: super::Build) -> Self {
         Self {
-            features: b.features,
+            features: b.features.unwrap_or_default().split(' ').map(String::from).collect(),
             no_default_features: b.no_default_features,
             enable_all_features: b.all_features,
             build_type: if b.release { BuildType::Release } else { BuildType::Debug },

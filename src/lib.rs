@@ -340,9 +340,9 @@ pub struct Build {
     /// Package to build
     #[structopt(short, long)]
     pub package: Option<String>,
-    /// Additional features to build
+    /// Additional features to build (space-delimited list)
     #[structopt(long, group = "build_features")]
-    pub features: Vec<String>,
+    pub features: Option<String>,
     /// Build all available features
     #[structopt(long, group = "build_features")]
     pub all_features: bool,
@@ -372,7 +372,7 @@ impl Default for Build {
     fn default() -> Self {
         Self {
             package: None,
-            features: Vec::new(),
+            features: None,
             all_features: false,
             no_default_features: false,
             use_system_emscripten: false,
