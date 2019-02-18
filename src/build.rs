@@ -164,7 +164,7 @@ impl From<super::Build> for BuildArgs {
             use_system_emscripten: b.use_system_emscripten,
             is_verbose: b.verbose,
             message_format: MessageFormat::Human,
-            backend: Some(b.target),
+            backend: b.target,
             runtime: RuntimeKind::Standalone,
             package_name: b.package,
             target_name: None,

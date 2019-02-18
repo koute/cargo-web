@@ -358,8 +358,8 @@ pub struct Build {
     #[structopt(long)]
     pub release: bool,
     /// Target triple to build for
-    #[structopt(long, parse(try_from_str), default_value = "wasm32-unknown-unknown")]
-    pub target: Backend,
+    #[structopt(long, parse(try_from_str))]
+    pub target: Option<Backend>,
     /// Use verbose output
     #[structopt(short = "v", long)]
     pub verbose: bool,
@@ -379,7 +379,7 @@ impl Default for Build {
             no_default_features: false,
             use_system_emscripten: false,
             release: false,
-            target: Backend::WebAssembly,
+            target: None,
             verbose: false,
         }
     }
