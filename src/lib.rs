@@ -94,7 +94,7 @@ use std::net::IpAddr;
 use std::path::PathBuf;
 
 use build::{Backend, BuildArgs};
-use cargo_shim::MessageFormat;
+pub use cargo_shim::MessageFormat;
 use error::Error;
 use wasm_runtime::RuntimeKind;
 
@@ -329,10 +329,9 @@ impl Default for BuildExt {
 
 impl BuildExt {
     /// Set the message format (for progress messages on stdout).
-    /// Acceptable values are `"human"` (default) and `"json"`.
-    pub fn with_message_fmt(mut self, s: &str) -> Result<Self, Error> {
-        self.message_format = s.parse()?;
-        Ok(self)
+    pub fn with_message_fmt(mut self, fmt: MessageFormat) -> Self {
+        self.message_format = fmt;
+        self
     }
 }
 

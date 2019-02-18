@@ -525,7 +525,9 @@ impl BuildTarget {
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum MessageFormat {
     Human,
-    Json
+    Json,
+    #[doc(hidden)]
+    Other,
 }
 
 impl FromStr for MessageFormat {
@@ -789,7 +791,7 @@ impl BuildConfig {
                 match output {
                     CargoOutput::Message( message ) => {
                         match self.message_format {
-                            MessageFormat::Human => diagnostic_formatter::print( self.use_color, &message ),
+                            MessageFormat::Human | MessageFormat::Other => diagnostic_formatter::print( self.use_color, &message ),
                             MessageFormat::Json => {
                                 println!( "{}", serde_json::to_string( &message.to_json_value() ).unwrap() );
                             }
@@ -804,7 +806,7 @@ impl BuildConfig {
                     },
                     CargoOutput::BuildScriptExecuted( executed ) => {
                         match self.message_format {
-                            MessageFormat::Human => {},
+                            MessageFormat::Human | MessageFormat::Other => {},
                             MessageFormat::Json => {
                                 println!( "{}", serde_json::to_string( &executed.to_json_value() ).unwrap() );
                             }
@@ -888,7 +890,7 @@ impl BuildConfig {
             }
 
             match self.message_format {
-                MessageFormat::Human => {},
+                MessageFormat::Human | MessageFormat::Other => {},
                 MessageFormat::Json => {
                     println!( "{}", serde_json::to_string( &artifact.to_json_value() ).unwrap() );
                 }
