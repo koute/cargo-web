@@ -99,7 +99,7 @@ impl Backend {
 }
 
 #[derive(Clone)]
-pub enum TargetName {
+enum TargetName {
     Lib,
     Bin( String ),
     Example( String ),
