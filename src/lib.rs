@@ -107,65 +107,17 @@ use wasm_runtime::RuntimeKind;
 #[structopt(rename_all = "kebab-case")]
 pub enum CargoWebOpts {
     /// Compile a local package and all of its dependencies
-    Build {
-        #[structopt(flatten)]
-        build_args: Build,
-        #[structopt(flatten)]
-        ext: BuildExt,
-        #[structopt(flatten)]
-        build_target: Target,
-    },
+    Build(BuildOpts),
     /// Typecheck a local package and all of its dependencies
-    Check {
-        #[structopt(flatten)]
-        build_args: Build,
-        #[structopt(flatten)]
-        ext: BuildExt,
-        #[structopt(flatten)]
-        build_target: Target,
-    },
+    Check(CheckOpts),
     /// Deploys your project so that it's ready to be served statically
-    Deploy {
-        /// Output directory; the default is `$CARGO_TARGET_DIR/deploy`
-        #[structopt(short = "o", long, parse(from_os_str))]
-        output: Option<PathBuf>,
-        #[structopt(flatten)]
-        build_args: Build,
-    },
+    Deploy(DeployOpts),
     /// Fetches and installs prebuilt Emscripten packages
-    PrepareEmscripten,
+    PrepareEmscripten(PrepareEmscriptenOpts),
     /// Runs an embedded web server, which serves the built project
-    Start {
-        /// Bind the server to this address
-        #[structopt(long, parse(try_from_str), default_value = "127.0.0.1")]
-        host: IpAddr,
-        /// Bind the server to this port
-        #[structopt(long, default_value = "8000")]
-        port: u16,
-        /// Open browser after server starts
-        #[structopt(long)]
-        open: bool,
-        /// Will try to automatically reload the page on rebuild
-        #[structopt(long)]
-        auto_reload: bool,
-        #[structopt(flatten)]
-        build_target: Target,
-        #[structopt(flatten)]
-        build_args: Build,
-    },
+    Start(StartOpts),
     /// Compiles and runs tests
-    Test {
-        /// Compile, but don't run tests
-        #[structopt(long)]
-        no_run: bool,
-        /// Uses Node.js to run the tests
-        #[structopt(long)]
-        nodejs: bool,
-        #[structopt(flatten)]
-        build_args: Build,
-        /// all additional arguments will be passed through to the test runner
-        passthrough: Vec<String>,
-    },
+    Test(TestOpts),
     #[doc(hidden)]
     #[structopt(raw(setting = "structopt::clap::AppSettings::Hidden"))]
     NoOp,
@@ -174,45 +126,109 @@ pub enum CargoWebOpts {
 /// Run a subcommand based on a configuration
 pub fn run(cfg: CargoWebOpts) -> Result<(), Error> {
     match cfg {
-        CargoWebOpts::Build {
+        CargoWebOpts::Build(BuildOpts {
             build_args,
             build_target,
             ext,
-        } => cmd_build::command_build(BuildArgs::new(build_args, ext, build_target)?),
-        CargoWebOpts::Check {
+        }) => cmd_build::command_build(BuildArgs::new(build_args, ext, build_target)?),
+        CargoWebOpts::Check(CheckOpts {
             build_args,
             build_target,
             ext,
-        } => cmd_build::command_check(BuildArgs::new(build_args, ext, build_target)?),
-        CargoWebOpts::Deploy { build_args, output } => {
+        }) => cmd_build::command_check(BuildArgs::new(build_args, ext, build_target)?),
+        CargoWebOpts::Deploy(DeployOpts { build_args, output }) => {
             cmd_deploy::command_deploy(build_args.into(), output)
         }
-        CargoWebOpts::PrepareEmscripten => cmd_prepare_emscripten::command_prepare_emscripten(),
-        CargoWebOpts::Start {
+        CargoWebOpts::PrepareEmscripten(_) => cmd_prepare_emscripten::command_prepare_emscripten(),
+        CargoWebOpts::Start(StartOpts {
             build_args,
             build_target,
             auto_reload,
             open,
             port,
             host,
-        } => cmd_start::command_start(
+        }) => cmd_start::command_start(
             BuildArgs::from(build_args).with_target(build_target),
             host,
             port,
             open,
             auto_reload,
         ),
-        CargoWebOpts::Test {
+        CargoWebOpts::Test(TestOpts {
             build_args,
             nodejs,
             no_run,
             passthrough,
-        } => {
+        }) => {
             let pass_os = passthrough.iter().map(OsStr::new).collect::<Vec<_>>();
             cmd_test::command_test(build_args.into(), nodejs, no_run, &pass_os)
         }
         CargoWebOpts::NoOp => Err(Error::ConfigurationError("How did you get here?".into())),
     }
+}
+
+/// Options for `cargo web build`
+#[derive(Debug, StructOpt)]
+pub struct BuildOpts {
+    #[structopt(flatten)]
+    build_args: Build,
+    #[structopt(flatten)]
+    ext: BuildExt,
+    #[structopt(flatten)]
+    build_target: Target,
+}
+
+/// Options for `cargo web check`
+pub type CheckOpts = BuildOpts;
+
+/// Options for `cargo web deploy`
+#[derive(Debug, StructOpt)]
+pub struct DeployOpts {
+    /// Output directory; the default is `$CARGO_TARGET_DIR/deploy`
+    #[structopt(short = "o", long, parse(from_os_str))]
+    output: Option<PathBuf>,
+    #[structopt(flatten)]
+    build_args: Build,
+}
+
+/// Options for `cargo web prepare-emscripten`
+#[derive(Debug, StructOpt)]
+pub struct PrepareEmscriptenOpts {}
+
+/// Options for `cargo web start`
+#[derive(Debug, StructOpt)]
+pub struct StartOpts {
+    /// Bind the server to this address
+    #[structopt(long, parse(try_from_str), default_value = "127.0.0.1")]
+    host: IpAddr,
+    /// Bind the server to this port
+    #[structopt(long, default_value = "8000")]
+    port: u16,
+    /// Open browser after server starts
+    #[structopt(long)]
+    open: bool,
+    /// Will try to automatically reload the page on rebuild
+    #[structopt(long)]
+    auto_reload: bool,
+    #[structopt(flatten)]
+    build_target: Target,
+    #[structopt(flatten)]
+    build_args: Build,
+}
+
+/// Options for `cargo web test`
+#[derive(Debug, StructOpt)]
+pub struct TestOpts {
+    /// Compile, but don't run tests
+    #[structopt(long)]
+    no_run: bool,
+    /// Uses Node.js to run the tests
+    #[structopt(long)]
+    nodejs: bool,
+    #[structopt(flatten)]
+    build_args: Build,
+    /// all additional arguments will be passed through to the test runner
+    passthrough: Vec<String>,
 }
 
 /// Select a target to build
