@@ -90,7 +90,7 @@ mod wasm_js_snippet;
 mod wasm_runtime;
 
 use std::ffi::OsStr;
-use std::net::IpAddr;
+use std::net::{IpAddr, ToSocketAddrs};
 use std::path::PathBuf;
 
 use build::{Backend, BuildArgs};
@@ -199,7 +199,11 @@ pub struct PrepareEmscriptenOpts {}
 #[derive(Debug, StructOpt)]
 pub struct StartOpts {
     /// Bind the server to this address
-    #[structopt(long, parse(try_from_str), default_value = "127.0.0.1")]
+    #[structopt(
+        long,
+        parse(try_from_str = "resolve_host"),
+        default_value = "localhost"
+    )]
     host: IpAddr,
     /// Bind the server to this port
     #[structopt(long, default_value = "8000")]
@@ -418,4 +422,11 @@ impl Default for Build {
             verbose: false,
         }
     }
+}
+
+/// Resolve hostname to IP address
+fn resolve_host(host: &str) -> std::io::Result<IpAddr> {
+    (host, 0)
+        .to_socket_addrs()
+        .map(|itr| itr.map(|a| a.ip()).collect::<Vec<_>>()[0])
 }
