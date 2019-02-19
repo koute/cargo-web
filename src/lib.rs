@@ -326,12 +326,22 @@ impl Target {
 #[structopt(rename_all = "kebab-case")]
 pub struct BuildExt {
     /// Selects the stdout output format
-    #[structopt(long, default_value = "human", parse(try_from_str))]
+    #[structopt(
+        long,
+        default_value = "human",
+        parse(try_from_str),
+        raw(possible_values = "&[\"human\", \"json\"]"),
+        raw(set = "structopt::clap::ArgSettings::NextLineHelp")
+    )]
     message_format: MessageFormat,
     /// Selects the type of JavaScript runtime which will be generated
-    ///
-    /// Valid only for the `wasm32-unknown-unknown` target.
-    #[structopt(long, parse(try_from_str))]
+    /// (Only valid when targeting `wasm32-unknown-unknown`).
+    #[structopt(
+        long,
+        parse(try_from_str),
+        raw(possible_values = "&[\"standalone\", \"library-es6\", \"web-extension\"]"),
+        raw(set = "structopt::clap::ArgSettings::NextLineHelp")
+    )]
     runtime: Option<RuntimeKind>,
 }
 
@@ -374,8 +384,16 @@ pub struct Build {
     /// Build artifacts in release mode, with optimizations
     #[structopt(long)]
     pub release: bool,
-    /// Target triple to build for
-    #[structopt(long, parse(try_from_str))]
+    /// Target triple to build for, overriding setting in `Web.toml`. If not
+    /// specified in `Web.toml`, default target is `wasm32-unknown-unknown`.
+    #[structopt(
+        long,
+        parse(try_from_str),
+        raw(
+            possible_values = "&[\"wasm32-unknown-unknown\", \"wasm32-unknown-emscripten\", \"asmjs-unknown-emscripten\"]"
+        ),
+        raw(set = "structopt::clap::ArgSettings::NextLineHelp")
+    )]
     pub target: Option<Backend>,
     /// Use verbose output
     #[structopt(short = "v", long)]
