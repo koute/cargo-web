@@ -169,6 +169,7 @@ pub fn run(cfg: CargoWebOpts) -> Result<(), Error> {
 
 /// Options for `cargo web build`
 #[derive(Debug, StructOpt)]
+#[structopt(rename_all = "kebab-case")]
 pub struct BuildOpts {
     #[structopt(flatten)]
     build_args: Build,
@@ -183,6 +184,7 @@ pub type CheckOpts = BuildOpts;
 
 /// Options for `cargo web deploy`
 #[derive(Debug, StructOpt)]
+#[structopt(rename_all = "kebab-case")]
 pub struct DeployOpts {
     /// Output directory; the default is `$CARGO_TARGET_DIR/deploy`
     #[structopt(short = "o", long, parse(from_os_str))]
@@ -193,10 +195,12 @@ pub struct DeployOpts {
 
 /// Options for `cargo web prepare-emscripten`
 #[derive(Debug, StructOpt)]
+#[structopt(rename_all = "kebab-case")]
 pub struct PrepareEmscriptenOpts {}
 
 /// Options for `cargo web start`
 #[derive(Debug, StructOpt)]
+#[structopt(rename_all = "kebab-case")]
 pub struct StartOpts {
     /// Bind the server to this address
     #[structopt(
@@ -222,6 +226,7 @@ pub struct StartOpts {
 
 /// Options for `cargo web test`
 #[derive(Debug, StructOpt)]
+#[structopt(rename_all = "kebab-case")]
 pub struct TestOpts {
     /// Compile, but don't run tests
     #[structopt(long)]
