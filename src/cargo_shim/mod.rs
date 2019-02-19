@@ -527,7 +527,7 @@ pub enum MessageFormat {
     Human,
     Json,
     #[doc(hidden)]
-    Other,
+    __Nonexhaustive,
 }
 
 impl FromStr for MessageFormat {
@@ -791,10 +791,11 @@ impl BuildConfig {
                 match output {
                     CargoOutput::Message( message ) => {
                         match self.message_format {
-                            MessageFormat::Human | MessageFormat::Other => diagnostic_formatter::print( self.use_color, &message ),
+                            MessageFormat::Human => diagnostic_formatter::print( self.use_color, &message ),
                             MessageFormat::Json => {
                                 println!( "{}", serde_json::to_string( &message.to_json_value() ).unwrap() );
                             }
+                            MessageFormat::__Nonexhaustive => unreachable!(),
                         }
                     },
                     CargoOutput::Artifact( artifact ) => {
@@ -806,10 +807,11 @@ impl BuildConfig {
                     },
                     CargoOutput::BuildScriptExecuted( executed ) => {
                         match self.message_format {
-                            MessageFormat::Human | MessageFormat::Other => {},
+                            MessageFormat::Human => {},
                             MessageFormat::Json => {
                                 println!( "{}", serde_json::to_string( &executed.to_json_value() ).unwrap() );
                             }
+                            MessageFormat::__Nonexhaustive => unreachable!(),
                         }
                     }
                 }
@@ -890,10 +892,11 @@ impl BuildConfig {
             }
 
             match self.message_format {
-                MessageFormat::Human | MessageFormat::Other => {},
+                MessageFormat::Human => {},
                 MessageFormat::Json => {
                     println!( "{}", serde_json::to_string( &artifact.to_json_value() ).unwrap() );
                 }
+                MessageFormat::__Nonexhaustive => unreachable!(),
             }
 
             for filename in artifact.filenames {
