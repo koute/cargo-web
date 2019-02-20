@@ -344,11 +344,11 @@ pub struct BuildExt {
     )]
     message_format: MessageFormat,
     /// Selects the type of JavaScript runtime which will be generated
-    /// (Only valid when targeting `wasm32-unknown-unknown`).
+    /// (Only valid when targeting `wasm32-unknown-unknown`). [possible values:
+    /// standalone, library-es6, web-extension]
     #[structopt(
         long,
         parse(try_from_str),
-        raw(possible_values = "&[\"standalone\", \"library-es6\", \"web-extension\"]"),
         raw(set = "structopt::clap::ArgSettings::NextLineHelp")
     )]
     runtime: Option<RuntimeKind>,
