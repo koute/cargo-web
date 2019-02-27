@@ -94,7 +94,7 @@ use std::net::{IpAddr, ToSocketAddrs};
 use std::path::PathBuf;
 
 use build::{Backend, BuildArgs};
-pub use cargo_shim::MessageFormat;
+use cargo_shim::MessageFormat;
 use error::Error;
 use wasm_runtime::RuntimeKind;
 
@@ -256,7 +256,7 @@ pub struct TestOpts {
 /// Select a target to build
 #[derive(Debug, StructOpt)]
 #[structopt(rename_all = "kebab-case")]
-pub struct Target {
+struct Target {
     /// Build only this package's library
     #[structopt(long, group = "target_type")]
     lib: bool,
@@ -286,67 +286,10 @@ impl Default for Target {
     }
 }
 
-impl Target {
-    /// Only build the library portion of the selected package
-    pub fn only_lib(mut self) -> Self {
-        self.lib = true;
-        self.bin.take();
-        self.example.take();
-        self.test.take();
-        self.bench.take();
-
-        self
-    }
-
-    /// Only build the specified binary
-    pub fn only_bin(mut self, s: &str) -> Self {
-        self.lib = false;
-        self.bin = Some(s.to_string());
-        self.example.take();
-        self.test.take();
-        self.bench.take();
-
-        self
-    }
-
-    /// Only build the specified example
-    pub fn only_example(mut self, s: &str) -> Self {
-        self.lib = false;
-        self.bin.take();
-        self.example = Some(s.to_string());
-        self.test.take();
-        self.bench.take();
-
-        self
-    }
-
-    /// Only build the specified test case
-    pub fn only_test(mut self, s: &str) -> Self {
-        self.lib = false;
-        self.bin.take();
-        self.example.take();
-        self.test = Some(s.to_string());
-        self.bench.take();
-
-        self
-    }
-
-    /// Only build the specified benchmark
-    pub fn only_bench(mut self, s: &str) -> Self {
-        self.lib = false;
-        self.bin.take();
-        self.example.take();
-        self.test.take();
-        self.bench = Some(s.to_string());
-
-        self
-    }
-}
-
 /// Specify additional build options
 #[derive(Debug, StructOpt)]
 #[structopt(rename_all = "kebab-case")]
-pub struct BuildExt {
+struct BuildExt {
     /// Selects the stdout output format
     #[structopt(
         long,
@@ -376,18 +319,10 @@ impl Default for BuildExt {
     }
 }
 
-impl BuildExt {
-    /// Set the message format (for progress messages on stdout).
-    pub fn with_message_fmt(mut self, fmt: MessageFormat) -> Self {
-        self.message_format = fmt;
-        self
-    }
-}
-
 /// Build configuration for one or more targets
 #[derive(Debug, StructOpt)]
 #[structopt(rename_all = "kebab-case")]
-pub struct Build {
+struct Build {
     /// Package to build
     #[structopt(short = "p", long)]
     pub package: Option<String>,

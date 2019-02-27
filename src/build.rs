@@ -173,7 +173,7 @@ impl From<super::Build> for BuildArgs {
 }
 
 impl BuildArgs {
-    pub fn new(build: super::Build, ext: super::BuildExt, target: super::Target) -> Result<Self, Error> {
+    pub(crate) fn new(build: super::Build, ext: super::BuildExt, target: super::Target) -> Result<Self, Error> {
         let mut out = Self::from(build).with_target(target);
         out.message_format = ext.message_format;
 
@@ -195,7 +195,7 @@ impl BuildArgs {
         Ok(out)
     }
 
-    pub fn with_target(mut self, target: super::Target) -> Self {
+    pub(crate) fn with_target(mut self, target: super::Target) -> Self {
         self.target_name = TargetName::from(target);
         self
     }
