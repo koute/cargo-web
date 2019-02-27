@@ -205,7 +205,11 @@ pub struct DeployOpts {
 /// Options for `cargo web prepare-emscripten`
 #[derive(Debug, StructOpt)]
 #[structopt(rename_all = "kebab-case")]
-pub struct PrepareEmscriptenOpts {}
+pub struct PrepareEmscriptenOpts {
+    #[doc(hidden)]
+    #[structopt(raw(set = "structopt::clap::ArgSettings::Hidden"))]
+    __reserved: bool,
+}
 
 /// Options for `cargo web start`
 #[derive(Debug, StructOpt)]
