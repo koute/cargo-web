@@ -4,8 +4,6 @@ use std::env;
 use std::fs;
 use std::ffi::OsStr;
 
-use clap;
-
 use cargo_shim::{
     Profile,
     CargoResult,
@@ -30,8 +28,7 @@ fn test_in_nodejs(
     build: CargoResult,
     arg_passthrough: &Vec< &OsStr >,
     any_failure: &mut bool
-) -> Result< (), Error > {
-
+) -> Result<(), Error> {
     let possible_commands =
         if cfg!( windows ) {
             &[ "node.exe" ][..]
@@ -68,7 +65,7 @@ fn test_in_nodejs(
     };
 
     let test_args = iter::once( runner_path.as_os_str() )
-        .chain( iter::once( OsStr::new( backend.triplet() ) ) )
+        .chain( iter::once( OsStr::new(backend.triplet()) ) )
         .chain( iter::once( artifact.as_os_str() ) )
         .chain( arg_passthrough.iter().cloned() );
 
@@ -98,15 +95,13 @@ fn test_in_nodejs(
     Ok(())
 }
 
-pub fn command_test< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Error > {
-    let build_args = BuildArgs::new( matches )?;
+pub fn command_test<'a>(
+    build_args: BuildArgs,
+    use_nodejs: bool,
+    no_run: bool,
+    arg_passthrough: &Vec<&OsStr>,
+) -> Result<(), Error> {
     let project = build_args.load_project()?;
-
-    let use_nodejs = matches.is_present( "nodejs" );
-    let no_run = matches.is_present( "no-run" );
-
-    let arg_passthrough = matches.values_of_os( "passthrough" )
-        .map_or( vec![], |args| args.collect() );
 
     let targets = project.target_or_select( |target| {
         target.kind == TargetKind::Lib ||

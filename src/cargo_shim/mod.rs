@@ -8,7 +8,7 @@ use std::ops::Deref;
 use std::cell::Cell;
 use std::env;
 use std::thread;
-use std::str;
+use std::str::{self, FromStr};
 use std::error;
 use std::fmt;
 
@@ -525,7 +525,24 @@ impl BuildTarget {
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum MessageFormat {
     Human,
-    Json
+    Json,
+    #[doc(hidden)]
+    __Nonexhaustive,
+}
+
+impl FromStr for MessageFormat {
+    type Err = super::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "human" => Ok(MessageFormat::Human),
+            "json" => Ok(MessageFormat::Json),
+            _ => Err(super::Error::ConfigurationError(format!(
+                "{} is not a valid message format. Possible values are `human` and `json`.",
+                s
+            ))),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -778,6 +795,7 @@ impl BuildConfig {
                             MessageFormat::Json => {
                                 println!( "{}", serde_json::to_string( &message.to_json_value() ).unwrap() );
                             }
+                            MessageFormat::__Nonexhaustive => unreachable!(),
                         }
                     },
                     CargoOutput::Artifact( artifact ) => {
@@ -793,6 +811,7 @@ impl BuildConfig {
                             MessageFormat::Json => {
                                 println!( "{}", serde_json::to_string( &executed.to_json_value() ).unwrap() );
                             }
+                            MessageFormat::__Nonexhaustive => unreachable!(),
                         }
                     }
                 }
@@ -877,6 +896,7 @@ impl BuildConfig {
                 MessageFormat::Json => {
                     println!( "{}", serde_json::to_string( &artifact.to_json_value() ).unwrap() );
                 }
+                MessageFormat::__Nonexhaustive => unreachable!(),
             }
 
             for filename in artifact.filenames {

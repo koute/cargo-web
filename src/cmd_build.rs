@@ -1,5 +1,3 @@
-use clap;
-
 use cargo_shim::{
     Profile,
     TargetKind
@@ -8,8 +6,7 @@ use cargo_shim::{
 use build::BuildArgs;
 use error::Error;
 
-fn command_build_or_check< 'a >( matches: &clap::ArgMatches< 'a >, should_build: bool ) -> Result< (), Error > {
-    let build_args = BuildArgs::new( matches )?;
+pub fn command_build_or_check(build_args: BuildArgs, should_build: bool) -> Result<(), Error> {
     let project = build_args.load_project()?;
 
     let targets = project.target_or_select( |target| {
@@ -28,10 +25,10 @@ fn command_build_or_check< 'a >( matches: &clap::ArgMatches< 'a >, should_build:
     Ok(())
 }
 
-pub fn command_build< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Error > {
-    command_build_or_check( matches, true )
+pub fn command_build(args: BuildArgs) -> Result<(), Error> {
+    command_build_or_check(args, true)
 }
 
-pub fn command_check< 'a >( matches: &clap::ArgMatches< 'a > ) -> Result< (), Error > {
-    command_build_or_check( matches, false )
+pub fn command_check(args: BuildArgs) -> Result<(), Error> {
+    command_build_or_check(args, false)
 }

@@ -51,6 +51,7 @@ http = "0.1.13"
 futures = "0.1.17"
 open = "1"
 failure = "0.1"
+structopt = "0.2.14"
 
 [dependencies.semver]
 features = ["serde"]
