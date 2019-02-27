@@ -180,7 +180,16 @@ pub struct BuildOpts {
 }
 
 /// Options for `cargo web check`
-pub type CheckOpts = BuildOpts;
+#[derive(Debug, StructOpt)]
+#[structopt(rename_all = "kebab-case")]
+pub struct CheckOpts {
+    #[structopt(flatten)]
+    build_args: Build,
+    #[structopt(flatten)]
+    ext: BuildExt,
+    #[structopt(flatten)]
+    build_target: Target,
+}
 
 /// Options for `cargo web deploy`
 #[derive(Debug, StructOpt)]
