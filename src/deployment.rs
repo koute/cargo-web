@@ -113,9 +113,9 @@ impl Deployment {
 
         let mut routes = Vec::new();
         for path in result.artifacts() {
-            let (is_js, key) = match path.extension() {
-                Some( ext ) if ext == "js" => (true, js_name.clone()),
-                Some( ext ) if ext == "wasm" => (false, path.file_name().unwrap().to_string_lossy().into_owned()),
+            let (is_js, key) = match (path.file_stem(), path.extension()) {
+                (Some( stem ), Some( ext )) if stem == target.name.as_str() && ext == "js" => (true, js_name.clone()),
+                (_, Some( ext )) if ext == "wasm" => (false, path.file_name().unwrap().to_string_lossy().into_owned()),
                 _ => continue
             };
 
