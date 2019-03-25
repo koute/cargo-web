@@ -311,7 +311,7 @@ impl Project {
         }))
     }
 
-    fn used_packages( &self, profile: Profile ) -> Vec< &CargoPackage > {
+    pub fn used_packages( &self, profile: Profile ) -> Vec< &CargoPackage > {
         let main_package = self.package();
         let mut packages = self.project.used_packages(
             self.backend().triplet(),
