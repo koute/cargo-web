@@ -10,8 +10,11 @@ use cargo_shim::{
     TargetKind,
     CargoPackage,
     CargoTarget,
-    CargoResult
+    CargoResult,
+    Profile
 };
+
+use build::Project;
 
 use error::Error;
 use utils::read_bytes;
@@ -101,8 +104,9 @@ impl Artifact {
 }
 
 impl Deployment {
-    pub fn new( package: &CargoPackage, target: &CargoTarget, result: &CargoResult ) -> Result< Self, Error > {
-        let crate_static_path = package.crate_root.join( "static" );
+    pub fn new( project: &Project, target: &CargoTarget, result: &CargoResult ) -> Result< Self, Error > {
+        let package = project.package();
+
         let target_static_path = match target.kind {
             TargetKind::Example => Some( target.source_directory.join( format!( "{}-static", target.name ) ) ),
             TargetKind::Bin => Some( target.source_directory.join( "static" ) ),
@@ -150,11 +154,13 @@ impl Deployment {
             });
         }
 
-        routes.push( Route {
-            key: "".to_owned(),
-            kind: RouteKind::StaticDirectory( crate_static_path.to_owned() ),
-            can_be_deployed: true
-        });
+        for package in project.used_packages(Profile::Main) {
+            routes.push( Route {
+                key: "".to_owned(),
+                kind: RouteKind::StaticDirectory( package.crate_root.join( "static" ) ),
+                can_be_deployed: true
+            })
+        }
 
         routes.push( Route {
             key: "index.html".to_owned(),
