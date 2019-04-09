@@ -29,12 +29,23 @@ fn main() {
         builder.init();
     }
 
-    let argv = args().into_iter().map(|arg| match arg.as_ref() {
+    let mut argv = Vec::new();
+    let mut args = args().into_iter();
+    argv.extend( args.next() );
+
+    match args.next() {
+        Some( ref arg ) if arg != "web" => argv.push( arg.clone() ),
+        _ => {}
+    }
+
+    let args = args.map(|arg| match arg.as_ref() {
         "--target-webasm" => target_arg!("webasm", wasm32 unknown),
         "--target-webasm-emscripten" => target_arg!("webasm-emscripten", wasm32 emscripten),
         "--target-asmjs-emscripten" => target_arg!("asmjs-emscripten", asmjs emscripten),
         _ => arg,
     });
+
+    argv.extend( args );
 
     if let Err(error) = run(CargoWebOpts::from_iter(argv)) {
         eprintln!("error: {}", error);

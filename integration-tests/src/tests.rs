@@ -534,3 +534,9 @@ fn runtime_library_es6() {
         result.assert_success();
     }
 }
+
+#[test]
+fn supports_being_called_through_cargo() {
+    let cwd = crate_path( "rlib" );
+    run( &cwd, &*CARGO_WEB, &["web", "build"] ).assert_success();
+}
