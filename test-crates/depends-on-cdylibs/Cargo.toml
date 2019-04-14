@@ -1,0 +1,11 @@
+[package]
+name = "depends-on-cdylibs"
+version = "0.1.0"
+authors = ["Jan Bujak <j@exia.io>"]
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+cdylib-with-rlib = { path = "../cdylib-with-rlib" }
+rlib-with-cdylib = { path = "../rlib-with-cdylib" }

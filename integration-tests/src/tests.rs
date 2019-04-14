@@ -540,3 +540,19 @@ fn supports_being_called_through_cargo() {
     let cwd = crate_path( "rlib" );
     run( &cwd, &*CARGO_WEB, &["web", "build"] ).assert_success();
 }
+
+#[test]
+fn depends_on_cdylibs() {
+    let cwd = crate_path( "depends-on-cdylibs" );
+    run( &cwd, &*CARGO_WEB, &["build", "--target", "wasm32-unknown-unknown"] ).assert_success();
+    run( &cwd, &*CARGO_WEB, &["deploy", "--target", "wasm32-unknown-unknown"] ).assert_success();
+    let js_path = cwd.join( "target/deploy/depends-on-cdylibs.js" );
+    assert_file_exists( &js_path );
+    assert_file_exists( cwd.join( "target/deploy/depends_on_cdylibs.wasm" ) );
+    assert_file_missing( cwd.join( "target/deploy/cdylib-with-rlib.js" ) );
+    assert_file_missing( cwd.join( "target/deploy/cdylib_with_rlib.wasm" ) );
+    assert_file_missing( cwd.join( "target/deploy/rlib-with-cdylib.js" ) );
+    assert_file_missing( cwd.join( "target/deploy/rlib_with_cdylib.wasm" ) );
+
+    assert_file_contains( js_path, "depends_on_cdylibs.wasm" );
+}

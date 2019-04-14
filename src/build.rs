@@ -703,9 +703,23 @@ impl Project {
         let result = if !should_build {
             build_config.check()
         } else {
+            let is_wasm32_unknown_unknown =
+                build_config.triplet.as_ref()
+                    .map( |triplet| triplet == "wasm32-unknown-unknown" )
+                    .unwrap_or( false );
+
             build_config.build( Some( |artifacts: Vec< PathBuf >| {
                 let mut out = Vec::new();
                 for path in artifacts {
+                    let skip =
+                        is_wasm32_unknown_unknown &&
+                        path.extension().map( |ext| ext == "wasm" ).unwrap_or( false ) &&
+                        path.parent().and_then( |parent| parent.file_name() ).map( |dir| dir == "deps" ).unwrap_or( false );
+
+                    if skip {
+                        continue;
+                    }
+
                     if let Some( artifact ) = wasm::process_wasm_file( config.uses_old_stdweb, self.build_args.runtime, &build_config, &prepend_js, target_dir, &path ) {
                         debug!( "Generated artifact: {:?}", artifact );
                         out.push( artifact );

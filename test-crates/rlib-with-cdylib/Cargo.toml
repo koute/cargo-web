@@ -1,0 +1,9 @@
+[package]
+name = "rlib-with-cdylib"
+version = "0.1.0"
+authors = ["Jan Bujak <j@exia.io>"]
+
+[lib]
+crate-type = ["rlib", "cdylib"]
+
+[dependencies]
