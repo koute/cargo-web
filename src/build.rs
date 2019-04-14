@@ -313,10 +313,11 @@ impl Project {
 
     fn used_packages( &self, profile: Profile ) -> Vec< &CargoPackage > {
         let main_package = self.package();
-        let mut packages = self.project.used_packages(
+        let mut packages = self.project.used_packages_with_rustflags(
             self.backend().triplet(),
             main_package,
-            profile
+            profile,
+            ["--cfg", "cargo_web"].iter().map( |arg| *arg )
         );
 
         packages.sort_by( |a, b| {
@@ -424,6 +425,9 @@ impl Project {
         let mut extra_rustflags = Vec::new();
         let mut extra_environment = Vec::new();
         let mut extra_emmaken_cflags = Vec::new();
+
+        extra_rustflags.push( "--cfg".to_owned() );
+        extra_rustflags.push( "cargo_web".to_owned() );
 
         let vanilla_emscripten_build =
             env::var( "CARGO_WEB_VANILLA_EMSCRIPTEN_BUILD" ).map( |value| value == "1" ).unwrap_or( false ) &&
