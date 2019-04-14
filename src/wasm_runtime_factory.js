@@ -24,6 +24,14 @@ function() {
         HEAPU32 = new Uint32Array( buffer );
         HEAPF32 = new Float32Array( buffer );
         HEAPF64 = new Float64Array( buffer );
+        Module.HEAP8 = HEAP8;
+        Module.HEAP16 = HEAP16;
+        Module.HEAP32 = HEAP32;
+        Module.HEAPU8 = HEAPU8;
+        Module.HEAPU16 = HEAPU16;
+        Module.HEAPU32 = HEAPU32;
+        Module.HEAPF32 = HEAPF32;
+        Module.HEAPF64 = HEAPF64;
     }
 
     return {
