@@ -226,8 +226,9 @@ else which requires you to load the module yourself.
 ## Changelog
    * `0.6.24`
       * Conditional dependencies of form `[target.'cfg(...)'.dependencies]` are now properly supported
+      * You can now use `cfg(cargo_web)` to detect whenever your crate is being compiled under `cargo-web`
       * Artifacts matching `target/wasm32-unknown-unknown/*/deps/*.wasm` are now ignored; this should prevent
-        superfluous `.wasm` artifacts generated due to dependencies also being `cdylib`s from being processed
+        `cargo-web` from processing superfluous `.wasm` artifacts generated due to dependencies also being `cdylib`s
       * `cargo-web` is now available as a library through a `structopt`-based interface
    * `0.6.23`
       * New subcommand: `cargo web check`
