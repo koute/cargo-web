@@ -13,13 +13,12 @@ and deploy client-side Web applications written in Rust.
 
 This software was brought to you thanks to these wonderful people:
   * Embark Studios
+  * Joe Narvaez
   * Eduard Knyshov
   * Anselm Eickhoff
-  * Ferran Pujol Camins
-  * Isaac F Leonard
   * Johan Andersson
-  * Martin Kavík
   * Stephen Sugden
+  * is8ac
 
 Thank you!
 
