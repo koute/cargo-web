@@ -2,7 +2,7 @@ use std::collections::{HashSet, HashMap};
 use std::process::{Command, Stdio};
 use std::path::{Path, PathBuf};
 use std::io::{self, BufRead, BufReader};
-use std::ffi::OsString;
+use std::ffi::{OsString, OsStr};
 use std::hash::{Hash, Hasher};
 use std::ops::Deref;
 use std::cell::Cell;
@@ -11,6 +11,7 @@ use std::thread;
 use std::str::{self, FromStr};
 use std::error;
 use std::fmt;
+use std::iter;
 
 use cargo_metadata;
 use serde_json;
@@ -130,7 +131,7 @@ struct TargetCfg {
 }
 
 impl TargetCfg {
-    fn new( triplet: &str ) -> Self {
+    fn new( triplet: &str, rustflags: &OsStr ) -> Self {
         let rustc =
             if cfg!( windows ) {
                 "rustc.exe"
@@ -151,6 +152,20 @@ impl TargetCfg {
         command.arg( triplet );
         command.arg( "--print" );
         command.arg( "cfg" );
+
+        let rustflags = rustflags
+            .to_string_lossy()
+            .into_owned();
+
+        let args = rustflags
+            .split( ' ' )
+            .map( str::trim )
+            .filter( |s| !s.is_empty() )
+            .map( str::to_string );
+
+        for arg in args {
+            command.arg( arg );
+        }
 
         let mut map = HashMap::new();
         let mut set = HashSet::new();
@@ -435,6 +450,18 @@ impl CargoProject {
     }
 
     pub fn used_packages( &self, triplet: &str, main_package: &CargoPackage, profile: Profile ) -> Vec< &CargoPackage > {
+        self.used_packages_with_rustflags( triplet, main_package, profile, iter::empty() )
+    }
+
+    pub fn used_packages_with_rustflags< 'a, I >(
+        &self,
+        triplet: &str,
+        main_package: &CargoPackage,
+        profile: Profile,
+        extra_rustflags: I
+    ) -> Vec< &CargoPackage >
+        where I: IntoIterator< Item = &'a str >
+    {
         let mut package_map = HashMap::new();
         for (index, package) in self.packages.iter().enumerate() {
             package_map.insert( package.id.clone(), index );
@@ -458,7 +485,8 @@ impl CargoProject {
             }
         }).collect();
 
-        let target_cfg = TargetCfg::new( triplet );
+        let rustflags = gather_rustflags( extra_rustflags );
+        let target_cfg = TargetCfg::new( triplet, &rustflags );
         while let Some( index ) = queue.pop() {
             for dependency in &entries[ index ].package.dependencies {
                 if let Some( ref target ) = dependency.target {
@@ -579,6 +607,27 @@ pub fn target_to_build_target( target: &CargoTarget, profile: Profile ) -> Build
         TargetKind::Test => BuildTarget::IntegrationTest( target.name.clone() ),
         TargetKind::Bench => BuildTarget::IntegrationBench( target.name.clone() )
     }
+}
+
+fn gather_rustflags< 'a, I >( extra_rustflags: I ) -> OsString
+    where I: IntoIterator< Item = &'a str >
+{
+    let mut rustflags = OsString::new();
+    for flag in extra_rustflags {
+        if !rustflags.is_empty() {
+            rustflags.push( " " );
+        }
+        rustflags.push( flag );
+    }
+
+    if let Some( env_rustflags ) = env::var_os( "RUSTFLAGS" ) {
+        if !rustflags.is_empty() {
+            rustflags.push( " " );
+        }
+        rustflags.push( env_rustflags );
+    }
+
+    rustflags
 }
 
 impl BuildConfig {
@@ -714,21 +763,7 @@ impl BuildConfig {
         debug!( "Will launch cargo with PATH: {:?}", new_paths );
         command.env( "PATH", new_paths );
 
-        let mut rustflags = OsString::new();
-        for flag in &self.extra_rustflags {
-            if !rustflags.is_empty() {
-                rustflags.push( " " );
-            }
-            rustflags.push( flag );
-        }
-
-        if let Some( env_rustflags ) = env::var_os( "RUSTFLAGS" ) {
-            if !rustflags.is_empty() {
-                rustflags.push( " " );
-            }
-            rustflags.push( env_rustflags );
-        }
-
+        let rustflags = gather_rustflags( self.extra_rustflags.iter().map( |flag| flag.as_str() ) );
         debug!( "Will launch cargo with RUSTFLAGS: {:?}", rustflags );
         command.env( "RUSTFLAGS", rustflags );
 
