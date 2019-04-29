@@ -223,7 +223,7 @@ fn monitor_for_changes_and_rebuild(
                 continue;
             }
 
-            trace!( "Starting build in {}ms if no more changes detected", event_timeout.as_millis() );
+            trace!( "Starting build in {}.{:0>3}s if no more changes detected", event_timeout.as_secs(), event_timeout.subsec_nanos() / 1_000_000 );
             let mut deadline = Instant::now() + event_timeout;
             while Instant::now() < deadline {
                 match rx.recv_timeout( deadline - Instant::now() ) {
@@ -234,7 +234,7 @@ fn monitor_for_changes_and_rebuild(
                             continue;
                         }
 
-                        trace!( "Noticed follow-up change; waiting additional {}ms for more", event_timeout.as_millis() );
+                        trace!( "Noticed follow-up change; waiting additional {}.{:0>3}s for more", event_timeout.as_secs(), event_timeout.subsec_nanos() / 1_000_000 );
                         deadline = Instant::now() + event_timeout;
                     }
                     Err( RecvTimeoutError::Timeout ) => {
