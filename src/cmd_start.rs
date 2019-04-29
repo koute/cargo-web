@@ -1,5 +1,5 @@
 use std::collections::BTreeMap;
-use std::sync::mpsc::channel;
+use std::sync::mpsc::{channel, RecvTimeoutError};
 use std::sync::{Mutex, Arc};
 use std::time::{Instant, Duration};
 use std::thread;
@@ -176,8 +176,9 @@ fn watch_paths( watcher: &mut RecommendedWatcher, paths_to_watch: &[(PathBuf, Pa
 fn monitor_for_changes_and_rebuild(
     last_build: Arc< Mutex< LastBuild > >
 ) -> Arc< Mutex< RecommendedWatcher > > {
+    let event_timeout = Duration::from_millis( 500 );
     let (tx, rx) = channel();
-    let mut watcher: RecommendedWatcher = Watcher::new( tx, Duration::from_millis( 500 ) ).unwrap();
+    let mut watcher: RecommendedWatcher = Watcher::new( tx, event_timeout ).unwrap();
 
     let last_paths_to_watch = {
         let last_build = last_build.lock().unwrap();
@@ -195,25 +196,55 @@ fn monitor_for_changes_and_rebuild(
         let rx = rx;
         let mut last_paths_to_watch = last_paths_to_watch;
 
-        while let Ok( event ) = rx.recv() {
-            trace!( "Watch event: {:?}", event );
-            let should_rebuild = match event {
-                DebouncedEvent::Create( ref path ) => should_rebuild( &last_paths_to_watch, path ),
-                DebouncedEvent::Remove( ref path ) => should_rebuild( &last_paths_to_watch, path ),
+        fn event_triggers_rebuild( event: DebouncedEvent, paths_to_watch: &Vec< ( PathBuf, PathKind, ShouldTriggerRebuild ) > ) -> bool {
+            match event {
+                DebouncedEvent::Create( ref path ) => should_rebuild( paths_to_watch, path ),
+                DebouncedEvent::Remove( ref path ) => should_rebuild( paths_to_watch, path ),
                 DebouncedEvent::Rename( ref old_path, ref new_path ) => {
-                    should_rebuild( &last_paths_to_watch, old_path ) ||
-                    should_rebuild( &last_paths_to_watch, new_path )
+                    should_rebuild( paths_to_watch, old_path ) ||
+                    should_rebuild( paths_to_watch, new_path )
                 },
-                DebouncedEvent::Write( ref path ) => should_rebuild( &last_paths_to_watch, path ),
-                _ => continue
-            };
+                DebouncedEvent::Write( ref path ) => should_rebuild( paths_to_watch, path ),
+                _ => false
+            }
+        }
 
-            if !should_rebuild {
-                trace!( "Nothing of consequence changed; bumping build counter without rebuilding" );
-                let mut last_build = last_build.lock().unwrap();
-                let counter = last_build.counter.next();
-                last_build.counter = counter;
+        fn record_inconsequential_change(last_build: &Arc< Mutex< LastBuild > >) {
+            trace!( "Nothing of consequence changed; bumping build counter without rebuilding" );
+            let mut last_build = last_build.lock().unwrap();
+            let counter = last_build.counter.next();
+            last_build.counter = counter;
+        }
+
+        'outer: while let Ok( event ) = rx.recv() {
+            trace!( "Watch event: {:?}", event );
+            if !event_triggers_rebuild( event, &last_paths_to_watch ) {
+                record_inconsequential_change( &last_build );
                 continue;
+            }
+
+            trace!( "Starting build in {}ms if no more changes detected", event_timeout.as_millis() );
+            let mut deadline = Instant::now() + event_timeout;
+            while Instant::now() < deadline {
+                match rx.recv_timeout( deadline - Instant::now() ) {
+                    Ok( event ) => {
+                        trace!( "Watch event: {:?}", event );
+                        if !event_triggers_rebuild( event, &last_paths_to_watch ) {
+                            record_inconsequential_change( &last_build );
+                            continue;
+                        }
+
+                        trace!( "Noticed follow-up change; waiting additional {}ms for more", event_timeout.as_millis() );
+                        deadline = Instant::now() + event_timeout;
+                    }
+                    Err( RecvTimeoutError::Timeout ) => {
+                        trace!( "Timed out waiting for follow-up changes; proceeding to build" );
+                        break;
+                    }
+                    Err( RecvTimeoutError::Disconnected ) => {
+                        break 'outer;
+                    }
+                }
             }
 
             eprintln!( "==== Triggering `cargo build` ====" );
@@ -226,7 +257,7 @@ fn monitor_for_changes_and_rebuild(
 
             if let Ok( project ) = build_args.load_project() {
                 if let Ok( target ) = select_target( &project ) {
-                    let mut new_paths_to_watch = project.paths_to_watch( &target );
+                    let new_paths_to_watch = project.paths_to_watch( &target );
 
                     if new_paths_to_watch != last_paths_to_watch {
                         debug!( "Paths to watch have changed; new paths to watch: {:#?}", new_paths_to_watch );
