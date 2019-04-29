@@ -10,6 +10,7 @@ custom:
       chrome: stable
     script:
       - nvm install 9
+      - ./ci/install_wasm_pack.sh
       - ./ci/run_tests.sh
   deploy: &deploy
     stage: deploy
