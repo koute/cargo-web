@@ -58,7 +58,7 @@ features = ["serde"]
 version = "0.9"
 
 [target.'cfg(not(any(target_os = "windows", target_os = "macos", target_os = "ios")))'.dependencies]
-openssl-sys = { version = "= 0.9.37", features = ["vendored"] }
+openssl-sys = { version = "= 0.9.45", features = ["vendored"] }
 
 [features]
 development-mode = []
