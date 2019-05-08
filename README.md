@@ -224,6 +224,10 @@ you want to integrate the output with a JavaScript bundler, or anything
 else which requires you to load the module yourself.
 
 ## Changelog
+   * `0.6.25`
+      * `cargo web start` will now try to not trigger superfluous rebuilds when the project's
+        files are modified in quick succession
+      * The vendored OpenSSL copy was updated to the newest version
    * `0.6.24`
       * Conditional dependencies of form `[target.'cfg(...)'.dependencies]` are now properly supported
       * You can now use `cfg(cargo_web)` to detect whenever your crate is being compiled under `cargo-web`
