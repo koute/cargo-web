@@ -333,7 +333,7 @@ struct Build {
     #[structopt(long, group = "build_features")]
     pub all_features: bool,
     /// Do not build the `default` feature
-    #[structopt(long, group = "build_features")]
+    #[structopt(long)]
     pub no_default_features: bool,
     /// Won't try to download Emscripten; will always use the system one
     #[structopt(long)]
