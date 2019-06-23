@@ -57,6 +57,7 @@ extern crate atty;
 extern crate open;
 #[macro_use]
 extern crate failure;
+extern crate mime_guess;
 
 mod cargo_shim;
 

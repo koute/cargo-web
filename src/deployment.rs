@@ -5,6 +5,7 @@ use std::fs::{self, File};
 
 use handlebars::Handlebars;
 use walkdir::WalkDir;
+use mime_guess::{Mime, guess_mime_type};
 
 use cargo_shim::{
     TargetKind,
@@ -74,7 +75,7 @@ pub enum ArtifactKind {
 }
 
 pub struct Artifact {
-    pub mime_type: &'static str,
+    pub mime_type: Mime,
     pub kind: ArtifactKind
 }
 
@@ -181,19 +182,7 @@ impl Deployment {
             url = "index.html";
         }
 
-        // TODO: Support more mime types. Use the mime_guess crate.
-        let mime_type =
-            if url.ends_with( ".js" ) { "application/javascript" }
-            else if url.ends_with( ".json" ) { "application/json" }
-            else if url.ends_with( ".wasm" ) { "application/wasm" }
-            else if url.ends_with( ".html" ) { "text/html" }
-            else if url.ends_with( ".css" ) { "text/css" }
-            else if url.ends_with( ".svg" ) { "image/svg+xml" }
-            else if url.ends_with( ".png" ) { "image/png" }
-            else if url.ends_with( ".gif" ) { "image/gif" }
-            else if url.ends_with( ".jpeg" ) { "image/jpeg" }
-            else if url.ends_with( ".jpg" ) { "image/jpeg" }
-            else { "application/octet-stream" };
+        let mime_type = guess_mime_type(url);
 
         for route in &self.routes {
             match route.kind {
