@@ -316,7 +316,7 @@ pub fn command_start(
 
         if path == "/__cargo-web__/build_hash" {
             let data = format!( "{}", last_build.get_build_hash() );
-            return response_from_data("application/text", data.into_bytes());
+            return response_from_data(&"application/text".parse().unwrap(), data.into_bytes());
         }
 
         if path == "/js/app.js" {
@@ -343,11 +343,11 @@ pub fn command_start(
 
             match artifact.kind {
                 ArtifactKind::Data( data ) => {
-                    return response_from_data(artifact.mime_type, data);
+                    return response_from_data(&artifact.mime_type, data);
                 },
 
                 ArtifactKind::File( fp ) => {
-                    return response_from_file(artifact.mime_type, fp);
+                    return response_from_file(&artifact.mime_type, fp);
                 }
             }
         } else {

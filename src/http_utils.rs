@@ -11,6 +11,7 @@ use hyper::server::conn::AddrIncoming;
 use hyper::header::{CONTENT_TYPE, CONTENT_LENGTH, CACHE_CONTROL, EXPIRES, PRAGMA, ACCESS_CONTROL_ALLOW_ORIGIN};
 use http::response::Builder;
 use memmap::Mmap;
+use mime_guess::Mime;
 
 pub enum BodyContents {
     Owned( Vec< u8 > ),
@@ -125,7 +126,7 @@ fn add_headers( builder: &mut Builder ) {
     builder.header( ACCESS_CONTROL_ALLOW_ORIGIN, "*" );
 }
 
-pub fn response_from_file( mime_type: &str, fp: File ) -> ResponseFuture {
+pub fn response_from_file( mime_type: &Mime, fp: File ) -> ResponseFuture {
     if let Ok( metadata ) = fp.metadata() {
         if metadata.len() == 0 {
             // This is necessary since `Mmap::map` will return an error for empty files.
@@ -139,7 +140,9 @@ pub fn response_from_file( mime_type: &str, fp: File ) -> ResponseFuture {
             warn!( "Mmap failed: {}", error );
             let status = StatusCode::INTERNAL_SERVER_ERROR;
             let message = format!( "{}\n\n{}", status, error ).into_bytes();
-            let mut response = sync_response_from_data( "text/plain", message );
+            let mut response = sync_response_from_data(
+                &"text/plain".parse().unwrap(),
+                message );
             *response.status_mut() = status;
             return Box::new( future::ok( response ) );
         }
@@ -149,28 +152,30 @@ pub fn response_from_file( mime_type: &str, fp: File ) -> ResponseFuture {
     let body: Body = map.into();
     let mut response = Response::builder();
     add_headers( &mut response );
-    response.header( CONTENT_TYPE, mime_type );
+    response.header( CONTENT_TYPE, mime_type.to_string() );
     response.header( CONTENT_LENGTH, length );
 
     Box::new( future::ok( response.body( body ).unwrap() ) )
 }
 
-fn sync_response_from_data( mime_type: &str, data: Vec< u8 > ) -> Response< Body > {
+fn sync_response_from_data( mime_type: &Mime, data: Vec< u8 > ) -> Response< Body > {
     let length = data.len();
     let body: Body = data.into();
     let mut response = Response::builder();
     add_headers( &mut response );
-    response.header( CONTENT_TYPE, mime_type );
+    response.header( CONTENT_TYPE, mime_type.to_string());
     response.header( CONTENT_LENGTH, length );
     response.body( body ).unwrap()
 }
 
-pub fn response_from_data( mime_type: &str, data: Vec< u8 > ) -> ResponseFuture {
+pub fn response_from_data( mime_type: &Mime, data: Vec< u8 > ) -> ResponseFuture {
     Box::new( future::ok( sync_response_from_data( mime_type, data ) ) )
 }
 
 pub fn response_from_status( status: StatusCode ) -> ResponseFuture {
-    let mut response = sync_response_from_data( "text/plain", format!( "{}", status ).into_bytes() );
+    let mut response = sync_response_from_data(
+        &"text/plain".parse().unwrap(),
+        format!( "{}", status ).into_bytes() );
     *response.status_mut() = status;
     Box::new( future::ok( response ) )
 }
