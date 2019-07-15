@@ -224,6 +224,9 @@ you want to integrate the output with a JavaScript bundler, or anything
 else which requires you to load the module yourself.
 
 ## Changelog
+   * `0.6.26`
+      * The `--no-default-features` flag was fixed
+      * The `mime-guess` crate is now being used to guess the mime types by the embedded webserver
    * `0.6.25`
       * `cargo web start` will now try to not trigger superfluous rebuilds when the project's
         files are modified in quick succession
