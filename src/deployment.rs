@@ -15,7 +15,7 @@ use cargo_shim::{
 };
 
 use error::Error;
-use utils::read_bytes;
+use utils::{get_sha1sum, read_bytes};
 
 // Note: newlines before the DOCTYPE break GitHub pages
 const DEFAULT_INDEX_HTML_TEMPLATE: &'static str = r#"<!DOCTYPE html>
@@ -52,6 +52,12 @@ fn generate_index_html( filename: &str ) -> String {
     let mut template_data = BTreeMap::new();
     template_data.insert( "js_url", filename.to_owned() );
     handlebars.render_template( DEFAULT_INDEX_HTML_TEMPLATE, &template_data ).unwrap()
+}
+
+fn are_the_same( a: &Path, b: &Path ) -> bool {
+    let a_sum = get_sha1sum( a ).ok();
+    let b_sum = get_sha1sum( b ).ok();
+    a_sum.is_some() && b_sum.is_some() && a_sum == b_sum
 }
 
 enum RouteKind {
@@ -240,7 +246,11 @@ impl Deployment {
                     }
 
                     if target_path.exists() {
-                        continue;
+                        if let Ok( existing_bytes ) = read_bytes( &target_path ) {
+                            if *bytes == existing_bytes {
+                                continue;
+                            }
+                        }
                     }
 
                     let target_dir = target_path.parent().unwrap();
@@ -265,7 +275,7 @@ impl Deployment {
                         let source_path = entry.path();
                         let relative_path = source_path.strip_prefix( source_dir ).unwrap();
                         let target_path = root_directory.join( relative_path );
-                        if target_path.exists() {
+                        if target_path.exists() && are_the_same( &source_path, &target_path ) {
                             continue;
                         }
 

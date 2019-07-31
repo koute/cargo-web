@@ -556,3 +556,29 @@ fn depends_on_cdylibs() {
 
     assert_file_contains( js_path, "depends_on_cdylibs.wasm" );
 }
+
+#[test]
+fn deploy_with_output_overwrites_files_but_does_not_delete_the_directory() {
+    let template_dir = crate_path( "static-files" );
+    let cwd = REPOSITORY_ROOT.join( "target" ).join( "tmp" ).join( "static-files-output-test" );
+
+    let _ = fs::remove_dir_all( &cwd );
+    fs::create_dir_all( &cwd ).unwrap();
+    fs::create_dir_all( cwd.join( "static" ) ).unwrap();
+    fs::create_dir_all( cwd.join( "src" ) ).unwrap();
+
+    fs::copy( template_dir.join( "Cargo.toml" ), cwd.join( "Cargo.toml" ) ).unwrap();
+    fs::copy( template_dir.join( "src" ).join( "main.rs" ), cwd.join( "src" ).join( "main.rs" ) ).unwrap();
+
+    fs::write( cwd.join( "static" ).join( "test1.txt" ), "A" ).unwrap();
+    fs::write( cwd.join( "static" ).join( "test2.txt" ), "B" ).unwrap();
+    run( &cwd, &*CARGO_WEB, &["deploy", "--target", "wasm32-unknown-unknown", "--output", "custom-output"] ).assert_success();
+
+    assert_file_contains( cwd.join( "custom-output" ).join( "test1.txt" ), "A" );
+
+    fs::write( cwd.join( "static" ).join( "test1.txt" ), "C" ).unwrap();
+    run( &cwd, &*CARGO_WEB, &["deploy", "--target", "wasm32-unknown-unknown", "--output", "custom-output"] ).assert_success();
+
+    assert_file_contains( cwd.join( "custom-output" ).join( "test1.txt" ), "C" );
+    assert_file_exists( cwd.join( "custom-output" ).join( "test2.txt" ) );
+}
