@@ -2,7 +2,6 @@ use std::path::{Path, PathBuf};
 use std::fs::{self, File};
 use std::io::{self, Read, Write};
 
-use sha1::Sha1;
 use parity_wasm;
 use cargo_shim::BuildConfig;
 use serde_json;
@@ -18,27 +17,11 @@ use wasm_intrinsics;
 use wasm_runtime::{self, RuntimeKind};
 use wasm_js_export;
 use wasm_js_snippet;
+use utils::get_sha1sum;
 
 #[derive(Serialize, Deserialize)]
 struct Metadata {
     wasm_hash: String
-}
-
-fn get_sha1sum< P: AsRef< Path > >( path: P ) -> io::Result< String > {
-    let path = path.as_ref();
-    let mut fp = File::open( path )?;
-    let mut hasher = Sha1::new();
-
-    let mut buffer = Vec::new();
-    buffer.resize( 1024 * 1024, 0 );
-    loop {
-        match fp.read( &mut buffer )? {
-            0 => break,
-            count => hasher.update( &buffer[ 0..count ] )
-        }
-    }
-
-    Ok( format!( "{}", hasher.digest() ) )
 }
 
 pub fn process_wasm_file< P: AsRef< Path > + ?Sized >( uses_old_stdweb: bool, runtime: RuntimeKind, build: &BuildConfig, prepend_js: &str, target_dir: &Path, artifact: &P ) -> Option< PathBuf > {

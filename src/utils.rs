@@ -7,6 +7,7 @@ use std::ffi::OsString;
 
 use libflate::gzip;
 use tar;
+use sha1::Sha1;
 
 #[derive(Debug)]
 pub struct ExecutionStatus {
@@ -93,4 +94,21 @@ pub fn unpack< I: AsRef< Path >, O: AsRef< Path > >( input_path: I, output_path:
     archive.unpack( output_path )?;
 
     Ok(())
+}
+
+pub fn get_sha1sum< P: AsRef< Path > >( path: P ) -> io::Result< String > {
+    let path = path.as_ref();
+    let mut fp = File::open( path )?;
+    let mut hasher = Sha1::new();
+
+    let mut buffer = Vec::new();
+    buffer.resize( 1024 * 1024, 0 );
+    loop {
+        match fp.read( &mut buffer )? {
+            0 => break,
+            count => hasher.update( &buffer[ 0..count ] )
+        }
+    }
+
+    Ok( format!( "{}", hasher.digest() ) )
 }
