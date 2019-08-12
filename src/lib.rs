@@ -19,14 +19,13 @@ extern crate libflate;
 extern crate notify;
 extern crate pbr;
 extern crate reqwest;
-extern crate serde;
 extern crate sha1;
 extern crate sha2;
 extern crate tar;
 extern crate tempfile;
 extern crate toml;
 #[macro_use]
-extern crate serde_derive;
+extern crate serde;
 #[macro_use]
 extern crate serde_json;
 extern crate base_x;
