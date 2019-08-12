@@ -98,6 +98,7 @@ fn test_in_nodejs(
 pub fn command_test<'a>(
     build_args: BuildArgs,
     use_nodejs: bool,
+    chrome_timeout: u64,
     no_run: bool,
     arg_passthrough: &Vec<&OsStr>,
 ) -> Result<(), Error> {
@@ -127,7 +128,7 @@ pub fn command_test<'a>(
         }
     } else {
         for build in builds {
-            test_in_chromium( project.backend(), build, &arg_passthrough, &mut any_failure )?;
+            test_in_chromium( project.backend(), build, &arg_passthrough, chrome_timeout, &mut any_failure )?;
         }
     }
 

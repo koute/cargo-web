@@ -158,11 +158,12 @@ pub fn run(cfg: CargoWebOpts) -> Result<(), Error> {
         CargoWebOpts::Test(TestOpts {
             build_args,
             nodejs,
+            chrome_timeout,
             no_run,
             passthrough,
         }) => {
             let pass_os = passthrough.iter().map(OsStr::new).collect::<Vec<_>>();
-            cmd_test::command_test(build_args.into(), nodejs, no_run, &pass_os)
+            cmd_test::command_test(build_args.into(), nodejs, chrome_timeout, no_run, &pass_os)
         }
         CargoWebOpts::__Nonexhaustive => unreachable!(),
     }
@@ -248,6 +249,9 @@ pub struct TestOpts {
     /// Uses Node.js to run the tests
     #[structopt(long)]
     nodejs: bool,
+    /// Timeout for chrome tests (default 60 seconds)
+    #[structopt(long, default_value = "60")]
+    chrome_timeout: u64,
     #[structopt(flatten)]
     build_args: Build,
     /// all additional arguments will be passed through to the test runner

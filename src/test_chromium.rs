@@ -58,6 +58,7 @@ pub fn test_in_chromium(
     backend: Backend,
     build: CargoResult,
     arg_passthrough: &Vec< &OsStr >,
+    timeout: u64,
     any_failure: &mut bool
 ) -> Result< (), Error > {
     let possible_commands =
@@ -200,7 +201,7 @@ pub fn test_in_chromium(
     let mut print_counter = 0;
     let mut finished = false;
     let start = Instant::now();
-    let time_limit = Duration::from_secs( 60 );
+    let time_limit = Duration::from_secs( timeout );
     let mut get_status_req = None;
     loop {
         let elapsed = start.elapsed();
