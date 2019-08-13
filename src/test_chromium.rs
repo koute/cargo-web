@@ -200,14 +200,19 @@ pub fn test_in_chromium(
     let mut print_counter = 0;
     let mut finished = false;
     let start = Instant::now();
-    let time_limit = Duration::from_secs( 60 );
+    let time_limit = Duration::from_secs( 600 );
     let mut get_status_req = None;
+    let mut warned = false;
     loop {
         let elapsed = start.elapsed();
         if elapsed >= time_limit {
             break;
         }
         let remaining = time_limit - elapsed;
+        if elapsed >= Duration::from_secs(120) && !warned {
+            eprintln!("The tests are running for more than 2 minutes ");
+            warned = true;
+        }
 
         let reply = connection.try_recv( Some( remaining ) );
         let reply = match reply {
