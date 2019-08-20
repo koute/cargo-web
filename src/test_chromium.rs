@@ -210,7 +210,7 @@ pub fn test_in_chromium(
         }
         let remaining = time_limit - elapsed;
         if elapsed >= Duration::from_secs(120) && !warned {
-            eprintln!("The tests are running for more than 2 minutes ");
+            eprintln!( "The tests have been running for over 2 minutes" );
             warned = true;
         }
 
