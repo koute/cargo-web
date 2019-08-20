@@ -53,12 +53,6 @@ cargo build
 if [[ "$TEST_SUBSET" == 0 || "$TEST_SUBSET" == 1 ]]; then
     cargo test
 
-    rustup target add x86_64-apple-darwin
-    rustup target add i686-pc-windows-gnu
-
-    cargo check --target=x86_64-apple-darwin
-    cargo check --target=i686-pc-windows-gnu
-
     echo ""
 
     cd integration-tests

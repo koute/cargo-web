@@ -57,6 +57,16 @@ jobs:
       env: TEST_SUBSET=2
 
     - <<: *test
+      os: osx
+      rust: stable
+      env: TEST_SUBSET=1
+
+    - <<: *test
+      os: windows
+      rust: stable
+      env: TEST_SUBSET=1
+
+    - <<: *test
       os: linux
       rust: nightly
       env: TEST_SUBSET=1
