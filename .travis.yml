@@ -59,12 +59,12 @@ jobs:
     - <<: *test
       os: osx
       rust: stable
-      env: TEST_SUBSET=1
+      env: BUILD_ONLY=1
 
     - <<: *test
       os: windows
       rust: stable
-      env: TEST_SUBSET=1
+      env: BUILD_ONLY=1
 
     - <<: *test
       os: linux

@@ -8,6 +8,7 @@ export CARGO_WEB=$REPOSITORY_ROOT/target/debug/cargo-web
 
 TEST_SUBSET=${TEST_SUBSET:-0}
 CHECK_ONLY=${CHECK_ONLY:-0}
+BUILD_ONLY=${BUILD_ONLY:-0}
 WITHOUT_CARGO_LOCK=${WITHOUT_CARGO_LOCK:-0}
 
 ONLY_LOCAL=0
@@ -49,6 +50,11 @@ if [ "$CHECK_ONLY" == "1" ]; then
 fi
 
 cargo build
+echo "++ Build was successful!"
+
+if [ "$BUILD_ONLY" == "1" ]; then
+    exit 0
+fi
 
 if [[ "$TEST_SUBSET" == 0 || "$TEST_SUBSET" == 1 ]]; then
     cargo test
