@@ -31,7 +31,7 @@ pub fn command_deploy(build_args: BuildArgs, directory: Option<PathBuf>) -> Resu
     let target = targets[ 0 ];
     let result = project.build( &config, target )?;
 
-    let deployment = Deployment::new( package, target, &result )?;
+    let deployment = Deployment::new(&project, target, &result )?;
 
     let is_using_default_directory;
     let directory = match directory {
