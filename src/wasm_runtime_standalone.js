@@ -25,7 +25,11 @@ if( typeof Rust === "undefined" ) {
             var wasm_instance = new WebAssembly.Instance( mod, instance.imports );
             return instance.initialize( wasm_instance );
         } else {
-            var file = fetch( "{{{wasm_filename}}}", {credentials: "same-origin"} );
+            var jsurl = new URL( document.querySelector( 'script[src$="{{{module_name}}}.js"]' ).src );
+            var jspath = jsurl.pathname;
+            var dotpos = jspath.lastIndexOf( "." );
+            var wasmpath = jspath.substr( 0, dotpos ) + ".wasm";
+            var file = fetch( wasmpath, {credentials: "same-origin"} );
 
             var wasm_instance = ( typeof WebAssembly.instantiateStreaming === "function"
                 ? WebAssembly.instantiateStreaming( file, instance.imports )
