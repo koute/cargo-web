@@ -11,7 +11,6 @@ use std::thread;
 use std::str::{self, FromStr};
 use std::error;
 use std::fmt;
-use std::iter;
 
 use cargo_metadata;
 use serde_json;
@@ -250,23 +249,14 @@ pub enum Error {
 }
 
 
-impl error::Error for Error {
-    fn description( &self ) -> &str {
-        match *self {
-            Error::CannotLaunchCargo( _ ) => "cannot launch cargo",
-            Error::CargoFailed( _ ) => "cargo failed",
-            Error::CannotParseCargoOutput( _ ) => "cannot parse cargo output"
-        }
-    }
-}
+impl error::Error for Error {}
 
 impl fmt::Display for Error {
-    fn fmt( &self, formatter: &mut fmt::Formatter ) -> fmt::Result {
-        use std::error::Error as StdError;
+    fn fmt( &self, fmt: &mut fmt::Formatter ) -> fmt::Result {
         match *self {
-            Error::CannotLaunchCargo( ref err ) => write!( formatter, "{}: {}", self.description(), err ),
-            Error::CargoFailed( ref err ) => write!( formatter, "{}: {}", self.description(), err ),
-            Error::CannotParseCargoOutput( ref err ) => write!( formatter, "{}: {}", self.description(), err )
+            Error::CannotLaunchCargo( ref err ) => write!( fmt, "cannot launch cargo: {}", err ),
+            Error::CargoFailed( ref err ) => write!( fmt, "cargo failed: {}", err ),
+            Error::CannotParseCargoOutput( ref err ) => write!( fmt, "cannot parse cargo output: {}", err )
         }
     }
 }
@@ -443,14 +433,6 @@ impl CargoProject {
         }
 
         Ok( project )
-    }
-
-    pub fn default_package( &self ) -> Option< &CargoPackage > {
-        self.packages.iter().find( |package| package.is_default )
-    }
-
-    pub fn used_packages( &self, triplet: &str, main_package: &CargoPackage, profile: Profile ) -> Vec< &CargoPackage > {
-        self.used_packages_with_rustflags( triplet, main_package, profile, iter::empty() )
     }
 
     pub fn used_packages_with_rustflags< 'a, I >(
@@ -921,7 +903,7 @@ impl BuildConfig {
             }
         }
 
-        for mut artifact in artifacts {
+        for artifact in artifacts {
             if artifact.filenames.is_empty() {
                 continue;
             }

@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::fs::{self, File};
-use std::io::{self, Read, Write};
+use std::io::Write;
 
 use parity_wasm;
 use cargo_shim::BuildConfig;
