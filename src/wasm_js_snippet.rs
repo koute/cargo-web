@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::fs;
 
-use sha1::Sha1;
+use sha1::{Sha1, Digest};
 use serde_json;
 
 use wasm_context::{Context, FunctionKind};
@@ -15,9 +15,8 @@ pub struct Snippet {
 }
 
 fn hash( string: &str ) -> String {
-    let mut hasher = Sha1::new();
-    hasher.update( string.as_bytes() );
-    format!( "{}", hasher.digest() )
+    let hash = Sha1::digest( string.as_bytes() );
+    format!( "{:x}", hash )
 }
 
 pub fn process( target_dir: &Path, ctx: &Context ) -> Vec< JsSnippet > {

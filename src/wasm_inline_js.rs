@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::mem;
 
-use sha1::Sha1;
+use sha1::{Sha1, Digest};
 
 use wasm_context::{
     FnTy,
@@ -15,9 +15,8 @@ use wasm_context::{
 };
 
 fn hash( string: &str ) -> String {
-    let mut hasher = Sha1::new();
-    hasher.update( string.as_bytes() );
-    format!( "{}", hasher.digest() )
+    let hash = Sha1::digest( string.as_bytes() );
+    format!( "{:x}", hash )
 }
 
 pub struct JsSnippet {
