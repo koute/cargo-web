@@ -11,7 +11,6 @@ use std::thread;
 use std::str::{self, FromStr};
 use std::error;
 use std::fmt;
-use std::iter;
 
 use cargo_metadata;
 use serde_json;
@@ -434,14 +433,6 @@ impl CargoProject {
         }
 
         Ok( project )
-    }
-
-    pub fn default_package( &self ) -> Option< &CargoPackage > {
-        self.packages.iter().find( |package| package.is_default )
-    }
-
-    pub fn used_packages( &self, triplet: &str, main_package: &CargoPackage, profile: Profile ) -> Vec< &CargoPackage > {
-        self.used_packages_with_rustflags( triplet, main_package, profile, iter::empty() )
     }
 
     pub fn used_packages_with_rustflags< 'a, I >(
@@ -912,7 +903,7 @@ impl BuildConfig {
             }
         }
 
-        for mut artifact in artifacts {
+        for artifact in artifacts {
             if artifact.filenames.is_empty() {
                 continue;
             }

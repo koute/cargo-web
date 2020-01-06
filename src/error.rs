@@ -9,7 +9,7 @@ use cargo_shim;
 pub enum Error {
     ConfigurationError( String ),
     EnvironmentError( String ),
-    RuntimeError( String, Box< error::Error > ),
+    RuntimeError( String, Box< dyn error::Error > ),
     BuildError,
     NoDefaultPackage,
     EmscriptenNotAvailable,
@@ -20,7 +20,7 @@ pub enum Error {
     CannotCreateFile( PathBuf, io::Error ),
     CannotWriteToFile( PathBuf, io::Error ),
     CannotCopyFile( PathBuf, PathBuf, io::Error ),
-    Other( Box< error::Error > )
+    Other( Box< dyn error::Error > )
 }
 
 impl error::Error for Error {}
@@ -31,8 +31,8 @@ impl From< cargo_shim::Error > for Error {
     }
 }
 
-impl From< Box< error::Error > > for Error {
-    fn from( err: Box< error::Error > ) -> Self {
+impl From< Box< dyn error::Error > > for Error {
+    fn from( err: Box< dyn error::Error > ) -> Self {
         Error::Other( err )
     }
 }

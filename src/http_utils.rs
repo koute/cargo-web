@@ -50,9 +50,9 @@ impl From< Mmap > for Body {
     }
 }
 
-pub type ResponseFuture = Box< Future< Item = Response< Body >, Error = hyper::Error > + Send >;
-pub type FnHandler = Box< Fn( Request< hyper::Body > ) -> ResponseFuture + Send + Sync >;
-pub type ServiceFuture = Box< Future< Item = SimpleService, Error = hyper::Error > + Send >;
+pub type ResponseFuture = Box< dyn Future< Item = Response< Body >, Error = hyper::Error > + Send >;
+pub type FnHandler = Box< dyn Fn( Request< hyper::Body > ) -> ResponseFuture + Send + Sync >;
+pub type ServiceFuture = Box< dyn Future< Item = SimpleService, Error = hyper::Error > + Send >;
 
 pub struct SimpleService {
     handler: Arc< FnHandler >

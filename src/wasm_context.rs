@@ -538,7 +538,7 @@ impl Context {
                         next_global_index += 1;
                     }
                 },
-                pw::Section::Export( mut section ) => {
+                pw::Section::Export( section ) => {
                     exports_sections.push( section );
                 },
                 pw::Section::Start( function_index ) => {
@@ -576,7 +576,7 @@ impl Context {
                         ctx.next_function_index += 1;
                     }
                 },
-                pw::Section::Function( mut section ) => {
+                pw::Section::Function( section ) => {
                     // We'll convert it later since those can appear before
                     // the functions themselves are actually defined.
                     function_sections.push( section );
