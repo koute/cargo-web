@@ -7,7 +7,7 @@ use std::ffi::OsString;
 
 use libflate::gzip;
 use tar;
-use sha1::Sha1;
+use sha1::{Sha1, Digest};
 
 #[derive(Debug)]
 pub struct ExecutionStatus {
@@ -106,9 +106,9 @@ pub fn get_sha1sum< P: AsRef< Path > >( path: P ) -> io::Result< String > {
     loop {
         match fp.read( &mut buffer )? {
             0 => break,
-            count => hasher.update( &buffer[ 0..count ] )
+            count => hasher.input( &buffer[ 0..count ] )
         }
     }
 
-    Ok( format!( "{}", hasher.digest() ) )
+    Ok( format!( "{:x}", hasher.result() ) )
 }
