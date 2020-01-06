@@ -250,23 +250,14 @@ pub enum Error {
 }
 
 
-impl error::Error for Error {
-    fn description( &self ) -> &str {
-        match *self {
-            Error::CannotLaunchCargo( _ ) => "cannot launch cargo",
-            Error::CargoFailed( _ ) => "cargo failed",
-            Error::CannotParseCargoOutput( _ ) => "cannot parse cargo output"
-        }
-    }
-}
+impl error::Error for Error {}
 
 impl fmt::Display for Error {
-    fn fmt( &self, formatter: &mut fmt::Formatter ) -> fmt::Result {
-        use std::error::Error as StdError;
+    fn fmt( &self, fmt: &mut fmt::Formatter ) -> fmt::Result {
         match *self {
-            Error::CannotLaunchCargo( ref err ) => write!( formatter, "{}: {}", self.description(), err ),
-            Error::CargoFailed( ref err ) => write!( formatter, "{}: {}", self.description(), err ),
-            Error::CannotParseCargoOutput( ref err ) => write!( formatter, "{}: {}", self.description(), err )
+            Error::CannotLaunchCargo( ref err ) => write!( fmt, "cannot launch cargo: {}", err ),
+            Error::CargoFailed( ref err ) => write!( fmt, "cargo failed: {}", err ),
+            Error::CannotParseCargoOutput( ref err ) => write!( fmt, "cannot parse cargo output: {}", err )
         }
     }
 }

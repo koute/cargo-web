@@ -19,20 +19,13 @@ pub enum ConnectionError {
     WebSocketError( WebSocketError )
 }
 
-impl Error for ConnectionError {
-    fn description( &self ) -> &str {
-        match *self {
-            ConnectionError::FailedToFetchUrl( _ ) => "failed to fetch websocket debugger URL",
-            ConnectionError::WebSocketError( _ ) => "web socket error"
-        }
-    }
-}
+impl Error for ConnectionError {}
 
 impl fmt::Display for ConnectionError {
     fn fmt( &self, fmt: &mut fmt::Formatter ) -> fmt::Result {
         match *self {
-            ConnectionError::FailedToFetchUrl( ref message ) => write!( fmt, "{}: {}", self.description(), message ),
-            ConnectionError::WebSocketError( ref message ) => write!( fmt, "{}: {}", self.description(), message )
+            ConnectionError::FailedToFetchUrl( ref message ) => write!( fmt, "failed to fetch websocket debugger URL: {}", message ),
+            ConnectionError::WebSocketError( ref message ) => write!( fmt, "web socket error: {}", message )
         }
     }
 }
@@ -55,20 +48,13 @@ pub enum CommunicationError {
     Recv( WebSocketError )
 }
 
-impl Error for CommunicationError {
-    fn description( &self ) -> &str {
-        match *self {
-            CommunicationError::Send( _ ) => "error while sending web socket message",
-            CommunicationError::Recv( _ ) => "error while receiving web socket message"
-        }
-    }
-}
+impl Error for CommunicationError {}
 
 impl fmt::Display for CommunicationError {
     fn fmt( &self, fmt: &mut fmt::Formatter ) -> fmt::Result {
         match *self {
-            CommunicationError::Send( ref message ) => write!( fmt, "{}: {}", self.description(), message ),
-            CommunicationError::Recv( ref message ) => write!( fmt, "{}: {}", self.description(), message )
+            CommunicationError::Send( ref message ) => write!( fmt, "error while sending web socket message: {}", message ),
+            CommunicationError::Recv( ref message ) => write!( fmt, "error while receiving web socket message: {}", message )
         }
     }
 }
@@ -81,24 +67,15 @@ pub enum ReplyError {
     CommunicationError( CommunicationError )
 }
 
-impl Error for ReplyError {
-    fn description( &self ) -> &str {
-        match *self {
-            ReplyError::Timeout => "timeout while waiting for reply",
-            ReplyError::MalformedMessage( _ ) => "received malformed message",
-            ReplyError::MalformedJson( _ ) => "received malformed JSON",
-            ReplyError::CommunicationError( _ ) => "communication error"
-        }
-    }
-}
+impl Error for ReplyError {}
 
 impl fmt::Display for ReplyError {
     fn fmt( &self, fmt: &mut fmt::Formatter ) -> fmt::Result {
         match *self {
-            ReplyError::Timeout => write!( fmt, "{}", self.description() ),
-            ReplyError::MalformedMessage( ref error ) => write!( fmt, "{}: {}", self.description(), error ),
-            ReplyError::MalformedJson( ref error ) => write!( fmt, "{}: {}", self.description(), error ),
-            ReplyError::CommunicationError( ref error ) => write!( fmt, "{}: {}", self.description(), error )
+            ReplyError::Timeout => write!( fmt, "timeout while waiting for reply" ),
+            ReplyError::MalformedMessage( ref error ) => write!( fmt, "received malformed message: {}", error ),
+            ReplyError::MalformedJson( ref error ) => write!( fmt, "received malformed JSON: {}", error ),
+            ReplyError::CommunicationError( ref error ) => write!( fmt, "communication error: {}", error )
         }
     }
 }
