@@ -1,5 +1,5 @@
 use serde_json::{self, Value};
-use serde::ser;
+use serde::{Deserialize, ser};
 
 pub use super::rustc_diagnostic::Diagnostic;
 pub use cargo_metadata::Target;
@@ -67,17 +67,21 @@ pub enum CargoOutput {
 
 impl CargoOutput {
     pub fn parse( string: &str ) -> Option< CargoOutput > {
-        let json: Value = serde_json::from_str( &string ).expect( "failed to parse cargo output as JSON" );
+        let mut deserializer = serde_json::Deserializer::from_str( string );
+        deserializer.disable_recursion_limit();
+        let deserializer = serde_stacker::Deserializer::new( &mut deserializer );
+        let json = serde_json::Value::deserialize( deserializer ).expect( "failed to parse cargo output" );
+
         let reason = json.get( "reason" ).expect( "missing `reason` field in cargo output" ).as_str().expect( "`reason` field is not a string" );
         let output = match reason {
             "compiler-message" => {
-                CargoOutput::Message( serde_json::from_str( &string ).expect( "failed to parse compiler message" ) )
+                CargoOutput::Message( serde_json::from_value( json ).expect( "failed to parse compiler message" ) )
             },
             "compiler-artifact" => {
-                CargoOutput::Artifact( serde_json::from_str( &string ).expect( "failed to parse compiler artifact" ) )
+                CargoOutput::Artifact( serde_json::from_value( json ).expect( "failed to parse compiler artifact" ) )
             },
             "build-script-executed" => {
-                CargoOutput::BuildScriptExecuted( serde_json::from_str( &string ).expect( "failed to parse build script result" ) )
+                CargoOutput::BuildScriptExecuted( serde_json::from_value( json ).expect( "failed to parse build script result" ) )
             },
             _ => return None
         };
