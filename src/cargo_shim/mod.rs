@@ -820,9 +820,7 @@ impl BuildConfig {
                 continue;
             }
 
-            let json: serde_json::Value = serde_json::from_str( &line ).expect( "failed to parse cargo output" );
-            let line = serde_json::to_string_pretty( &json ).unwrap();
-            if let Some( output ) = CargoOutput::parse( &line ) {
+            if let Some( output ) = CargoOutput::parse( line ) {
                 match output {
                     CargoOutput::Message( message ) => {
                         match self.message_format {
