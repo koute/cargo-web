@@ -412,7 +412,12 @@ impl CargoProject {
 
                 let mut dependency_found = false;
                 for dependency in package.dependencies.iter_mut().filter( |dep| dep.name == dependency_id.name() ) {
-                    assert!( dependency.resolved_to.is_none(), "duplicate dependency" );
+                    assert!(
+                        dependency.resolved_to.is_none(),
+                        "duplicate dependency {:?}, {:?}",
+                        dependency.resolved_to,
+                        dependency_id
+                    );
                     dependency.resolved_to = Some( dependency_id.clone() );
                     dependency_found = true;
                 }
