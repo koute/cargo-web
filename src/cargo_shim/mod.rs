@@ -899,10 +899,10 @@ impl BuildConfig {
                             let wasm_path = {
                                 let main_artifact = Path::new( &artifacts[ artifact_index ].filenames[ filename_index ] );
                                 let filename = main_artifact.file_name().unwrap();
-                                main_artifact.parent().unwrap().join( "deps" ).join( filename ).with_extension( "wasm" )
+                                main_artifact.parent().unwrap().join( filename ).with_extension( "wasm" )
                             };
 
-                            assert!( wasm_path.exists(), "internal error: wasm doesn't exist where I expected it to be" );
+                            assert!(wasm_path.exists(), "internal error: wasm doesn't exist at {:?}", wasm_path);
                             artifacts[ artifact_index ].filenames.push( wasm_path.to_str().unwrap().to_owned() );
                             debug!( "Found `.wasm` test artifact: {:?}", wasm_path );
                         }
