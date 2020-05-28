@@ -299,6 +299,12 @@ impl CargoProject {
             command.arg( "--all-features" );
         }
 
+        let features = features
+            .iter()
+            .filter(|f| !f.is_empty())
+            .cloned()
+            .collect::<Vec<_>>();
+
         if !features.is_empty() {
             command.arg( "--features" );
             command.arg( &features.join( " " ) );
@@ -697,8 +703,13 @@ impl BuildConfig {
         if self.enable_all_features {
             command.arg( "--all-features" );
         }
+        
+        let features = self.features
+            .iter()
+            .filter(|f| !f.is_empty())
+            .collect::<Vec<_>>();
 
-        if !self.features.is_empty() {
+        if !features.is_empty() {
             command.arg( "--features" );
             command.arg( &self.features.join( " " ) );
         }
