@@ -34,6 +34,7 @@ const DEFAULT_INDEX_HTML_TEMPLATE: &'static str = r#"<!DOCTYPE html>
                 }
 
                 var canvas = document.createElement( 'canvas' );
+                canvas.setAttribute('id', 'canvas');
                 document.querySelector( 'body' ).appendChild( canvas );
                 __cargo_web.canvas = canvas;
 
